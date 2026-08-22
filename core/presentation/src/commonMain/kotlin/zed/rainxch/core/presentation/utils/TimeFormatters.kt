@@ -5,6 +5,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
+import zed.rainxch.core.domain.utils.DeviceLocalTime
 import zed.rainxch.githubstore.core.presentation.res.*
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -107,10 +108,12 @@ fun formatRelativeLong(isoInstant: String): String {
 }
 
 @OptIn(ExperimentalTime::class)
-fun formatIsoDate(isoTimestamp: String?): String? {
-    val instant = isoTimestamp?.let { parseIsoInstantLenient(it) } ?: return null
-    return instant.toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
-}
+fun formatIsoDate(isoTimestamp: String?): String? =
+    DeviceLocalTime.toDeviceLocalDate(isoTimestamp)
+        ?: isoTimestamp?.let { parseIsoInstantLenient(it) }
+            ?.toLocalDateTime(TimeZone.currentSystemDefault())
+            ?.date
+            ?.toString()
 
 @OptIn(ExperimentalTime::class)
 fun formatEpochDate(timestamp: Long): String? {

@@ -40,6 +40,7 @@ import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
 import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.core.domain.model.account.github.GithubRelease
+import zed.rainxch.core.domain.utils.DeviceLocalTime
 import zed.rainxch.core.domain.utils.applyThemeAwareImages
 import zed.rainxch.core.presentation.components.markdown.MarkdownImageTransformer
 import zed.rainxch.core.presentation.components.markdown.githubStoreMarkdownComponents
@@ -104,7 +105,8 @@ fun LazyListScope.whatsNew(
                 uppercase = false,
             )
             KomiText(
-                text = release.publishedAt.take(10),
+                text = DeviceLocalTime.toDeviceLocalDate(release.publishedAt)
+                    ?: release.publishedAt.take(10),
                 role = KomiTextRole.Label,
                 fontSize = 12.sp,
                 color = colors.onSurfaceVariant,

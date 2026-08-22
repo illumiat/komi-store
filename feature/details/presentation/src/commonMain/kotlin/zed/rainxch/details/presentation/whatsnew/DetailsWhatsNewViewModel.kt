@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
 import zed.rainxch.core.domain.model.account.github.GithubRelease
+import zed.rainxch.core.domain.utils.DeviceLocalTime
 import zed.rainxch.details.domain.repository.DetailsRepository
 import zed.rainxch.details.domain.repository.TranslationRepository
 import zed.rainxch.details.presentation.model.SupportedLanguages
@@ -168,7 +169,8 @@ class DetailsWhatsNewViewModel(
             WhatsNewReleaseUi(
                 id = release.id,
                 tagName = release.tagName,
-                publishedDate = release.publishedAt.take(10),
+                publishedDate = DeviceLocalTime.toDeviceLocalDate(release.publishedAt)
+                    ?: release.publishedAt.take(10),
                 body = body,
             )
         }.toImmutableList()

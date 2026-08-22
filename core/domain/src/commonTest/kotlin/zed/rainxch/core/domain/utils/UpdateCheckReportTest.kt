@@ -27,6 +27,7 @@ class UpdateCheckReportTest {
                 matchedPublishedAt = "2026-08-19T16:08:17Z",
                 codesAlreadyMatch = false,
                 isUpdate = false,
+                timeZone = DeviceLocalTime.utcOffsetHours(8),
             ).format()
 
         assertContains(report, "usedTimestampLogic=true")
@@ -34,7 +35,10 @@ class UpdateCheckReportTest {
         assertContains(report, "reason=timestamp_not_newer")
         assertContains(report, "matchedTag=nightly")
         assertContains(report, "storedPublishedAt=2026-08-19T16:08:17Z")
+        assertContains(report, "storedPublishedAtLocal=2026-08-20 00:08:17")
         assertContains(report, "matchedPublishedAt=2026-08-19T16:08:17Z")
+        assertContains(report, "matchedPublishedAtLocal=2026-08-20 00:08:17")
+        assertContains(report, "deviceTimeZone=")
         assertContains(report, "isUpdate=false")
         assertTrue(report.startsWith("usedTimestampLogic="))
     }
@@ -85,11 +89,42 @@ class UpdateCheckReportTest {
                 matchedPublishedAt = null,
                 codesAlreadyMatch = false,
                 isUpdate = false,
+                timeZone = DeviceLocalTime.utcOffsetHours(8),
             ).format()
 
         assertContains(report, "branch=empty_window")
         assertContains(report, "windowSource=backend_blocked")
         assertContains(report, "windowSize=0")
-        assertEquals(17, report.lines().count())
+        assertContains(report, "storedPublishedAtLocal=2026-08-18 08:00:00")
+        assertContains(report, "matchedPublishedAtLocal=null")
+        assertEquals(20, report.lines().count())
+    }
+
+    @Test
+    fun local_fields_keep_utc_original_and_use_device_offset() {
+        val report =
+            UpdateCheckReport(
+                usedTimestampLogic = true,
+                branch = "timestamp",
+                reason = "timestamp_not_newer",
+                windowSource = "github",
+                windowSize = 1,
+                includePreReleases = true,
+                opaqueMatched = true,
+                sameTag = true,
+                reconcilable = false,
+                installedTag = "nightly",
+                matchedTag = "nightly",
+                storedPublishedAt = "2026-08-21T18:49:24Z",
+                matchedPublishedAt = "2026-08-21T18:49:24Z",
+                codesAlreadyMatch = false,
+                isUpdate = false,
+                timeZone = DeviceLocalTime.utcOffsetHours(8),
+            ).format()
+
+        assertContains(report, "matchedPublishedAt=2026-08-21T18:49:24Z")
+        assertContains(report, "matchedPublishedAtLocal=2026-08-22 02:49:24")
+        assertContains(report, "storedPublishedAt=2026-08-21T18:49:24Z")
+        assertContains(report, "storedPublishedAtLocal=2026-08-22 02:49:24")
     }
 }

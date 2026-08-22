@@ -33,6 +33,7 @@ import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.account.github.isEffectivelyPreRelease
 import zed.rainxch.core.domain.model.account.github.preReleaseLabel
+import zed.rainxch.core.domain.utils.DeviceLocalTime
 import zed.rainxch.core.presentation.components.dividers.KomiHorizontalDivider
 import zed.rainxch.core.presentation.components.icon.KomiIcon
 import zed.rainxch.core.presentation.components.overlays.KomiSheet
@@ -251,7 +252,8 @@ private fun VersionListItem(
                 }
             }
             KomiText(
-                text = release.publishedAt.take(10),
+                text = DeviceLocalTime.toDeviceLocalDate(release.publishedAt)
+                    ?: release.publishedAt.take(10),
                 role = KomiTextRole.Label,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,

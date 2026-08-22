@@ -1,5 +1,7 @@
 package zed.rainxch.core.domain.utils
 
+import kotlinx.datetime.TimeZone
+
 data class UpdateCheckReport(
     val usedTimestampLogic: Boolean,
     val branch: String,
@@ -18,9 +20,12 @@ data class UpdateCheckReport(
     val matchedPublishedAt: String?,
     val codesAlreadyMatch: Boolean,
     val isUpdate: Boolean,
+    val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) {
-    fun format(): String =
-        listOf(
+    fun format(): String {
+        val storedLocal = DeviceLocalTime.toDeviceLocal(storedPublishedAt, timeZone)
+        val matchedLocal = DeviceLocalTime.toDeviceLocal(matchedPublishedAt, timeZone)
+        return listOf(
             "usedTimestampLogic=$usedTimestampLogic",
             "branch=$branch",
             "reason=$reason",
@@ -35,8 +40,12 @@ data class UpdateCheckReport(
             "matchedAssetName=${matchedAssetName ?: "null"}",
             "matchedAssetUrl=${matchedAssetUrl ?: "null"}",
             "storedPublishedAt=${storedPublishedAt ?: "null"}",
+            "storedPublishedAtLocal=${storedLocal?.localDateTime ?: "null"}",
             "matchedPublishedAt=${matchedPublishedAt ?: "null"}",
+            "matchedPublishedAtLocal=${matchedLocal?.localDateTime ?: "null"}",
+            "deviceTimeZone=${timeZone.id}",
             "codesAlreadyMatch=$codesAlreadyMatch",
             "isUpdate=$isUpdate",
         ).joinToString("\n")
+    }
 }
