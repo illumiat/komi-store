@@ -221,7 +221,11 @@ class AutoUpdateWorker(
             installer.install(filePath, ext)
         } catch (e: Exception) {
             systemInstallSerializer.markCompleted(app.packageName)
-            installedAppsRepository.updatePendingStatus(app.packageName, false)
+            // The install never landed — restore the exact pre-parking row so
+            // the latest snapshot parked above doesn't survive as bookkeeping
+            // for a version that isn't installed. The pending flag is included
+            // in the restored snapshot, so no separate clear is needed.
+            currentApp?.let { installedAppsRepository.updateApp(it) }
             throw e
         }
 

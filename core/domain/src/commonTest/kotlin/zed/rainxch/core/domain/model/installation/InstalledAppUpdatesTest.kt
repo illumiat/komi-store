@@ -46,7 +46,7 @@ class InstalledAppUpdatesTest {
         systemArchitecture = "arm64-v8a",
         fileExtension = "apk",
         isPendingInstall = isPendingInstall,
-        installedVersionName = "1.0.0",
+        installedVersionName = installedVersion,
         installedVersionCode = 100L,
         latestVersionName = "2.0.0",
         latestVersionCode = latestVersionCode,
@@ -186,6 +186,107 @@ class InstalledAppUpdatesTest {
             versionCode = 200L,
         )
         assertTrue(result.isUpdateAvailable)
+    }
+
+    // ── resolvePendingFromSystem claim guard (no evidence → keep old tag) ─
+
+    @Test
+    fun resolvePendingRejectsClaimWhenSystemCodeBelowTarget() {
+        // installer cancelled: parked target beta.24 (code 18365) but the
+        // physically installed build is still the old beta.23 (code 18357)
+        val result = app(
+            installedVersion = "3.26.16-beta.23",
+            latestVersion = "3.26.16-beta.24",
+            latestVersionCode = 18365L,
+            isUpdateAvailable = true,
+            isPendingInstall = true,
+        ).resolvePendingFromSystem(
+            resolvedTag = "3.26.16-beta.24",
+            versionName = "3.26.16-beta.23",
+            versionCode = 18357L,
+        )
+        // tag stays truthful, observation is refreshed, offer stays retryable
+        assertEquals("3.26.16-beta.23", result.installedVersion)
+        assertEquals("3.26.16-beta.23", result.installedVersionName)
+        assertEquals(18357L, result.installedVersionCode)
+        assertFalse(result.isPendingInstall)
+        assertTrue(result.isUpdateAvailable)
+        // check zone untouched — fixture default latestVersion is "2.0.0"
+        assertEquals("3.26.16-beta.24", result.latestVersion)
+        assertEquals("2026-08-01T00:00:00Z", result.latestReleasePublishedAt)
+    }
+
+    @Test
+    fun resolvePendingClaimsTagWhenSystemCodeReachesTarget() {
+        val result = app(isPendingInstall = true).resolvePendingFromSystem(
+            resolvedTag = "2.0.0",
+            versionName = "2.0.0",
+            versionCode = 200L,
+        )
+        assertEquals("2.0.0", result.installedVersion)
+        assertFalse(result.isPendingInstall)
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun resolvePendingClaimsTagWhenSystemCodeExceedsTarget() {
+        // system built newer than the parked target — install certainly landed
+        val result = app(isPendingInstall = true).resolvePendingFromSystem(
+            resolvedTag = "2.0.0",
+            versionName = "2.0.1",
+            versionCode = 210L,
+        )
+        assertEquals("2.0.0", result.installedVersion)
+        assertEquals(210L, result.installedVersionCode)
+        assertFalse(result.isPendingInstall)
+        // system (210) is ahead of the tracked latest (200) — nothing newer known
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun resolvePendingWithoutCodeEvidenceFallsBackToNameMatch() {
+        // target code unknown (0) — claim only if versionName matches the tag
+        val noMatch = app(
+            installedVersion = "1.0.0",
+            latestVersion = "2.0.0",
+            latestVersionCode = null,
+            isPendingInstall = true,
+        ).resolvePendingFromSystem(
+            resolvedTag = "2.0.0",
+            versionName = "1.5.0",
+            versionCode = 150L,
+        )
+        assertEquals("1.0.0", noMatch.installedVersion)
+        assertTrue(noMatch.isUpdateAvailable)
+
+        val matched = app(
+            installedVersion = "1.0.0",
+            latestVersion = "2.0.0",
+            latestVersionCode = null,
+            isPendingInstall = true,
+        ).resolvePendingFromSystem(
+            resolvedTag = "2.0.0",
+            versionName = "2.0.0",
+            versionCode = 200L,
+        )
+        assertEquals("2.0.0", matched.installedVersion)
+        assertFalse(matched.isPendingInstall)
+    }
+
+    @Test
+    fun resolvePendingWithoutCodeEvidenceAndNullNameKeepsTag() {
+        val result = app(
+            installedVersion = "1.0.0",
+            latestVersion = "2.0.0",
+            latestVersionCode = null,
+            isPendingInstall = true,
+        ).resolvePendingFromSystem(
+            resolvedTag = "2.0.0",
+            versionName = null,
+            versionCode = 150L,
+        )
+        assertEquals("1.0.0", result.installedVersion)
+        assertFalse(result.isPendingInstall)
     }
 
     // ── observeExternalInstall (observe zone) ────────────────────────────

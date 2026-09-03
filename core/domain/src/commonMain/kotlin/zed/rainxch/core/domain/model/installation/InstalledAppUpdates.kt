@@ -80,10 +80,21 @@ fun InstalledApp.confirmInstall(
 }
 
 /**
- * Resolves a pending install from a system package observation: the parked
- * version is now physically installed. Adopts [resolvedTag] as the installed
- * tag, refreshes versionName/Code from the system and recomputes
- * [InstalledApp.isUpdateAvailable] from version codes.
+ * Resolves a pending install from a system package observation.
+ *
+ * The parked target tag ([resolvedTag]) is adopted as the installed tag ONLY
+ * when the system provides evidence the target actually landed:
+ *  - the target's version code is known and the system code reached it, or
+ *  - the target's code is unknown and the system version name matches the
+ *    target tag exactly.
+ *
+ * Without that evidence (installer cancelled, older build physically
+ * installed, verification impossible) the previously installed tag is KEPT —
+ * the baseline stays truthful — and only the system-observed
+ * versionName/Code are refreshed. [InstalledApp.isUpdateAvailable] keeps its
+ * previous value in that case so the update offer stays retryable; the next
+ * update check recomputes it anyway. Never touches
+ * [InstalledApp.latestReleasePublishedAt] (check zone owns it).
  */
 fun InstalledApp.resolvePendingFromSystem(
     resolvedTag: String,
@@ -91,13 +102,27 @@ fun InstalledApp.resolvePendingFromSystem(
     versionCode: Long,
 ): InstalledApp {
     val latestCode = latestVersionCode ?: 0L
-    return copy(
-        isPendingInstall = false,
-        installedVersion = resolvedTag,
-        installedVersionName = versionName,
-        installedVersionCode = versionCode,
-        isUpdateAvailable = latestCode > versionCode,
-    )
+    val targetLanded =
+        (latestCode > 0L && versionCode >= latestCode) ||
+            (latestCode <= 0L && versionName != null &&
+                VersionMath.isExactSameVersion(versionName, resolvedTag))
+
+    return if (targetLanded) {
+        copy(
+            isPendingInstall = false,
+            installedVersion = resolvedTag,
+            installedVersionName = versionName,
+            installedVersionCode = versionCode,
+            isUpdateAvailable = latestCode > versionCode,
+        )
+    } else {
+        copy(
+            isPendingInstall = false,
+            installedVersionName = versionName,
+            installedVersionCode = versionCode,
+            isUpdateAvailable = isUpdateAvailable,
+        )
+    }
 }
 
 /**
