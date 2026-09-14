@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -272,8 +273,13 @@ fun DetailsRoot(
                                 viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
                             },
                             label = stringResource(Res.string.install_anyway),
-                            variant = KomiButtonVariant.Text,
+                            variant = KomiButtonVariant.Primary,
                             size = KomiButtonSize.Sm,
+                            // Fixed blue: the accent may itself be red (CRIMSON is B3261E,
+                            // the error colour is BA1A1A), which would make the safe
+                            // action look like the destructive one.
+                            containerColor = Color(0xFF3B5BDB),
+                            contentColor = Color.White,
                         )
                     }
                 }

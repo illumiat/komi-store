@@ -79,6 +79,11 @@ fun KomiButton(
     fullWidth: Boolean = false,
     leadingIcon: ImageVector? = null,
     trailingIcon: ImageVector? = null,
+    // Fixed colours, for actions whose meaning must not follow the accent — an accent
+    // can be chosen close to the error colour, which would make a themed fill read as
+    // danger. Unspecified keeps the themed appearance.
+    containerColor: Color = Color.Unspecified,
+    contentColor: Color = Color.Unspecified,
 ) {
     when (val personality = LocalPersonality.current) {
         is MangaPersonality -> {
@@ -95,6 +100,8 @@ fun KomiButton(
                 fullWidth = fullWidth,
                 leadingIcon = leadingIcon,
                 trailingIcon = trailingIcon,
+                containerColor = containerColor,
+                contentColor = contentColor,
             )
         }
 
@@ -111,6 +118,8 @@ fun KomiButton(
                 fullWidth = fullWidth,
                 leadingIcon = leadingIcon,
                 trailingIcon = trailingIcon,
+                containerColor = containerColor,
+                contentColor = contentColor,
             )
         }
     }
@@ -130,6 +139,8 @@ private fun MangaButton(
     fullWidth: Boolean,
     leadingIcon: ImageVector?,
     trailingIcon: ImageVector?,
+    containerColor: Color,
+    contentColor: Color,
 ) {
     val colors = personality.colors
     val metrics = buttonMetrics(size)
@@ -140,8 +151,10 @@ private fun MangaButton(
 
     val flat = variant == KomiButtonVariant.Text
     val ambientInk = LocalContentColor.current
-    val container = mangaButtonContainer(variant, colors)
-    val contentColor = mangaButtonContent(variant, colors, ambientInk)
+    val container =
+        if (containerColor != Color.Unspecified) containerColor else mangaButtonContainer(variant, colors)
+    val contentColor =
+        if (contentColor != Color.Unspecified) contentColor else mangaButtonContent(variant, colors, ambientInk)
     val borderColor = if (container == Color.Transparent) contentColor else colors.outline
     val stamped = !flat && container != Color.Transparent
     val sweep =
@@ -234,6 +247,8 @@ private fun ClassicButton(
     fullWidth: Boolean,
     leadingIcon: ImageVector?,
     trailingIcon: ImageVector?,
+    containerColor: Color,
+    contentColor: Color,
 ) {
     val colors = personality.colors
     val metrics = buttonMetrics(size)
@@ -264,6 +279,15 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors =
+                    if (containerColor != Color.Unspecified || contentColor != Color.Unspecified) {
+                        ButtonDefaults.buttonColors(
+                            containerColor = containerColor,
+                            contentColor = contentColor,
+                        )
+                    } else {
+                        ButtonDefaults.buttonColors()
+                    },
                 content = content,
             )
         }
