@@ -311,6 +311,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">卸载</string>
     <string name="open_app">打开</string>
+    <string name="downgrade_warning_title">所选版本较旧</string>
+    <string name="downgrade_warning_message">%1$s 低于已安装的 %2$s。\nAndroid 可能会拒绝安装更低的版本。\n若被拒绝，已装的 %2$s 不受影响。</string>
+    <string name="downgrade_warning_uninstall_note">卸载 %1$s 会删除其应用数据。</string>
     <string name="uninstall_first">先卸载</string>
     <string name="install_version">安装 %1$s</string>
     <string name="failed_to_open_app">无法打开 %1$s</string>

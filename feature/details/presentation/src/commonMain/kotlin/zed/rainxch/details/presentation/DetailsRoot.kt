@@ -90,6 +90,8 @@ import zed.rainxch.githubstore.core.presentation.res.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
+import androidx.compose.foundation.layout.Column
+import zed.rainxch.core.presentation.locals.LocalPersonality
 
 @Composable
 fun DetailsRoot(
@@ -216,48 +218,65 @@ fun DetailsRoot(
                 )
             },
             text = {
-                KomiText(
-                    text =
-                        stringResource(
-                            Res.string.downgrade_warning_message,
-                            warning.targetVersion,
-                            warning.currentVersion,
-                        ),
-                    role = KomiTextRole.Body,
-                )
+                val personality = LocalPersonality.current
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    KomiText(
+                        text =
+                            stringResource(
+                                Res.string.downgrade_warning_message,
+                                warning.targetVersion,
+                                warning.currentVersion,
+                            ),
+                        role = KomiTextRole.Body,
+                    )
+                    KomiText(
+                        text =
+                            stringResource(
+                                Res.string.downgrade_warning_uninstall_note,
+                                warning.currentVersion,
+                            ),
+                        role = KomiTextRole.Body,
+                        color = personality.colors.error,
+                    )
+                }
             },
+            // Cancel sits at the card's start; the two actions are grouped at its end.
+            // KomiDialog only offers dismiss/confirm slots, so all three share one
+            // full-width row to keep the split identical in both personalities.
             confirmButton = {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     KomiButton(
                         onClick = {
                             viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
-                            viewModel.onAction(DetailsAction.UninstallApp)
                         },
-                        label = stringResource(Res.string.uninstall_first),
-                        variant = KomiButtonVariant.Destructive,
+                        label = stringResource(Res.string.cancel),
+                        variant = KomiButtonVariant.Text,
                         size = KomiButtonSize.Sm,
                     )
-                    KomiButton(
-                        onClick = {
-                            viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
-                        },
-                        label = stringResource(Res.string.install_anyway),
-                        variant = KomiButtonVariant.Primary,
-                        size = KomiButtonSize.Sm,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        KomiButton(
+                            onClick = {
+                                viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
+                                viewModel.onAction(DetailsAction.UninstallApp)
+                            },
+                            label = stringResource(Res.string.uninstall_first),
+                            variant = KomiButtonVariant.Destructive,
+                            size = KomiButtonSize.Sm,
+                        )
+                        KomiButton(
+                            onClick = {
+                                viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
+                            },
+                            label = stringResource(Res.string.install_anyway),
+                            variant = KomiButtonVariant.Primary,
+                            size = KomiButtonSize.Sm,
+                        )
+                    }
                 }
-            },
-            dismissButton = {
-                KomiButton(
-                    onClick = {
-                        viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
-                    },
-                    label = stringResource(Res.string.cancel),
-                    variant = KomiButtonVariant.Text,
-                    size = KomiButtonSize.Sm,
-                )
             },
         )
     }
