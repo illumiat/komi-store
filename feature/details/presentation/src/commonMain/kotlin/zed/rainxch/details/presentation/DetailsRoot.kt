@@ -236,7 +236,7 @@ fun DetailsRoot(
                             viewModel.onAction(DetailsAction.UninstallApp)
                         },
                         label = stringResource(Res.string.uninstall_first),
-                        variant = KomiButtonVariant.Text,
+                        variant = KomiButtonVariant.Destructive,
                         size = KomiButtonSize.Sm,
                     )
                     KomiButton(
@@ -244,7 +244,7 @@ fun DetailsRoot(
                             viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
                         },
                         label = stringResource(Res.string.install_anyway),
-                        variant = KomiButtonVariant.Text,
+                        variant = KomiButtonVariant.Primary,
                         size = KomiButtonSize.Sm,
                     )
                 }
