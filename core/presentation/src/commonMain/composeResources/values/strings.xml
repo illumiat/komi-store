@@ -231,8 +231,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Uninstall</string>
     <string name="open_app">Open</string>
-    <string name="downgrade_requires_uninstall">Downgrade requires uninstall</string>
-    <string name="downgrade_warning_message">Installing version %1$s requires uninstalling the current version (%2$s) first. Your app data will be lost.</string>
+    <string name="downgrade_warning_title">Older version selected</string>
+    <string name="downgrade_warning_message">%1$s is lower than the %2$s already installed.\nAndroid may refuse to install a lower version.\nIf it does, the installed %2$s is left as it is.</string>
+    <string name="downgrade_warning_uninstall_note">Uninstalling %1$s erases its app data.</string>
     <string name="uninstall_first">Uninstall first</string>
     <string name="signing_key_changed_title">Signing key changed</string>
     <string name="signing_key_changed_message">The signing certificate for this app has changed since it was first installed.\n\nThis could mean the developer rotated their signing key, or the binary may have been tampered with.\n\nExpected: %1$s\nReceived: %2$s</string>

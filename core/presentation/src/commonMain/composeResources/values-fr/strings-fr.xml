@@ -310,8 +310,6 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Désinstaller</string>
     <string name="open_app">Ouvrir</string>
-    <string name="downgrade_requires_uninstall">La rétrogradation nécessite la désinstallation</string>
-    <string name="downgrade_warning_message">L'installation de la version %1$s nécessite la désinstallation de la version actuelle (%2$s). Les données de l'application seront perdues.</string>
     <string name="uninstall_first">Désinstaller d'abord</string>
     <string name="install_version">Installer %1$s</string>
     <string name="failed_to_open_app">Impossible d'ouvrir %1$s</string>

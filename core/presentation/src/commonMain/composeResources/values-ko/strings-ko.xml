@@ -337,8 +337,6 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">제거</string>
     <string name="open_app">열기</string>
-    <string name="downgrade_requires_uninstall">다운그레이드를 위해 제거가 필요합니다</string>
-    <string name="downgrade_warning_message">버전 %1$s을(를) 설치하려면 현재 버전(%2$s)을 먼저 제거해야 합니다. 앱 데이터가 삭제됩니다.</string>
     <string name="uninstall_first">먼저 제거</string>
     <string name="install_version">%1$s 설치</string>
     <string name="failed_to_open_app">%1$s 열기 실패</string>

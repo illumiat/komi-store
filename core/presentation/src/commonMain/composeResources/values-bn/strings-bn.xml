@@ -339,8 +339,6 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">আনইনস্টল</string>
     <string name="open_app">খুলুন</string>
-    <string name="downgrade_requires_uninstall">ডাউনগ্রেডের জন্য আনইনস্টল প্রয়োজন</string>
-    <string name="downgrade_warning_message">সংস্করণ %1$s ইনস্টল করতে বর্তমান সংস্করণ (%2$s) প্রথমে আনইনস্টল করতে হবে। অ্যাপের ডেটা মুছে যাবে।</string>
     <string name="uninstall_first">প্রথমে আনইনস্টল করুন</string>
     <string name="install_version">%1$s ইনস্টল করুন</string>
     <string name="failed_to_open_app">%1$s খুলতে ব্যর্থ</string>
