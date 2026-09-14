@@ -38,7 +38,13 @@ object VersionHelper {
         if (candidateIndex != -1 && currentIndex != -1) {
             return candidateIndex > currentIndex
         }
-        return cmp < 0
+        // Neither tag could be placed in the release list, so there is no ordering to
+        // prove. The old `cmp < 0` fallback guessed anyway by comparing raw strings —
+        // and "2.0.2" sorts below "nightly", so an opaque tag whose Release was deleted
+        // (the CI rolling-tag pattern) made every stable release look like a downgrade
+        // and leaving the nightly channel demanded an uninstall. Defer to the platform,
+        // which rejects a genuine downgrade on install.
+        return false
     }
 
     fun compareSemanticVersions(
