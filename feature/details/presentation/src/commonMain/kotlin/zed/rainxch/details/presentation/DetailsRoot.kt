@@ -360,7 +360,7 @@ fun DetailsRoot(
                         viewModel.onAction(DetailsAction.OnConfirmUninstall)
                     },
                     label = stringResource(Res.string.uninstall),
-                    variant = KomiButtonVariant.Text,
+                    variant = KomiButtonVariant.Destructive,
                     size = KomiButtonSize.Sm,
                 )
             },
