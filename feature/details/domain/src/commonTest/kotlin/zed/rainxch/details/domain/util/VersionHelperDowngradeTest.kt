@@ -30,8 +30,6 @@ class VersionHelperDowngradeTest {
 
     @Test
     fun stable_is_not_a_downgrade_when_the_nightly_release_is_gone() {
-        // The reported case: `nightly` still exists as a git tag but its Release was
-        // deleted, so it is absent from the list and string comparison used to decide.
         assertFalse(
             VersionHelper.isDowngradeVersion(
                 candidate = "2.0.2",
@@ -54,8 +52,6 @@ class VersionHelperDowngradeTest {
 
     @Test
     fun a_live_rolling_tag_still_proves_the_stable_release_older() {
-        // When the rolling Release does exist and is newer by chronology, the position
-        // comparison has real evidence and the warning is correct — that path must stay.
         val withRolling = listOf(
             release("nightly", "2026-09-15T02:00:00Z"),
             release("2.0.2", "2026-09-13T13:12:13Z"),
@@ -72,8 +68,7 @@ class VersionHelperDowngradeTest {
 
     @Test
     fun picking_an_older_legacy_alpha_is_still_a_downgrade() {
-        // Alpha4.7.4 parses as Unknown too, but it is present in the list, so the
-        // position comparison still proves it older — that guard must survive.
+        // Alpha4.7.4 parses as Unknown, but it is in the list, so position still decides.
         assertTrue(
             VersionHelper.isDowngradeVersion(
                 candidate = "Alpha4.7.4",

@@ -79,9 +79,8 @@ fun KomiButton(
     fullWidth: Boolean = false,
     leadingIcon: ImageVector? = null,
     trailingIcon: ImageVector? = null,
-    // Fixed colours, for actions whose meaning must not follow the accent — an accent
-    // can be chosen close to the error colour, which would make a themed fill read as
-    // danger. Unspecified keeps the themed appearance.
+    // Fixed colours for actions whose meaning must not follow the accent, which can be
+    // chosen close to the error colour. Unspecified keeps the themed appearance.
     containerColor: Color = Color.Unspecified,
     contentColor: Color = Color.Unspecified,
 ) {
