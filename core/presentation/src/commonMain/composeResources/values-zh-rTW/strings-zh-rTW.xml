@@ -311,8 +311,6 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">解除安裝</string>
     <string name="open_app">開啟</string>
-    <string name="downgrade_requires_uninstall">降級需要先解除安裝</string>
-    <string name="downgrade_warning_message">安裝版本 %1$s 需要先解除安裝當前版本（%2$s）。應用資料將丟失。</string>
     <string name="uninstall_first">先解除安裝</string>
     <string name="install_version">安裝 %1$s</string>
     <string name="failed_to_open_app">無法開啟 %1$s</string>

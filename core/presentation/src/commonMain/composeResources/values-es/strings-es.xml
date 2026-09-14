@@ -310,8 +310,6 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Desinstalar</string>
     <string name="open_app">Abrir</string>
-    <string name="downgrade_requires_uninstall">La degradación requiere desinstalar</string>
-    <string name="downgrade_warning_message">Instalar la versión %1$s requiere desinstalar la versión actual (%2$s) primero. Los datos de la app se perderán.</string>
     <string name="uninstall_first">Desinstalar primero</string>
     <string name="install_version">Instalar %1$s</string>
     <string name="failed_to_open_app">Error al abrir %1$s</string>
