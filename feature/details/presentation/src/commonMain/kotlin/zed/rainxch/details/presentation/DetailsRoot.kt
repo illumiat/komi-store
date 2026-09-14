@@ -241,9 +241,8 @@ fun DetailsRoot(
                     )
                 }
             },
-            // Cancel sits at the card's start; the two actions are grouped at its end.
-            // KomiDialog only offers dismiss/confirm slots, so all three share one
-            // full-width row to keep the split identical in both personalities.
+            // KomiDialog only offers dismiss/confirm slots, so all three actions share one
+            // row to keep cancel at the start and the two choices grouped at the end.
             confirmButton = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -275,9 +274,8 @@ fun DetailsRoot(
                             label = stringResource(Res.string.install_anyway),
                             variant = KomiButtonVariant.Primary,
                             size = KomiButtonSize.Sm,
-                            // Fixed blue: the accent may itself be red (CRIMSON is B3261E,
-                            // the error colour is BA1A1A), which would make the safe
-                            // action look like the destructive one.
+                            // Fixed blue: the accent can itself be red, which would make
+                            // the safe action look like the destructive one.
                             containerColor = Color(0xFF3B5BDB),
                             contentColor = Color.White,
                         )

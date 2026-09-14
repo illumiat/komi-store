@@ -38,12 +38,8 @@ object VersionHelper {
         if (candidateIndex != -1 && currentIndex != -1) {
             return candidateIndex > currentIndex
         }
-        // Neither tag could be placed in the release list, so there is no ordering to
-        // prove. The old `cmp < 0` fallback guessed anyway by comparing raw strings —
-        // and "2.0.2" sorts below "nightly", so an opaque tag whose Release was deleted
-        // (the CI rolling-tag pattern) made every stable release look like a downgrade
-        // and leaving the nightly channel demanded an uninstall. Defer to the platform,
-        // which rejects a genuine downgrade on install.
+        // No ordering evidence, so don't claim a downgrade: the platform rejects a real
+        // one at install, while a wrong guess demanded an uninstall.
         return false
     }
 
