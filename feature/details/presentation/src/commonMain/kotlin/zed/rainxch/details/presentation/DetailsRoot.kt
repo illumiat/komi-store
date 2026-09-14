@@ -272,7 +272,7 @@ fun DetailsRoot(
                                 viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
                             },
                             label = stringResource(Res.string.install_anyway),
-                            variant = KomiButtonVariant.Primary,
+                            variant = KomiButtonVariant.Text,
                             size = KomiButtonSize.Sm,
                         )
                     }
