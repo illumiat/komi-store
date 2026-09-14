@@ -209,7 +209,7 @@ fun DetailsRoot(
             },
             title = {
                 KomiText(
-                    text = stringResource(Res.string.downgrade_requires_uninstall),
+                    text = stringResource(Res.string.downgrade_warning_title),
                     role = KomiTextRole.Title,
                     fontWeight = FontWeight.SemiBold,
                     uppercase = false,
@@ -227,15 +227,27 @@ fun DetailsRoot(
                 )
             },
             confirmButton = {
-                KomiButton(
-                    onClick = {
-                        viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
-                        viewModel.onAction(DetailsAction.UninstallApp)
-                    },
-                    label = stringResource(Res.string.uninstall_first),
-                    variant = KomiButtonVariant.Text,
-                    size = KomiButtonSize.Sm,
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                ) {
+                    KomiButton(
+                        onClick = {
+                            viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
+                            viewModel.onAction(DetailsAction.UninstallApp)
+                        },
+                        label = stringResource(Res.string.uninstall_first),
+                        variant = KomiButtonVariant.Text,
+                        size = KomiButtonSize.Sm,
+                    )
+                    KomiButton(
+                        onClick = {
+                            viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
+                        },
+                        label = stringResource(Res.string.install_anyway),
+                        variant = KomiButtonVariant.Text,
+                        size = KomiButtonSize.Sm,
+                    )
+                }
             },
             dismissButton = {
                 KomiButton(

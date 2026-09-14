@@ -22,6 +22,8 @@ sealed interface DetailsAction {
 
     data object OnDismissDowngradeWarning : DetailsAction
 
+    data object OnConfirmDowngradeInstall : DetailsAction
+
     data object OnDismissSigningKeyWarning : DetailsAction
 
     data object OnOverrideSigningKeyWarning : DetailsAction
