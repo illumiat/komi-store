@@ -26,4 +26,7 @@ data class MainState(
     // False until persisted appearance preferences have loaded (or the load
     // timed out). The first frame must not render before it flips.
     val isAppearanceLoaded: Boolean = false,
+    // Avatar of the account read at startup. Held only so its image can be fetched while the
+    // first screen is on display, which is well before anyone opens the profile tab.
+    val signedInAvatarUrl: String? = null,
 )

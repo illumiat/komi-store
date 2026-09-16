@@ -23,6 +23,7 @@ import zed.rainxch.core.data.dto.UserProfileNetwork
 import zed.rainxch.core.data.mappers.toUserProfile
 import zed.rainxch.core.data.network.executeRequest
 import zed.rainxch.core.domain.logging.KomiStoreLogger
+import zed.rainxch.core.domain.model.account.SessionSnapshot
 import zed.rainxch.core.domain.model.account.UserProfile
 import zed.rainxch.core.domain.repository.UserSessionRepository
 import kotlin.time.Clock
@@ -53,10 +54,39 @@ class UserSessionRepositoryImpl(
 
     override suspend fun isCurrentlyUserLoggedIn(): Boolean = tokenStore.currentToken() != null
 
+    @Volatile
+    private var _lastKnownSession: SessionSnapshot? = null
+
+    override val lastKnownSession: SessionSnapshot? get() = _lastKnownSession
+
+    private fun recordSession(isLoggedIn: Boolean, profile: UserProfile?) {
+        _lastKnownSession = SessionSnapshot(isLoggedIn, profile)
+    }
+
+    override fun clearLastKnownSession() {
+        recordSession(isLoggedIn = false, profile = null)
+    }
+
+    override suspend fun primeSession() {
+        val loggedIn = tokenStore.currentToken() != null
+        val profile =
+            if (loggedIn) {
+                // Stale is acceptable here: showing yesterday's account beats showing a
+                // placeholder, and the normal read replaces it moments later. Never the
+                // network — startup must not wait on GitHub.
+                cacheManager.get<UserProfile>(CACHE_KEY)
+                    ?: cacheManager.getStale<UserProfile>(CACHE_KEY)
+            } else {
+                null
+            }
+        recordSession(loggedIn, profile)
+    }
+
     override fun getUser(): Flow<UserProfile?> = flow {
         val token = tokenStore.currentToken()
         if (token == null) {
             cacheManager.invalidate(CACHE_KEY)
+            recordSession(isLoggedIn = false, profile = null)
             emit(null)
             return@flow
         }
@@ -64,6 +94,7 @@ class UserSessionRepositoryImpl(
         val cached = cacheManager.get<UserProfile>(CACHE_KEY)
         if (cached != null) {
             logger.debug("Profile cache hit")
+            recordSession(isLoggedIn = true, profile = cached)
             emit(cached)
             return@flow
         }
@@ -80,6 +111,7 @@ class UserSessionRepositoryImpl(
             val userProfile = networkProfile.toUserProfile()
             cacheManager.put(CACHE_KEY, userProfile, USER_PROFILE)
             logger.debug("Fetched and cached user profile: ${userProfile.username}")
+            recordSession(isLoggedIn = true, profile = userProfile)
             emit(userProfile)
         } catch (e: CancellationException) {
             throw e
@@ -89,8 +121,10 @@ class UserSessionRepositoryImpl(
             val stale = cacheManager.getStale<UserProfile>(CACHE_KEY)
             if (stale != null) {
                 logger.debug("Using stale cached profile as fallback")
+                recordSession(isLoggedIn = true, profile = stale)
                 emit(stale)
             } else {
+                recordSession(isLoggedIn = true, profile = null)
                 emit(null)
             }
         }
@@ -156,6 +190,7 @@ class UserSessionRepositoryImpl(
     override suspend fun logout() {
         tokenStore.clear()
         cacheManager.clearAll()
+        recordSession(isLoggedIn = false, profile = null)
     }
 
     private companion object {

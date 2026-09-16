@@ -49,7 +49,13 @@ fun BottomNavigation(
         items = items,
         selectedId = selectedId,
         onSelect = { id ->
-            allowedScreens.firstOrNull { idOf(it.screen) == id }?.let { onNavigate(it.screen) }
+            // Re-selecting the current tab must not navigate. The navigate() options in
+            // AppNavigation pop and restore this destination, so a re-tap would tear the
+            // screen down and build it again for no visible change — which is what made
+            // it flicker when tapped repeatedly.
+            if (id != selectedId) {
+                allowedScreens.firstOrNull { idOf(it.screen) == id }?.let { onNavigate(it.screen) }
+            }
         },
         modifier = modifier,
     )

@@ -12,7 +12,12 @@ kotlin {
 
                 implementation(projects.core.domain)
 
-                implementation(libs.bundles.landscapist)
+                // Declared directly rather than inherited: GitHubStoreImage uses Coil's
+                // compose APIs, and MarkdownImageTransformer also uses Coil's network layer
+                // and Ktor to probe a link before showing it.
+                implementation(libs.coil3.compose)
+                implementation(libs.coil3.network.ktor)
+                implementation(libs.ktor.client.core)
 
                 implementation(libs.jetbrains.lifecycle.compose)
 
