@@ -339,6 +339,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">আনইনস্টল</string>
     <string name="open_app">খুলুন</string>
+    <string name="downgrade_warning_title">পুরোনো সংস্করণ নির্বাচন করা হয়েছে</string>
+    <string name="downgrade_warning_message">%1$s ইতিমধ্যে ইনস্টল করা %2$s-এর চেয়ে কম।\nAndroid কম সংস্করণ ইনস্টল করতে অস্বীকার করতে পারে।\nযদি অস্বীকার করে, ইনস্টল করা %2$s অপরিবর্তিত থাকে।</string>
+    <string name="downgrade_warning_uninstall_note">%1$s আনইনস্টল করলে তার অ্যাপ ডেটা মুছে যাবে।</string>
     <string name="uninstall_first">প্রথমে আনইনস্টল করুন</string>
     <string name="install_version">%1$s ইনস্টল করুন</string>
     <string name="failed_to_open_app">%1$s খুলতে ব্যর্থ</string>
