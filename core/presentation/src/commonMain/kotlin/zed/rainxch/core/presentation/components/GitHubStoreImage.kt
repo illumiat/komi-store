@@ -23,22 +23,17 @@ fun GitHubStoreImage(
     imageModel: () -> Any?,
     modifier: Modifier = Modifier,
     colorFilter: ColorFilter? = null,
-    // Images that sit on a tinted placeholder block look better staying flat while they
-    // load: a spinner there reads as a flash rather than as progress.
-    showLoadingIndicator: Boolean = true,
 ) {
     CoilImage(
         imageModel = imageModel,
         modifier = modifier,
         imageOptions = ImageOptions(colorFilter = colorFilter),
         loading = {
-            if (showLoadingIndicator) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularWavyProgressIndicator()
-                }
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularWavyProgressIndicator()
             }
         },
         failure = {

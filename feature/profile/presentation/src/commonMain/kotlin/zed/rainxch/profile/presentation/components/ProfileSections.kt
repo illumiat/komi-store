@@ -211,60 +211,11 @@ private fun HeroIdentityCard(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            when {
-                // Seeded from a previous visit, so the first frame matches what the user
-                // last saw instead of an empty card.
-                state.userProfile != null -> SignedInContent(state = state, onAction = onAction)
-                // Nothing seeded and the session has not been read yet. The signed-out
-                // card would be a claim the app cannot make yet.
-                !state.isSessionResolved -> IdentityPlaceholder()
-                else -> SignedOutContent(onAction = onAction)
+            if (state.userProfile == null) {
+                SignedOutContent(onAction = onAction)
+            } else {
+                SignedInContent(state = state, onAction = onAction)
             }
-        }
-    }
-}
-
-// Mirrors the signed-in card's structure — avatar, two text lines, metrics row — so the
-// card does not change height when the account arrives. Shown only before the session has
-// been read; the signed-out card would be a lie in that moment.
-@Composable
-private fun IdentityPlaceholder() {
-    val colors = LocalPersonality.current.colors
-    val shape = LocalPersonality.current.shape
-    val block =
-        Modifier
-            .clip(RoundedCornerShape(shape.cornerSmall))
-            .background(colors.surfaceContainerHigh)
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Box(modifier = Modifier.size(80.dp).then(block))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Box(modifier = Modifier.fillMaxWidth(0.5f).height(16.dp).then(block))
-            Box(modifier = Modifier.fillMaxWidth(0.32f).height(12.dp).then(block))
-        }
-    }
-    Spacer(Modifier.height(4.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        repeat(3) {
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
-                        .height(54.dp)
-                        .then(block),
-            )
         }
     }
 }
@@ -338,7 +289,6 @@ private fun SignedInContent(
                 .size(80.dp)
                 .clip(RoundedCornerShape(shape.cornerSmall))
                 .background(colors.surfaceContainerHigh),
-            showLoadingIndicator = false,
         )
         Column(
             modifier = Modifier.weight(1f),
