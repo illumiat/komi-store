@@ -21,7 +21,18 @@ class ProfileViewModel(
 
     private var hasLoadedInitialData = false
 
-    private val _state = MutableStateFlow(ProfileState())
+    // Seeded from the session the process already knows about, so the first frame shows
+    // the real card rather than a placeholder the user then watches change. On a cold
+    // start that snapshot is filled during startup, behind the splash.
+    private val _state =
+        MutableStateFlow(
+            userSessionRepository.lastKnownSession?.let { session ->
+                ProfileState(
+                    userProfile = session.profile,
+                    isUserLoggedIn = session.isLoggedIn,
+                )
+            } ?: ProfileState(),
+        )
     val state = _state
         .onStart {
             if (!hasLoadedInitialData) {
@@ -32,7 +43,7 @@ class ProfileViewModel(
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000L),
-            initialValue = ProfileState(),
+            initialValue = _state.value,
         )
 
     private val _events = Channel<ProfileEvent>(capacity = Channel.BUFFERED)
@@ -41,11 +52,20 @@ class ProfileViewModel(
         viewModelScope.launch {
             userSessionRepository.isUserLoggedIn()
                 .collect { isLoggedIn ->
-                    _state.update { it.copy(isUserLoggedIn = isLoggedIn) }
                     if (isLoggedIn) {
+                        // Deliberately not resolving here. A token read finishes long
+                        // before the account does, and resolving now would render the
+                        // signed-out card in the gap. loadUserProfile resolves instead.
+                        _state.update { it.copy(isUserLoggedIn = true) }
                         loadUserProfile()
                     } else {
-                        _state.update { it.copy(userProfile = null) }
+                        // Not going through getUser() on this path, so the snapshot has to
+                        // be cleared here: otherwise a token that disappeared without a
+                        // logout would leave a stale account to seed the next instance.
+                        userSessionRepository.clearLastKnownSession()
+                        _state.update {
+                            it.copy(isUserLoggedIn = false, userProfile = null)
+                        }
                     }
                 }
         }

@@ -63,17 +63,19 @@ fun LazyListScope.profileSections(
         HeroIdentityCard(state = state, onAction = onAction)
     }
 
-    if (state.isUserLoggedIn) {
-        item(key = "library_header") {
-            Spacer(Modifier.height(8.dp))
+    item(key = "library_header") {
+        Spacer(Modifier.height(8.dp))
 
+        // Signed out, this item is only here for the spacing: without it the identity card
+        // and the list below sit edge to edge and read as one card.
+        if (state.isUserLoggedIn) {
             KomiText(
                 text = stringResource(Res.string.profile_section_library),
                 role = KomiTextRole.Title,
             )
-
-            Spacer(Modifier.height(8.dp))
         }
+
+        Spacer(Modifier.height(8.dp))
     }
     item(key = "library_list") {
         KomiList(
@@ -289,6 +291,7 @@ private fun SignedInContent(
                 .size(80.dp)
                 .clip(RoundedCornerShape(shape.cornerSmall))
                 .background(colors.surfaceContainerHigh),
+            showLoadingIndicator = false,
         )
         Column(
             modifier = Modifier.weight(1f),

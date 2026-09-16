@@ -2,6 +2,7 @@ package zed.rainxch.githubstore
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,17 @@ class MainViewModel(
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
+            // Read the stored session once, at startup, so a screen that must be correct on
+            // its very first frame — the profile tab — already has the account before anyone
+            // can open it. Local only, so it costs a database read, and nothing waits on it.
+            runCatching { userSessionRepository.primeSession() }
+                .onFailure { Logger.w(it) { "Session prime failed; continuing without it" } }
+            _state.update {
+                it.copy(
+                    signedInAvatarUrl = userSessionRepository.lastKnownSession?.profile?.imageUrl,
+                )
+            }
+
             userSessionRepository
                 .isUserLoggedIn()
                 .collect { isLoggedIn ->

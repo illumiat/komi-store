@@ -8,7 +8,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
+import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.domain.model.appearance.AppPersonality
@@ -45,6 +48,20 @@ fun App(
             .Builder(context)
             .components { add(SvgDecoder.Factory()) }
             .build()
+    }
+
+    // Warm the account's avatar while the user is still on the first screen, so the profile
+    // tab finds it in the image cache whenever it is first opened. Warm-up only — an image
+    // that fails here is fetched again, normally, wherever it is actually shown.
+    val imageContext = LocalPlatformContext.current
+    LaunchedEffect(mainState.signedInAvatarUrl) {
+        mainState.signedInAvatarUrl?.let { url ->
+            runCatching {
+                SingletonImageLoader.get(imageContext).enqueue(
+                    ImageRequest.Builder(imageContext).data(url).build(),
+                )
+            }
+        }
     }
 
     val currentScreen = navController.currentBackStackEntryAsState().value.getCurrentScreen()

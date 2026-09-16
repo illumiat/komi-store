@@ -23,4 +23,7 @@ data class MainState(
     val isScrollbarEnabled: Boolean = false,
     val contentWidth: ContentWidth = ContentWidth.COMPACT,
     val appLanguageTag: String? = null,
+    // Avatar of the account read at startup. Held only so its image can be fetched while the
+    // first screen is on display, which is well before anyone opens the profile tab.
+    val signedInAvatarUrl: String? = null,
 )
