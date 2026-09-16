@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -152,9 +153,20 @@ fun AppNavigation(
 
                     SharedTransitionLayout(
                         modifier =
-                            Modifier.padding(
-                                bottom = if (showBottomBar) bottomBarHeight else 0.dp,
-                            ),
+                            Modifier
+                                .padding(
+                                    bottom = if (showBottomBar) bottomBarHeight else 0.dp,
+                                )
+                                // Screens without the bottom bar still have to clear the
+                                // system navigation bar. When the bar is present it does
+                                // that itself, and KomiScaffold no longer reserves it.
+                                .then(
+                                    if (showBottomBar) {
+                                        Modifier
+                                    } else {
+                                        Modifier.navigationBarsPadding()
+                                    },
+                                ),
                     ) {
                         NavHost(
                             navController = navController,

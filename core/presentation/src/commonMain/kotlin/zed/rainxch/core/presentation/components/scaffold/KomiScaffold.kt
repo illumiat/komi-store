@@ -5,14 +5,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +77,14 @@ fun KomiScaffold(
                 }
             },
             floatingActionButton = { floatingActionButton?.invoke() },
+            // The bottom bar lives outside this Scaffold, in AppNavigation, which already
+            // reserves its height. Leaving the default insets here made Scaffold reserve
+            // the navigation bar a second time on devices that report a non-zero bottom
+            // inset, cutting every page off behind a band the colour of the background.
+            contentWindowInsets =
+                ScaffoldDefaults.contentWindowInsets.only(
+                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                ),
         ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
                 if (isManga && grid) {
