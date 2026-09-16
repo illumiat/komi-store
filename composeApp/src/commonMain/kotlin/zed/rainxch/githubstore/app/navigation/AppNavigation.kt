@@ -157,9 +157,9 @@ fun AppNavigation(
                                 .padding(
                                     bottom = if (showBottomBar) bottomBarHeight else 0.dp,
                                 )
-                                // Screens without the bottom bar still have to clear the
-                                // system navigation bar. When the bar is present it does
-                                // that itself, and KomiScaffold no longer reserves it.
+                                // Screens without the bottom bar must clear the navigation
+                                // bar themselves: the bar covers it when present, and
+                                // KomiScaffold no longer reserves it.
                                 .then(
                                     if (showBottomBar) {
                                         Modifier
