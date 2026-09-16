@@ -1,3 +1,12 @@
+> [!WARNING]
+> **Personal fork — used only to test my own in-progress pull requests.**
+> Nothing here is a release. The entries under "Releases" are temporary test builds of
+> unmerged pull requests, published so they can be installed on a device without building
+> locally, and they are deleted once those PRs land. For the real project use
+> [komi-store/komi-store](https://github.com/komi-store/komi-store).
+
+---
+
 <div align="center">
   <br/>
   <img src="media-resources/app_icon.png" width="200" alt="Komi Store app icon" />
