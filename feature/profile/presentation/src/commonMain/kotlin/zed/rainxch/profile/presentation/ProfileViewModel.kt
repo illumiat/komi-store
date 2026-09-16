@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import zed.rainxch.core.domain.model.account.UserProfile
 import zed.rainxch.core.domain.repository.UserSessionRepository
 
 class ProfileViewModel(
@@ -21,7 +22,10 @@ class ProfileViewModel(
 
     private var hasLoadedInitialData = false
 
-    private val _state = MutableStateFlow(ProfileState())
+    // The account is read from the database, so the very first frame of a recreated
+    // ViewModel has nothing to show. Seeding from the last known account lets that frame
+    // render the real one instead of flashing a placeholder.
+    private val _state = MutableStateFlow(ProfileState(userProfile = lastKnownProfile))
     val state = _state
         .onStart {
             if (!hasLoadedInitialData) {
@@ -32,7 +36,7 @@ class ProfileViewModel(
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000L),
-            initialValue = ProfileState(),
+            initialValue = _state.value,
         )
 
     private val _events = Channel<ProfileEvent>(capacity = Channel.BUFFERED)
@@ -41,11 +45,21 @@ class ProfileViewModel(
         viewModelScope.launch {
             userSessionRepository.isUserLoggedIn()
                 .collect { isLoggedIn ->
-                    _state.update { it.copy(isUserLoggedIn = isLoggedIn) }
                     if (isLoggedIn) {
+                        // Deliberately not resolving here. A token read finishes long
+                        // before the account does, and resolving now would render the
+                        // signed-out card in the gap. loadUserProfile resolves instead.
+                        _state.update { it.copy(isUserLoggedIn = true) }
                         loadUserProfile()
                     } else {
-                        _state.update { it.copy(userProfile = null) }
+                        lastKnownProfile = null
+                        _state.update {
+                            it.copy(
+                                isUserLoggedIn = false,
+                                userProfile = null,
+                                isSessionResolved = true,
+                            )
+                        }
                     }
                 }
         }
@@ -56,7 +70,8 @@ class ProfileViewModel(
 
         userProfileJob = viewModelScope.launch {
             userSessionRepository.getUser().collect { profile ->
-                _state.update { it.copy(userProfile = profile) }
+                lastKnownProfile = profile
+                _state.update { it.copy(userProfile = profile, isSessionResolved = true) }
             }
         }
     }
@@ -76,6 +91,7 @@ class ProfileViewModel(
                     runCatching {
                         userSessionRepository.logout()
                     }.onSuccess {
+                        lastKnownProfile = null
                         _state.update { it.copy(isLogoutDialogVisible = false, userProfile = null) }
                         _events.send(ProfileEvent.OnLogoutSuccessful)
                     }.onFailure { error ->
@@ -106,5 +122,12 @@ class ProfileViewModel(
             ProfileAction.OnTweaksClick,
             ProfileAction.OnAboutClick -> Unit
         }
+    }
+
+    private companion object {
+        // Held for the process, not the ViewModel. Switching tabs recreates the
+        // ViewModel, and the account itself lives in the database, so a fresh instance
+        // has nothing to render on its first frame without this.
+        var lastKnownProfile: UserProfile? = null
     }
 }
