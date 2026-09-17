@@ -48,6 +48,7 @@ import zed.rainxch.core.presentation.components.overlays.KomiToastState
 import zed.rainxch.core.presentation.components.overlays.rememberKomiToastState
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
+import zed.rainxch.core.presentation.components.refresh.drivesPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
@@ -229,7 +230,13 @@ private fun BoxScope.HomeChartFeed(
     Column(
         modifier = Modifier.fillMaxSize().align(Alignment.TopCenter),
     ) {
-        Column(modifier = Modifier.fillMaxWidth().background(colors.background)) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(colors.background)
+                    .drivesPullToRefresh(),
+        ) {
             HomeChartTabs(
                 selected = state.selectedChart,
                 onSelect = { onAction(HomeAction.OnChartSelected(it)) },

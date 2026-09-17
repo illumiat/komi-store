@@ -46,6 +46,7 @@ import zed.rainxch.core.presentation.components.overlays.KomiToastState
 import zed.rainxch.core.presentation.components.overlays.rememberKomiToastState
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
+import zed.rainxch.core.presentation.components.refresh.drivesPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
@@ -192,7 +193,13 @@ private fun BoxScope.FeedContent(
             .align(Alignment.TopCenter),
     ) {
         if (!isDesktop()) {
-            Column(modifier = Modifier.fillMaxWidth().background(colors.background)) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(colors.background)
+                        .drivesPullToRefresh(),
+            ) {
                 FeedPlatformBar(
                     platform = state.selectedPlatform,
                     onOpenPicker = { onAction(FeedAction.OnPlatformPickerOpen) },
