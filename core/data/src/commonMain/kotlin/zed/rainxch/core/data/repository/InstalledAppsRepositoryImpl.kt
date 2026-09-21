@@ -501,33 +501,35 @@ class InstalledAppsRepositoryImpl(
         )
 
         val snapshotLatestVersion = app.latestVersion
-        // The three codes this rewrite reasons about, in the order they hold while the user is
-        // stepping back: A is the detected latest, B what the record says is installed, C the
-        // build being installed. A > B > C is a step back; A > C >= B is a step forward.
+        // The three codes this rewrite reasons about: A is the detected latest, B what the record
+        // says is installed, C the build being installed.
         val detectedCode = app.latestVersionCode
         val installedCode = app.installedVersionCode
         val incomingCode = newVersionCode
-        // Only a code that actually moved carries information. When C equals B nothing changed —
-        // a reinstall, or the same build seen twice — so there is no state to derive and the
-        // record is left as a plain copy rather than written from a guess. This is also what
-        // keeps a tag difference from deciding anything on its own when the codes say the build
-        // underneath did not move.
+        // Whether the build underneath actually changed, which is all this rewrite asks of the
+        // codes. B == C means nothing moved — a reinstall, or the same build seen twice — and
+        // then there is no state to derive, so the record is left as a plain copy.
         val codeMoved = installedCode > 0L && incomingCode > 0L && incomingCode != installedCode
-        // Stepping back is asked of the tags, which is the question the dialog answered before
-        // the user confirmed. A step from `nightly` down to a stable `2.0.2` reads as a step
-        // down here too, because tags that do not parse fall back to a string comparison and
-        // `n` sorts after `2`.
-        val movedBackToOlder =
-            !newTag.isBlank() && VersionMath.isVersionNewer(app.installedVersion, newTag)
-        // Only a release genuinely ahead of the new build is worth skipping, and only once the
-        // build underneath it really changed. `latestVersion` can be stale or already equal to
-        // what was installed, and skipping that would silence a release the user is still
-        // behind on.
+        // Whether the record's idea of the latest is still ahead of the build being installed.
+        // Worked out once and reused below: the skip decision and the availability flag must not
+        // come from two evaluations that could drift apart in a later edit.
+        val latestAhead =
+            isAheadOf(snapshotLatestVersion, newTag, detectedCode, incomingCode)
+        // The record is about to call this build installed, so `codeMoved` says the install
+        // landed somewhere new, and `latestAhead` says a release still sits above where it
+        // landed. Offered any more it would only re-open a gap the user has just closed, and
+        // that holds whatever the two builds were: no direction is read out of the tags here.
+        //
+        // One exception, and it is the whole point of it: a tag that already names several
+        // builds must not carry a skip. The skip is keyed by tag, so writing this one down would
+        // say "stop offering `nightly`" — and the record's own `nightly` is exactly such a tag,
+        // having been called installed while the build underneath moved. The next `nightly`
+        // really is a new build and deserves to be shown, so the tag is left unskipped and the
+        // build that moved makes it recognisable here rather than needing a second lookup.
+        val tagNamesSeveralBuilds =
+            codeMoved && app.installedVersion == newTag
         val skippedReleaseTag =
-            if (codeMoved &&
-                movedBackToOlder &&
-                isAheadOf(snapshotLatestVersion, newTag, detectedCode, incomingCode)
-            ) {
+            if (codeMoved && !tagNamesSeveralBuilds && latestAhead) {
                 snapshotLatestVersion
             } else {
                 app.skippedReleaseTag
@@ -535,10 +537,8 @@ class InstalledAppsRepositoryImpl(
         // An already-skipped release stays skipped here too: checkForUpdates is the only other
         // place that consults skippedReleaseTag, so without the last term a rewrite would
         // re-advertise the version the user had declined.
-        val latestStillNewer =
-            isAheadOf(snapshotLatestVersion, newTag, detectedCode, incomingCode)
         val isUpdateStillAvailable =
-            latestStillNewer &&
+            latestAhead &&
                 !VersionMath.isExactSameVersion(snapshotLatestVersion, skippedReleaseTag)
 
         installedAppsDao.updateApp(
@@ -553,7 +553,7 @@ class InstalledAppsRepositoryImpl(
                 // Kept alongside `latestVersion`, which can still name a newer release than the
                 // one just installed. Falling through to `newVersionCode` would pair that newer
                 // tag with the older build's code, and downstream reads this code as the latest.
-                latestVersionCode = if (latestStillNewer) app.latestVersionCode else newVersionCode,
+                latestVersionCode = if (latestAhead) app.latestVersionCode else newVersionCode,
                 isPendingInstall = isPendingInstall,
                 lastUpdatedAt = System.currentTimeMillis(),
                 lastCheckedAt = System.currentTimeMillis(),
