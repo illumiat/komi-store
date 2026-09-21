@@ -1,9 +1,9 @@
 package zed.rainxch.core.domain.utils
 
 // Pure update-decision logic — no repository, no DAO, no IO. Branch order:
-// skipped tag wins over everything, then timestamp, then code equality,
-// then reconcilability, then semver. Every branch is pinned by
-// UpdateVerdictTest.
+// a skip that still names the declined build wins over everything, then
+// timestamp, then code equality, then reconcilability, then semver. Every
+// branch is pinned by UpdateVerdictTest.
 object UpdateVerdict {
 
     data class Installed(
@@ -36,14 +36,40 @@ object UpdateVerdict {
                 stored.latestVersionCode != null &&
                 stored.latestVersionCode > 0L &&
                 installed.versionCode == stored.latestVersionCode &&
-                matched.tag == stored.latestTag
+                VersionMath.isExactSameVersion(matched.tag, stored.latestTag)
 
         val matchesSkipped =
             skippedTag != null && VersionMath.isExactSameVersion(matched.tag, skippedTag)
+        // A skip is keyed by tag, so it can only be asked of tags where one name is one build.
+        // Where the tag is timestamp-tracked instead — opaque markers such as `nightly`, and
+        // unparseable hash tails, per isTimestampTrackedTag — the same name legitimately comes
+        // back as a different build; that is the case the timestamp logic was added for. Once it
+        // does, the release the user declined is gone, so the skip has served its purpose and must
+        // not go on holding back the build that replaced it.
+        //
+        // A stored baseline is required, deliberately: with nothing to compare against there is
+        // no evidence of a rebuild, and reading "no baseline" as "new build" would drop the skip
+        // in the very check that recorded it.
+        //
+        // Releasing the skip only ever returns the tag to the treatment it gets when it was never
+        // skipped, so this cannot be worse than not skipping at all.
+        val publishedAtAdvanced =
+            stored.publishedAt != null &&
+                matched.publishedAt != null &&
+                matched.publishedAt > stored.publishedAt
+        val skipSupersededByNewBuild =
+            matchesSkipped &&
+                !codesAlreadyMatch &&
+                VersionMath.isTimestampTrackedTag(matched.tag) &&
+                publishedAtAdvanced
+        // Everything else keeps its skip: a release under a plain tag stays skipped until a
+        // strictly newer tag arrives, and a build the package already is cannot be offered back.
+        val skipHolds = matchesSkipped && !skipSupersededByNewBuild
         val skipBecameStale =
-            skippedTag != null &&
-                !matchesSkipped &&
-                VersionMath.isVersionNewer(matched.tag, skippedTag)
+            skipSupersededByNewBuild ||
+                (skippedTag != null &&
+                    !matchesSkipped &&
+                    VersionMath.isVersionNewer(matched.tag, skippedTag))
 
         val opaqueMatched = VersionMath.isOpaqueMarker(matched.tag)
         val sameTag = VersionMath.isExactSameVersion(matched.tag, installed.tag)
@@ -67,10 +93,13 @@ object UpdateVerdict {
 
         val isUpdateAvailable =
             when {
-                // A release the user deliberately skipped must never be re-offered,
-                // including an opaque nightly tag that CI re-publishes. It is cleared
-                // again only by a strictly newer release (skipBecameStale).
-                matchesSkipped -> false
+                // A release the user deliberately skipped is not re-offered. It is released
+                // again by a strictly newer tag, or — for a tag that names many builds — by the
+                // same tag carrying a newer build, which is what `skipSupersededByNewBuild`
+                // detects. Without that second route an opaque tag such as `nightly` could never
+                // become due again, and skipping one build would quietly turn into ignoring the
+                // app's updates for good.
+                skipHolds -> false
                 usedTimestampLogic -> timestampWouldReport
                 codesAlreadyMatch -> false
                 !reconcilable -> false
