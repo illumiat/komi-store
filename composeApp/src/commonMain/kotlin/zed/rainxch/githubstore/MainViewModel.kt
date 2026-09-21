@@ -20,6 +20,7 @@ import zed.rainxch.core.domain.repository.RateLimitRepository
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.repository.UserSessionRepository
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
+import zed.rainxch.githubstore.utils.STARTUP_PREFERENCE_TIMEOUT_MS
 import kotlin.time.Duration.Companion.milliseconds
 
 class MainViewModel(
@@ -84,10 +85,11 @@ class MainViewModel(
             val firstEmitted = CompletableDeferred<Unit>()
             launch {
                 if (
-                    withTimeoutOrNull(APPEARANCE_LOAD_TIMEOUT_MS.milliseconds) {
+                    withTimeoutOrNull(STARTUP_PREFERENCE_TIMEOUT_MS.milliseconds) {
                         firstEmitted.await()
                     } == null
                 ) {
+                    Logger.w { "Appearance preference load timed out, releasing gate on defaults" }
                     _state.update { it.copy(isAppearanceLoaded = true) }
                 }
             }
@@ -100,9 +102,11 @@ class MainViewModel(
                     tweaksRepository.getIsDarkTheme(),
                 ) { personality, accent, paper, amoled, isDark ->
                     Appearance(personality, accent, paper, amoled, isDark)
+                }.combine(tweaksRepository.getAppLanguage()) { appearance, appLanguageTag ->
+                    appearance.copy(appLanguageTag = appLanguageTag)
                 }.collect { snapshot ->
                     _state.update { it.withAppearance(snapshot).copy(isAppearanceLoaded = true) }
-                    if (!firstEmitted.isCompleted) firstEmitted.complete(Unit)
+                    firstEmitted.complete(Unit)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -121,12 +125,6 @@ class MainViewModel(
         viewModelScope.launch {
             tweaksRepository.getContentWidth().collect { width ->
                 _state.update { it.copy(contentWidth = width) }
-            }
-        }
-
-        viewModelScope.launch {
-            tweaksRepository.getAppLanguage().collect { tag ->
-                _state.update { it.copy(appLanguageTag = tag) }
             }
         }
 
@@ -170,14 +168,13 @@ class MainViewModel(
     }
 }
 
-private const val APPEARANCE_LOAD_TIMEOUT_MS = 2000L
-
 private data class Appearance(
     val personality: AppPersonality,
     val accent: AccentId,
     val mangaPaper: MangaPaperId,
     val isAmoledTheme: Boolean,
     val isDarkTheme: Boolean?,
+    val appLanguageTag: String? = null,
 )
 
 private fun MainState.withAppearance(snapshot: Appearance): MainState =
@@ -187,4 +184,5 @@ private fun MainState.withAppearance(snapshot: Appearance): MainState =
         mangaPaper = snapshot.mangaPaper,
         isAmoledTheme = snapshot.isAmoledTheme,
         isDarkTheme = snapshot.isDarkTheme,
+        appLanguageTag = snapshot.appLanguageTag,
     )

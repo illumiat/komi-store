@@ -29,11 +29,10 @@ import zed.rainxch.core.domain.helpers.ShareManager
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
 import zed.rainxch.githubstore.app.deeplink.DeepLinkParser
+import zed.rainxch.githubstore.utils.STARTUP_PREFERENCE_TIMEOUT_MS
 import zed.rainxch.githubstore.utils.readStartupPreference
 import zed.rainxch.githubstore.utils.updateSystemBars
 import kotlin.time.Duration.Companion.milliseconds
-
-private const val LANGUAGE_PREF_READ_TIMEOUT_MS = 2000L
 
 class MainActivity : ComponentActivity() {
     private var deepLinkUri by mutableStateOf<String?>(null)
@@ -61,7 +60,7 @@ class MainActivity : ComponentActivity() {
             val tag =
                 readStartupPreference(
                     label = "appLanguage",
-                    timeout = LANGUAGE_PREF_READ_TIMEOUT_MS.milliseconds,
+                    timeout = STARTUP_PREFERENCE_TIMEOUT_MS.milliseconds,
                     flow = tweaksRepository.getAppLanguage(),
                 )
             localizationManager.setActiveLanguageTag(tag)
