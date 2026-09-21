@@ -599,11 +599,11 @@ fun SearchScreen(
                                                 )
                                             }
                                         },
-                                        modifier = Modifier,
+                                        modifier = Modifier.animateItem(),
                                     )
                                 }
 
-                                item {
+                                item(span = StaggeredGridItemSpan.FullLine) {
                                     if (state.isLoadingMore) {
                                         Box(
                                             modifier =
@@ -620,7 +620,7 @@ fun SearchScreen(
                                 }
 
                                 if (!state.isLoading && !state.isLoadingMore && state.query.isNotBlank()) {
-                                    item {
+                                    item(span = StaggeredGridItemSpan.FullLine) {
                                         ExploreFromGithubButton(
                                             status = state.exploreStatus,
                                             onExplore = { onAction(SearchAction.ExploreFromGithub) },
