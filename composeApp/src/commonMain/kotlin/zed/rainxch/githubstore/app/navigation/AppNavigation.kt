@@ -164,7 +164,9 @@ fun AppNavigation(
                                     if (showBottomBar) {
                                         Modifier
                                     } else {
-                                        Modifier.navigationBarsPadding()
+                                        Modifier
+                                            .background(LocalPersonality.current.colors.background)
+                                            .navigationBarsPadding()
                                     },
                                 ),
                     ) {
