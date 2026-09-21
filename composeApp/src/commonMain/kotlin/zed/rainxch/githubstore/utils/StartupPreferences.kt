@@ -6,6 +6,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 
+/**
+ * Cold-start bound (ms) for reading persisted preferences. Shared by the
+ * appearance gate watchdog (MainViewModel) and the single preference reads in
+ * the platform entry points (MainActivity / DesktopApp): they all bound the
+ * same startup window, so the value must stay in sync. 2000ms.
+ */
+internal const val STARTUP_PREFERENCE_TIMEOUT_MS: Long = 2000L
+
 suspend fun <T> readStartupPreference(
     label: String,
     timeout: Duration,
