@@ -165,9 +165,11 @@ class UpdateVerdictTest {
 
 
     @Test
-    fun skipped_nightly_stays_skipped_when_republished() {
-        // A skipped opaque tag must not be re-offered just because CI recreated
-        // the release with a newer publishedAt — the skip rule wins.
+    fun skipped_nightly_is_offered_again_once_the_tag_is_rebuilt() {
+        // Skipping a rolling tag means skipping the build it names, not the tag.
+        // Once CI republishes `nightly` with a newer publishedAt the declined
+        // build is gone, so the skip has done its job and the new build is
+        // announced like any other.
         val result =
             decide(
                 installedTag = "nightly",
@@ -177,6 +179,56 @@ class UpdateVerdictTest {
                 storedPublishedAt = "2026-08-01T00:00:00Z",
                 matchedIsPrerelease = true,
             )
+        assertTrue(result.skipBecameStale)
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun skipped_nightly_stays_skipped_while_the_build_is_unchanged() {
+        // The same build seen again is not a new one — the skip still holds.
+        val result =
+            decide(
+                installedTag = "nightly",
+                matchedTag = "nightly",
+                skippedTag = "nightly",
+                matchedPublishedAt = "2026-08-01T00:00:00Z",
+                storedPublishedAt = "2026-08-01T00:00:00Z",
+                matchedIsPrerelease = true,
+            )
+        assertFalse(result.skipBecameStale)
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun skipped_nightly_survives_a_missing_timestamp_baseline() {
+        // Nothing to compare against means no evidence of a rebuild. Dropping
+        // the skip here would clear it in the check that just recorded it.
+        val result =
+            decide(
+                installedTag = "nightly",
+                matchedTag = "nightly",
+                skippedTag = "nightly",
+                matchedPublishedAt = "2026-08-02T00:00:00Z",
+                storedPublishedAt = null,
+                matchedIsPrerelease = true,
+            )
+        assertFalse(result.skipBecameStale)
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun skipped_plain_tag_outlives_a_republished_timestamp() {
+        // A plain tag names one build, so a moved publishedAt is not evidence of
+        // a new one. Only a strictly newer tag releases this skip.
+        val result =
+            decide(
+                installedTag = "1.0.0",
+                matchedTag = "1.1.0",
+                skippedTag = "1.1.0",
+                matchedPublishedAt = "2026-08-02T00:00:00Z",
+                storedPublishedAt = "2026-08-01T00:00:00Z",
+            )
+        assertFalse(result.skipBecameStale)
         assertFalse(result.isUpdateAvailable)
     }
 
