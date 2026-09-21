@@ -65,6 +65,24 @@ class VersionMathTest {
     }
 
     @Test
+    fun opaque_marker_with_dotted_digit_suffix_is_timestamp_tracked() {
+        // Pins CURRENT behavior: a known pre-release marker followed by a
+        // hyphen and a *dotted* digit suffix (e.g. "beta-1.2.3", "rc-1.0.10",
+        // "nightly-2026.08.01") is treated as an opaque / timestamp-tracked tag
+        // because the suffix is "not all digits" at isMarkerWithOpaqueSuffix.
+        // This is intentionally NOT a calver nightly like "nightly-20260731"
+        // (pure digits → not opaque, see opaque_marker_detects_release_tag_alone).
+        // These assertions document the status quo; changing the classification
+        // is out of scope for this PR and belongs in a follow-up.
+        assertTrue(VersionMath.isOpaqueMarker("beta-1.2.3"))
+        assertTrue(VersionMath.isTimestampTrackedTag("beta-1.2.3"))
+        assertTrue(VersionMath.isOpaqueMarker("rc-1.0.10"))
+        assertTrue(VersionMath.isTimestampTrackedTag("rc-1.0.10"))
+        assertTrue(VersionMath.isOpaqueMarker("nightly-2026.08.01"))
+        assertTrue(VersionMath.isTimestampTrackedTag("nightly-2026.08.01"))
+    }
+
+    @Test
     fun timestamp_tracked_covers_opaque_and_hash_tails() {
         assertTrue(VersionMath.isTimestampTrackedTag("nightly"))
         assertTrue(VersionMath.isTimestampTrackedTag("rolling"))

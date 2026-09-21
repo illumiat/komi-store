@@ -7,7 +7,6 @@ import kotlin.test.assertTrue
 
 class InstalledAppUpdatesTest {
 
-
     private fun app(
         installedVersion: String = "1.0.0",
         latestVersion: String? = "2.0.0",
@@ -50,7 +49,6 @@ class InstalledAppUpdatesTest {
         pendingInstallVersion = if (pendingFilePath != null) "2.0.0" else null,
         pendingInstallAssetName = if (pendingFilePath != null) "app-2.0.0.apk" else null,
     )
-
 
     @Test
     fun confirmInstallWritesInstallZone() {
@@ -156,7 +154,6 @@ class InstalledAppUpdatesTest {
         assertEquals("2.0.0", result.latestVersionName)
     }
 
-
     @Test
     fun resolvePendingFromSystemAdoptsTagAndClearsPending() {
         val result = app(isPendingInstall = true).resolvePendingFromSystem(
@@ -181,7 +178,6 @@ class InstalledAppUpdatesTest {
         assertTrue(result.isUpdateAvailable)
     }
 
-
     @Test
     fun observeExternalInstallNeverTouchesInstalledTag() {
         val result = app().observeExternalInstall(
@@ -204,7 +200,6 @@ class InstalledAppUpdatesTest {
         assertTrue(result.isUpdateAvailable)
     }
 
-
     @Test
     fun markAndClearPendingTouchOnlyPendingFlag() {
         val marked = app().markPending()
@@ -214,7 +209,6 @@ class InstalledAppUpdatesTest {
         val cleared = app(isPendingInstall = true).clearPending()
         assertFalse(cleared.isPendingInstall)
     }
-
 
     @Test
     fun withLatestSnapshotWritesOnlyCheckZone() {
@@ -236,7 +230,6 @@ class InstalledAppUpdatesTest {
         assertFalse(result.isPendingInstall)
     }
 
-
     @Test
     fun chainedPreInstallHandoffCombinesBothZones() {
         val result = app()
@@ -253,7 +246,6 @@ class InstalledAppUpdatesTest {
         assertEquals("1.0.0", result.installedVersion)
     }
 
-
     @Test
     fun migratedVersionInfoAlignsBothSides() {
         val result = app().withMigratedVersionInfo(
@@ -267,7 +259,6 @@ class InstalledAppUpdatesTest {
         assertEquals("1.0.0", result.installedVersion)
         assertEquals("2.0.0", result.latestVersion)
     }
-
 
     @Test
     fun normalizeInstalledTagAlignsTagAndClearsFlag() {

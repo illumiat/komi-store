@@ -283,13 +283,20 @@ class InstalledAppsRepositoryImpl(
     private suspend fun adoptMatchedTag(
         app: InstalledAppEntity,
         matchedTag: String,
+        isUpdateAvailable: Boolean,
     ) {
+        // Preserve the verdict already computed by UpdateVerdict.decide. When the
+        // matched tag is an opaque (nightly) marker re-published with a newer
+        // publishedAt, `usedTimestampLogic` evaluates before `codesAlreadyMatch`
+        // and the verdict can legitimately be `true` even though the versionCode
+        // already matches. Hard-coding `false` here would wipe that correct
+        // "update available" result, so we forward the verdict's own value.
         installedAppsDao.updateInstalledVersion(
             packageName = app.packageName,
             installedVersion = matchedTag,
             installedVersionName = app.installedVersionName,
             installedVersionCode = app.installedVersionCode,
-            isUpdateAvailable = false,
+            isUpdateAvailable = isUpdateAvailable,
         )
     }
 
@@ -407,6 +414,7 @@ class InstalledAppsRepositoryImpl(
                 adoptMatchedTag(
                     app = app,
                     matchedTag = matchedRelease.tagName,
+                    isUpdateAvailable = isUpdateAvailable,
                 )
             }
 
