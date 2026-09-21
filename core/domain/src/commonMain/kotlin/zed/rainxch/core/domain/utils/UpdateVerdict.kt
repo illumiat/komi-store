@@ -36,7 +36,7 @@ object UpdateVerdict {
                 stored.latestVersionCode != null &&
                 stored.latestVersionCode > 0L &&
                 installed.versionCode == stored.latestVersionCode &&
-                matched.tag == stored.latestTag
+                VersionMath.isExactSameVersion(matched.tag, stored.latestTag)
 
         val matchesSkipped =
             skippedTag != null && VersionMath.isExactSameVersion(matched.tag, skippedTag)

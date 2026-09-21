@@ -12,12 +12,12 @@ import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
+import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
 import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.system.SystemInstallSerializer
-import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.utils.VersionVerdict
 import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
 

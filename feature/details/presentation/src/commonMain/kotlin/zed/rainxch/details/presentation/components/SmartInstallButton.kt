@@ -106,13 +106,13 @@ fun SmartInstallButton(
     // new build carry the very same tag. Fall back to the publishedAt-based verdict
     // the update check already computed, otherwise the channel holding the real
     // update shows "Open" while the stable channel advertises it instead.
-    val selectedIsOpaque = normSelected?.let { VersionMath.isOpaqueMarker(it) } == true
+    val selectedIsTimestampTracked = normSelected?.let { VersionMath.isTimestampTrackedTag(it) } == true
     val isSameVersionInstalled =
         isInstalled &&
             normInstalled != null &&
             normSelected != null &&
             VersionMath.isExactSameVersion(normInstalled, normSelected) &&
-            !(selectedIsOpaque && installedApp?.isUpdateAvailable == true)
+            !(selectedIsTimestampTracked && installedApp?.isUpdateAvailable == true)
 
     // Only advertise an update for the release actually on screen, so the label
     // always matches what a tap installs.
