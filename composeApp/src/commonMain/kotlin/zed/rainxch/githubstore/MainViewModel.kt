@@ -77,6 +77,7 @@ class MainViewModel(
                         firstEmitted.await()
                     } == null
                 ) {
+                    Logger.w { "Appearance preference load timed out, releasing gate on defaults" }
                     _state.update { it.copy(isAppearanceLoaded = true) }
                 }
             }
@@ -89,9 +90,11 @@ class MainViewModel(
                     tweaksRepository.getIsDarkTheme(),
                 ) { personality, accent, paper, amoled, isDark ->
                     Appearance(personality, accent, paper, amoled, isDark)
+                }.combine(tweaksRepository.getAppLanguage()) { appearance, appLanguageTag ->
+                    appearance.copy(appLanguageTag = appLanguageTag)
                 }.collect { snapshot ->
                     _state.update { it.withAppearance(snapshot).copy(isAppearanceLoaded = true) }
-                    if (!firstEmitted.isCompleted) firstEmitted.complete(Unit)
+                    firstEmitted.complete(Unit)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -110,12 +113,6 @@ class MainViewModel(
         viewModelScope.launch {
             tweaksRepository.getContentWidth().collect { width ->
                 _state.update { it.copy(contentWidth = width) }
-            }
-        }
-
-        viewModelScope.launch {
-            tweaksRepository.getAppLanguage().collect { tag ->
-                _state.update { it.copy(appLanguageTag = tag) }
             }
         }
 
@@ -167,6 +164,7 @@ private data class Appearance(
     val mangaPaper: MangaPaperId,
     val isAmoledTheme: Boolean,
     val isDarkTheme: Boolean?,
+    val appLanguageTag: String? = null,
 )
 
 private fun MainState.withAppearance(snapshot: Appearance): MainState =
@@ -176,4 +174,5 @@ private fun MainState.withAppearance(snapshot: Appearance): MainState =
         mangaPaper = snapshot.mangaPaper,
         isAmoledTheme = snapshot.isAmoledTheme,
         isDarkTheme = snapshot.isDarkTheme,
+        appLanguageTag = snapshot.appLanguageTag,
     )
