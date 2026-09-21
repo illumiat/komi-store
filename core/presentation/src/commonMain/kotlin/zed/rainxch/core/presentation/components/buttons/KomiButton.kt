@@ -152,10 +152,12 @@ private fun MangaButton(
 
     val flat = variant == KomiButtonVariant.Text
     val ambientInk = LocalContentColor.current
+    val overrideColorsGiven =
+        containerColor != Color.Unspecified && contentColor != Color.Unspecified
     val container =
-        if (containerColor != Color.Unspecified) containerColor else mangaButtonContainer(variant, colors)
+        if (overrideColorsGiven) containerColor else mangaButtonContainer(variant, colors)
     val resolvedContentColor =
-        if (contentColor != Color.Unspecified) contentColor else mangaButtonContent(variant, colors, ambientInk)
+        if (overrideColorsGiven) contentColor else mangaButtonContent(variant, colors, ambientInk)
     val borderColor = if (container == Color.Transparent) resolvedContentColor else colors.outline
     val stamped = !flat && container != Color.Transparent
     val sweep =

@@ -416,6 +416,35 @@ class InstalledAppsRepositoryImpl(
         }
     }
 
+    /**
+     * Whether [candidateTag] names a build after [referenceTag], used to answer "is there still
+     * an update after this install?".
+     *
+     * The codes decide it whenever both are known: they are monotonic, while the tags this app
+     * tracks are not (`nightly`, `v0.5.9.5`, `26.08.11f15e4`). Reading the ordering off the
+     * codes keeps this record's own update flag and its latestVersionCode from being written
+     * from a guess. Tags remain the fallback when a code is missing, matching the order
+     * resolveExternalInstallVerdict already uses.
+     *
+     * A blank candidate names nothing, so it is never ahead — that has to be checked here
+     * because the code branch would otherwise be entered with a real candidate code and report
+     * an ordering for a tag that does not exist.
+     */
+    private fun isAheadOf(
+        candidateTag: String?,
+        referenceTag: String,
+        candidateCode: Long?,
+        referenceCode: Long,
+    ): Boolean =
+        if (candidateTag.isNullOrBlank()) {
+            false
+        } else if (candidateCode != null && candidateCode > 0L && referenceCode > 0L) {
+            candidateCode > referenceCode
+        } else {
+            referenceTag.isNotBlank() &&
+                VersionMath.isVersionNewer(candidateTag, referenceTag)
+        }
+
     override suspend fun updateAppVersion(
         packageName: String,
         newTag: String,
@@ -447,9 +476,45 @@ class InstalledAppsRepositoryImpl(
         )
 
         val snapshotLatestVersion = app.latestVersion
+        // The three codes this rewrite reasons about, in the order they hold while the user is
+        // stepping back: A is the detected latest, B what the record says is installed, C the
+        // build being installed. A > B > C is a step back; A > C >= B is a step forward.
+        val detectedCode = app.latestVersionCode
+        val installedCode = app.installedVersionCode
+        val incomingCode = newVersionCode
+        // Only a code that actually moved carries information. When C equals B nothing changed —
+        // a reinstall, or the same build seen twice — so there is no state to derive and the
+        // record is left as a plain copy rather than written from a guess. This is also what
+        // keeps a tag difference from deciding anything on its own when the codes say the build
+        // underneath did not move.
+        val codeMoved = installedCode > 0L && incomingCode > 0L && incomingCode != installedCode
+        // Stepping back is asked of the tags, which is the question the dialog answered before
+        // the user confirmed. A step from `nightly` down to a stable `2.0.2` reads as a step
+        // down here too, because tags that do not parse fall back to a string comparison and
+        // `n` sorts after `2`.
+        val movedBackToOlder =
+            !newTag.isBlank() && VersionMath.isVersionNewer(app.installedVersion, newTag)
+        // Only a release genuinely ahead of the new build is worth skipping, and only once the
+        // build underneath it really changed. `latestVersion` can be stale or already equal to
+        // what was installed, and skipping that would silence a release the user is still
+        // behind on.
+        val skippedReleaseTag =
+            if (codeMoved &&
+                movedBackToOlder &&
+                isAheadOf(snapshotLatestVersion, newTag, detectedCode, incomingCode)
+            ) {
+                snapshotLatestVersion
+            } else {
+                app.skippedReleaseTag
+            }
+        // An already-skipped release stays skipped here too: checkForUpdates is the only other
+        // place that consults skippedReleaseTag, so without the last term a rewrite would
+        // re-advertise the version the user had declined.
+        val latestStillNewer =
+            isAheadOf(snapshotLatestVersion, newTag, detectedCode, incomingCode)
         val isUpdateStillAvailable =
-            !snapshotLatestVersion.isNullOrBlank() &&
-                    VersionMath.isVersionNewer(snapshotLatestVersion, newTag)
+            latestStillNewer &&
+                !VersionMath.isExactSameVersion(snapshotLatestVersion, skippedReleaseTag)
 
         installedAppsDao.updateApp(
             app.copy(
@@ -459,7 +524,11 @@ class InstalledAppsRepositoryImpl(
                 installedVersionName = newVersionName,
                 installedVersionCode = newVersionCode,
                 isUpdateAvailable = isUpdateStillAvailable,
-                latestVersionCode = if (isUpdateStillAvailable) app.latestVersionCode else newVersionCode,
+                skippedReleaseTag = skippedReleaseTag,
+                // Kept alongside `latestVersion`, which can still name a newer release than the
+                // one just installed. Falling through to `newVersionCode` would pair that newer
+                // tag with the older build's code, and downstream reads this code as the latest.
+                latestVersionCode = if (latestStillNewer) app.latestVersionCode else newVersionCode,
                 isPendingInstall = isPendingInstall,
                 lastUpdatedAt = System.currentTimeMillis(),
                 lastCheckedAt = System.currentTimeMillis(),
