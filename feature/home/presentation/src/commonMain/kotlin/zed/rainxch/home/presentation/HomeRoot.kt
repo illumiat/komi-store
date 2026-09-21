@@ -228,14 +228,14 @@ private fun BoxScope.HomeChartFeed(
     val infoColumns = rememberGridColumns(CardGridSpec.InfoMaxCardWidth)
 
     Column(
-        modifier = Modifier.fillMaxSize().align(Alignment.TopCenter),
+        modifier = Modifier.fillMaxSize(),
     ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .background(colors.background)
-                    .drivesPullToRefresh(),
+                    .then(if (isAndroid()) Modifier.drivesPullToRefresh() else Modifier),
         ) {
             HomeChartTabs(
                 selected = state.selectedChart,
@@ -286,7 +286,7 @@ private fun BoxScope.HomeChartFeed(
                             onLongPress = { onAction(HomeAction.OnRepoLongClick(card.id)) },
                             rank = if (state.selectedChart == ChartTab.Popular) index + 1 else 1,
                             feed = state.selectedChart.toFeed(),
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().animateItem(),
                         )
                     }
 

@@ -189,8 +189,7 @@ private fun BoxScope.FeedContent(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .align(Alignment.TopCenter),
+            .fillMaxSize(),
     ) {
         if (!isDesktop()) {
             Column(
@@ -278,7 +277,7 @@ private fun BoxScope.FeedContent(
                                     }
                                 },
                                 feed = KomiRepoCardFeed.Release,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().animateItem(),
                             )
                         }
 

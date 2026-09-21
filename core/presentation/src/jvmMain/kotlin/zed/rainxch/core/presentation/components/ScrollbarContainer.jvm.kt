@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridLayoutInfo
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollbarAdapter
@@ -198,18 +199,53 @@ private class GridScrollbarAdapter(
         gridState.scrollToItem(targetIndex)
     }
 
+    private var cachedLayoutInfo: LazyGridLayoutInfo? = null
+    private var cachedContentSize = 0f
+
     private fun estimatedContentSize(): Float {
+        // `scrollOffset`/`maxScrollOffset` are polled repeatedly while the scrollbar is hovered or
+        // dragged. A measure result is immutable and is only replaced by the next measure, so the
+        // estimate is a pure function of it and does not need to be re-derived for the same one.
         val layoutInfo = gridState.layoutInfo
+        if (layoutInfo === cachedLayoutInfo) return cachedContentSize
+        val size = estimateContentSize(layoutInfo)
+        cachedLayoutInfo = layoutInfo
+        cachedContentSize = size
+        return size
+    }
+
+    private fun estimateContentSize(layoutInfo: LazyGridLayoutInfo): Float {
         if (layoutInfo.totalItemsCount == 0) return 0f
         val visibleItems = layoutInfo.visibleItemsInfo
         if (visibleItems.isEmpty()) return 0f
-        val avgHeight = visibleItems.map { it.size.height }.average().toFloat()
-        val laneCount =
-            maxOf(
-                visibleItems.maxOf { it.column + 1 },
-                1,
-            )
-        val rows = (layoutInfo.totalItemsCount + laneCount - 1) / laneCount
-        return rows * avgHeight + layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
+        // The grid's line count (e.g. 3 for `GridCells.Fixed(3)`). Do not derive it from the
+        // visible window: a viewport showing only full-line items would report 1 and break the
+        // math below.
+        val lanes = maxOf(layoutInfo.maxSpan, 1)
+        // A full-line item (`GridItemSpan(maxLineSpan)`, like the banners in AppsScreen) occupies a
+        // whole line, not 1/lanes of one. Weight each visible item by its span so the line count we
+        // extrapolate matches the grid: a normal item contributes 1/lanes of a line, a full-line
+        // item a full line.
+        var lineSpanSum = 0L
+        var heightSum = 0L
+        for (item in visibleItems) {
+            lineSpanSum += item.span
+            heightSum += item.size.height
+        }
+        // Total lines the visible window occupies: a normal item = 1/lanes of a line, a full-line
+        // item = 1 line.
+        val linesOccupied = lineSpanSum.toFloat() / lanes
+        val linesPerItem = linesOccupied / visibleItems.size
+        val estimatedLines = layoutInfo.totalItemsCount * linesPerItem
+        // Height of a line, so that `estimatedLines * avgLineHeight` is a height. Items sharing a
+        // line share its height, so the average per-item height is the right estimator — dividing by
+        // `linesOccupied` instead would multiply the line height by `lanes` and overestimate the
+        // content by that factor on an ordinary grid (every item spanning one lane).
+        val avgLineHeight = heightSum.toFloat() / visibleItems.size
+        // Rows are separated by mainAxisItemSpacing; with N estimated lines there are N-1 gaps
+        // (zero when there are fewer than two lines). `mainAxisItemSpacing` is an Int in px — 0 when
+        // no `Arrangement.spacedBy` is set — so a Dp.Unspecified concern does not apply here.
+        val lineSpacing = if (estimatedLines > 1f) (estimatedLines - 1f) * layoutInfo.mainAxisItemSpacing.toFloat() else 0f
+        return estimatedLines * avgLineHeight + lineSpacing + layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
     }
 }
