@@ -19,6 +19,7 @@ import kotlinx.coroutines.sync.withLock
 import zed.rainxch.core.data.cache.CacheManager
 import zed.rainxch.core.data.cache.CacheManager.CacheTtl.USER_PROFILE
 import zed.rainxch.core.data.data_source.TokenStore
+import zed.rainxch.core.data.dto.GithubDeviceTokenSuccessDto
 import zed.rainxch.core.data.dto.UserProfileNetwork
 import zed.rainxch.core.data.mappers.toUserProfile
 import zed.rainxch.core.data.network.executeRequest
@@ -67,19 +68,43 @@ class UserSessionRepositoryImpl(
         recordSession(isLoggedIn = false, profile = null)
     }
 
+    /**
+     * The cached profile, but only when it was stored under [token].
+     *
+     * The entry is keyed by a fixed "profile:me" that outlives the token, and replacing
+     * the token (logging in as another account) does not re-key it, so without this stamp
+     * check a new account could be seeded from the previous account's cached profile.
+     * Stale is acceptable once the stamp matches.
+     *
+     * A stamp missing on either side means "owner unknown", not "somebody else": caches
+     * written before this field existed must stay readable, otherwise upgrading would
+     * blank the profile until the first successful fetch. Only two known, different
+     * owners reject the cache.
+     */
+    private suspend fun ownedCachedProfile(token: GithubDeviceTokenSuccessDto): UserProfile? {
+        val stored =
+            cacheManager.get<String>(CACHE_OWNER_KEY)
+                ?: cacheManager.getStale<String>(CACHE_OWNER_KEY)
+        val current = ownershipStamp(token)
+        if (stored != null && current != null && stored != current) return null
+        return cacheManager.get<UserProfile>(CACHE_KEY)
+            ?: cacheManager.getStale<UserProfile>(CACHE_KEY)
+    }
+
+    // Identifies the token without being derivable from it: the moment the token was
+    // stored, which TokenStore guarantees is present and which only changes on sign-in.
+    // A token hash was the obvious alternative, but a 32-bit hash can collide, and this
+    // check exists precisely to stop one account's profile being shown for another's.
+    private fun ownershipStamp(token: GithubDeviceTokenSuccessDto): String? =
+        token.savedAtEpochMillis?.toString()
+
     override suspend fun primeSession() {
-        val loggedIn = tokenStore.currentToken() != null
-        val profile =
-            if (loggedIn) {
-                // Stale is acceptable here: showing yesterday's account beats showing a
-                // placeholder, and the normal read replaces it moments later. Never the
-                // network — startup must not wait on GitHub.
-                cacheManager.get<UserProfile>(CACHE_KEY)
-                    ?: cacheManager.getStale<UserProfile>(CACHE_KEY)
-            } else {
-                null
-            }
-        recordSession(loggedIn, profile)
+        val token = tokenStore.currentToken()
+        // Stale is acceptable here: showing yesterday's account beats showing a
+        // placeholder, and the normal read replaces it moments later. Never the
+        // network — startup must not wait on GitHub.
+        val profile = token?.let { ownedCachedProfile(it) }
+        recordSession(token != null, profile)
     }
 
     override fun getUser(): Flow<UserProfile?> = flow {
@@ -91,7 +116,7 @@ class UserSessionRepositoryImpl(
             return@flow
         }
 
-        val cached = cacheManager.get<UserProfile>(CACHE_KEY)
+        val cached = ownedCachedProfile(token)
         if (cached != null) {
             logger.debug("Profile cache hit")
             recordSession(isLoggedIn = true, profile = cached)
@@ -110,6 +135,7 @@ class UserSessionRepositoryImpl(
 
             val userProfile = networkProfile.toUserProfile()
             cacheManager.put(CACHE_KEY, userProfile, USER_PROFILE)
+            ownershipStamp(token)?.let { cacheManager.put(CACHE_OWNER_KEY, it, USER_PROFILE) }
             logger.debug("Fetched and cached user profile: ${userProfile.username}")
             recordSession(isLoggedIn = true, profile = userProfile)
             emit(userProfile)
@@ -118,7 +144,7 @@ class UserSessionRepositoryImpl(
         } catch (e: Exception) {
             logger.error("Failed to fetch user profile: ${e.message}")
 
-            val stale = cacheManager.getStale<UserProfile>(CACHE_KEY)
+            val stale = ownedCachedProfile(token)
             if (stale != null) {
                 logger.debug("Using stale cached profile as fallback")
                 recordSession(isLoggedIn = true, profile = stale)
@@ -167,6 +193,14 @@ class UserSessionRepositoryImpl(
                     "window; clearing token"
             }
             tokenStore.clear()
+            // The profile cache outlives the token (6h TTL) and is only wiped on logout, so a
+            // later login as a different account could otherwise be primed from the previous
+            // account's profile. Drop it together with the token.
+            cacheManager.invalidate(CACHE_KEY)
+            // Keep the session snapshot honest: the token is gone, so the session is signed
+            // out. Without this, _lastKnownSession would still report isLoggedIn = true with
+            // the old account after a 401-driven sign-out.
+            recordSession(isLoggedIn = false, profile = null)
             resetCounter()
             _sessionExpiredEvent.emit(Unit)
         }
@@ -198,5 +232,9 @@ class UserSessionRepositoryImpl(
         const val REQUIRED_CONSECUTIVE_FAILURES = 2
         const val FAILURE_WINDOW_MS = 60_000L
         private const val CACHE_KEY = "profile:me"
+        // Records which token the CACHE_KEY profile was fetched under, so it is never
+        // served to a different account. Deliberately a non-reversible fingerprint rather
+        // than the token itself: the cache is not encrypted storage.
+        private const val CACHE_OWNER_KEY = "profile:me:owner"
     }
 }

@@ -3,6 +3,7 @@ package zed.rainxch.githubstore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,8 +30,15 @@ class MainViewModel(
             // Read the stored session once, at startup, so a screen that must be correct on
             // its very first frame — the profile tab — already has the account before anyone
             // can open it. Local only, so it costs a database read, and nothing waits on it.
-            runCatching { userSessionRepository.primeSession() }
-                .onFailure { Logger.w(it) { "Session prime failed; continuing without it" } }
+            try {
+                userSessionRepository.primeSession()
+            } catch (e: CancellationException) {
+                // Not a failure: swallowing this would let the collector below run on a
+                // cancelled coroutine instead of ending with it.
+                throw e
+            } catch (e: Exception) {
+                Logger.w(e) { "Session prime failed; continuing without it" }
+            }
             _state.update {
                 it.copy(
                     signedInAvatarUrl = userSessionRepository.lastKnownSession?.profile?.imageUrl,
@@ -40,7 +48,20 @@ class MainViewModel(
             userSessionRepository
                 .isUserLoggedIn()
                 .collect { isLoggedIn ->
-                    _state.update { it.copy(isLoggedIn = isLoggedIn) }
+                    _state.update {
+                        it.copy(
+                            isLoggedIn = isLoggedIn,
+                            // The warm-up target belongs to whoever is signed in *now*: on a
+                            // sign-out it must go, or the next account's tab would warm the
+                            // previous account's avatar.
+                            signedInAvatarUrl =
+                                if (isLoggedIn) {
+                                    userSessionRepository.lastKnownSession?.profile?.imageUrl
+                                } else {
+                                    null
+                                },
+                        )
+                    }
 
                     if (isLoggedIn) {
                         rateLimitRepository.clear()
@@ -138,7 +159,11 @@ class MainViewModel(
 
         viewModelScope.launch {
             userSessionRepository.sessionExpiredEvent.collect {
-                _state.update { it.copy(showSessionExpiredDialog = true) }
+                // The token is gone by the time this fires, so drop the warm-up target with
+                // it rather than waiting for the token flow to report the sign-out.
+                _state.update {
+                    it.copy(showSessionExpiredDialog = true, signedInAvatarUrl = null)
+                }
             }
         }
 

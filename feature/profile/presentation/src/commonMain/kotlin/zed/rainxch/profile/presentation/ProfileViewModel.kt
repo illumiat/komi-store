@@ -29,7 +29,12 @@ class ProfileViewModel(
             userSessionRepository.lastKnownSession?.let { session ->
                 ProfileState(
                     userProfile = session.profile,
-                    isUserLoggedIn = session.isLoggedIn,
+                    // The card renders signed-out whenever userProfile is null, so seeding
+                    // isUserLoggedIn = true next to a null profile put the "Sign in" card
+                    // above the stars/logout rows for a frame. (true, null) is a real
+                    // snapshot — valid token, account not read yet — and the flow below
+                    // re-states the flag a frame later.
+                    isUserLoggedIn = session.isLoggedIn && session.profile != null,
                 )
             } ?: ProfileState(),
         )
