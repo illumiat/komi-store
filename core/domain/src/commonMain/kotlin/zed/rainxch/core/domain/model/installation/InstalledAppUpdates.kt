@@ -5,10 +5,12 @@ import zed.rainxch.core.domain.utils.VersionMath
 // Zone-scoped write surface for InstalledApp. A bare copy() with dozens of
 // named args let any writer overwrite fields owned by another writer (the
 // overwrite-bug class); each function below copies the fields of its declared
-// zone, pinned by InstalledAppUpdatesTest. Two declared cross-side owners:
+// zone, pinned by InstalledAppUpdatesTest. Three declared cross-side owners:
 // the migrate zone (one-time import normalizer owning both sides' version
-// name/code, never tags, flags, or assets) and confirmInstall reconciling
-// latestVersionCode to the installed code when the install caught up to it.
+// name/code, never tags, flags, or assets), confirmInstall reconciling
+// latestVersionCode to the installed code when the install caught up to it,
+// and withSkippedRelease, which has to adjust the flag confirmInstall just set
+// because a declined release must not be advertised by the record either.
 
 // install zone — real install/confirm events only
 
@@ -52,6 +54,17 @@ fun InstalledApp.confirmInstall(
         pendingInstallAssetName = parkedAsset,
     )
 }
+
+// The release this record is being moved away from is withheld by tag, and a
+// record that still calls that release its latest must not advertise it: the
+// skip is the user's answer, so it outranks the availability confirmInstall
+// derived from the snapshot alone. Runs after confirmInstall, which owns the
+// installed fields and the pending handoff.
+fun InstalledApp.withSkippedRelease(skippedTag: String?): InstalledApp = copy(
+    skippedReleaseTag = skippedTag,
+    isUpdateAvailable =
+        isUpdateAvailable && !VersionMath.isExactSameVersion(latestVersion, skippedTag),
+)
 
 fun InstalledApp.resolvePendingFromSystem(
     resolvedTag: String,

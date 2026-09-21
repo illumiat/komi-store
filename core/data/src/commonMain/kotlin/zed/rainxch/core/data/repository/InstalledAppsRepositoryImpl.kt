@@ -31,6 +31,7 @@ import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.clearPending
 import zed.rainxch.core.domain.model.installation.confirmInstall
 import zed.rainxch.core.domain.model.installation.markPending
+import zed.rainxch.core.domain.model.installation.withSkippedRelease
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.Installer
@@ -54,6 +55,13 @@ class InstalledAppsRepositoryImpl(
     private companion object {
 
         const val RELEASE_WINDOW = 50
+
+        /**
+         * How long a record that has just been written is left alone before a check may act on
+         * it. Long enough to cover the confirmation that follows an install, short enough that a
+         * release published in the meantime is only deferred, never lost.
+         */
+        const val INSTALL_SETTLE_WINDOW_MS = 30L * 60L * 1000L
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =
@@ -307,6 +315,24 @@ class InstalledAppsRepositoryImpl(
             return false
         }
 
+        // A check that lands right after an install is reading a record another writer has only
+        // just finished with: the install confirmation re-runs this check seconds after the
+        // install itself rewrote the record, so the two writes describe different moments. Leave
+        // the record alone until the write has settled instead of acting on what it says
+        // mid-flight. Nothing is written while this window is open, and that is the point —
+        // forcing the availability flag to false here would erase a release the user is genuinely
+        // behind on. What the window finds is deferred to the next check, not denied.
+        val settledAt = app.lastUpdatedAt
+        if (settledAt > 0L &&
+            System.currentTimeMillis() - settledAt < INSTALL_SETTLE_WINDOW_MS
+        ) {
+            Logger.d {
+                "Update check for ${app.appName} skipped: record settled " +
+                        "${System.currentTimeMillis() - settledAt}ms ago"
+            }
+            return app.isUpdateAvailable
+        }
+
         try {
             val releases =
                 fetchReleaseWindow(
@@ -448,6 +474,35 @@ class InstalledAppsRepositoryImpl(
         }
     }
 
+    /**
+     * Whether [candidateTag] names a build after [referenceTag], used to answer "is there still
+     * an update after this install?".
+     *
+     * The codes decide it whenever both are known: they are monotonic, while the tags this app
+     * tracks are not (`nightly`, `v0.5.9.5`, `26.08.11f15e4`). Reading the ordering off the
+     * codes keeps this record's own update flag and its latestVersionCode from being written
+     * from a guess. Tags remain the fallback when a code is missing, matching the order
+     * resolveExternalInstallVerdict already uses.
+     *
+     * A blank candidate names nothing, so it is never ahead — that has to be checked here
+     * because the code branch would otherwise be entered with a real candidate code and report
+     * an ordering for a tag that does not exist.
+     */
+    private fun isAheadOf(
+        candidateTag: String?,
+        referenceTag: String,
+        candidateCode: Long?,
+        referenceCode: Long,
+    ): Boolean =
+        if (candidateTag.isNullOrBlank()) {
+            false
+        } else if (candidateCode != null && candidateCode > 0L && referenceCode > 0L) {
+            candidateCode > referenceCode
+        } else {
+            referenceTag.isNotBlank() &&
+                VersionMath.isVersionNewer(candidateTag, referenceTag)
+        }
+
     override suspend fun updateAppVersion(
         packageName: String,
         newTag: String,
@@ -478,6 +533,41 @@ class InstalledAppsRepositoryImpl(
             ),
         )
 
+        val snapshotLatestVersion = app.latestVersion
+        // The three codes this rewrite reasons about: A is the detected latest, B what the record
+        // says is installed, C the build being installed.
+        val detectedCode = app.latestVersionCode
+        val installedCode = app.installedVersionCode
+        val incomingCode = newVersionCode
+        // Whether the build underneath actually changed, which is all this rewrite asks of the
+        // codes. B == C means nothing moved — a reinstall, or the same build seen twice — and
+        // then there is no state to derive, so the record is left as a plain copy.
+        val codeMoved = installedCode > 0L && incomingCode > 0L && incomingCode != installedCode
+        // Whether a release still sits above the build being installed. Only the skip decision
+        // below asks this; the install's own update flag is confirmInstall's, computed against
+        // the same snapshot.
+        val latestAhead =
+            isAheadOf(snapshotLatestVersion, newTag, detectedCode, incomingCode)
+        // The record is about to call this build installed, so `codeMoved` says the install
+        // landed somewhere new, and `latestAhead` says a release still sits above where it
+        // landed. Offered any more it would only re-open a gap the user has just closed, and
+        // that holds whatever the two builds were: no direction is read out of the tags here.
+        //
+        // One exception, and it is the whole point of it: a tag that already names several
+        // builds must not carry a skip. The skip is keyed by tag, so writing this one down would
+        // say "stop offering `nightly`" — and the record's own `nightly` is exactly such a tag,
+        // having been called installed while the build underneath moved. The next `nightly`
+        // really is a new build and deserves to be shown, so the tag is left unskipped and the
+        // build that moved makes it recognisable here rather than needing a second lookup.
+        val tagNamesSeveralBuilds =
+            codeMoved && app.installedVersion == newTag
+        val skippedReleaseTag =
+            if (codeMoved && !tagNamesSeveralBuilds && latestAhead) {
+                snapshotLatestVersion
+            } else {
+                app.skippedReleaseTag
+            }
+
         installedAppsDao.updateApp(
             app.toDomain()
                 .confirmInstall(
@@ -490,6 +580,7 @@ class InstalledAppsRepositoryImpl(
                     isPending = isPendingInstall,
                     at = System.currentTimeMillis(),
                 )
+                .withSkippedRelease(skippedReleaseTag)
                 .toEntity(),
         )
     }

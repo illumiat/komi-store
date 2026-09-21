@@ -80,7 +80,9 @@ fun KomiButton(
     leadingIcon: ImageVector? = null,
     trailingIcon: ImageVector? = null,
     // Fixed colours for actions whose meaning must not follow the accent, which can be
-    // chosen close to the error colour. Unspecified keeps the themed appearance.
+    // chosen close to the error colour. Both must be given together; a partial pair is
+    // ignored so the variant keeps its own themed colours (e.g. a Text button stays a
+    // text button instead of being echoed into a filled primary).
     containerColor: Color = Color.Unspecified,
     contentColor: Color = Color.Unspecified,
 ) {
@@ -150,11 +152,13 @@ private fun MangaButton(
 
     val flat = variant == KomiButtonVariant.Text
     val ambientInk = LocalContentColor.current
+    val overrideColorsGiven =
+        containerColor != Color.Unspecified && contentColor != Color.Unspecified
     val container =
-        if (containerColor != Color.Unspecified) containerColor else mangaButtonContainer(variant, colors)
-    val contentColor =
-        if (contentColor != Color.Unspecified) contentColor else mangaButtonContent(variant, colors, ambientInk)
-    val borderColor = if (container == Color.Transparent) contentColor else colors.outline
+        if (overrideColorsGiven) containerColor else mangaButtonContainer(variant, colors)
+    val resolvedContentColor =
+        if (overrideColorsGiven) contentColor else mangaButtonContent(variant, colors, ambientInk)
+    val borderColor = if (container == Color.Transparent) resolvedContentColor else colors.outline
     val stamped = !flat && container != Color.Transparent
     val sweep =
         emphasized && active &&
@@ -194,7 +198,7 @@ private fun MangaButton(
                 .then(
                     if (sweep) {
                         Modifier.speedLines(
-                            color = contentColor,
+                            color = resolvedContentColor,
                             opacity = 0.16f,
                         )
                     } else {
@@ -222,7 +226,7 @@ private fun MangaButton(
     ) {
         KomiButtonContent(
             label = label,
-            contentColor = contentColor.copy(alpha = alpha),
+            contentColor = resolvedContentColor.copy(alpha = alpha),
             iconSize = metrics.icon,
             gap = metrics.gap,
             fontSize = metrics.font,
@@ -258,6 +262,16 @@ private fun ClassicButton(
             .heightIn(min = metrics.height)
             .then(if (fullWidth) Modifier.fillMaxWidth() else Modifier)
 
+    val overrideColors =
+        if (containerColor != Color.Unspecified && contentColor != Color.Unspecified) {
+            ButtonDefaults.buttonColors(
+                containerColor = containerColor,
+                contentColor = contentColor,
+            )
+        } else {
+            null
+        }
+
     val content: @Composable RowScope.() -> Unit = {
         KomiButtonContent(
             label = label,
@@ -278,15 +292,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
-                colors =
-                    if (containerColor != Color.Unspecified || contentColor != Color.Unspecified) {
-                        ButtonDefaults.buttonColors(
-                            containerColor = containerColor,
-                            contentColor = contentColor,
-                        )
-                    } else {
-                        ButtonDefaults.buttonColors()
-                    },
+                colors = overrideColors ?: ButtonDefaults.buttonColors(),
                 content = content,
             )
         }
@@ -297,6 +303,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors = overrideColors ?: ButtonDefaults.filledTonalButtonColors(),
                 content = content,
             )
         }
@@ -307,6 +314,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors = overrideColors ?: ButtonDefaults.outlinedButtonColors(),
                 content = content,
             )
         }
@@ -317,6 +325,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors = overrideColors ?: ButtonDefaults.textButtonColors(),
                 content = content,
             )
         }
@@ -328,10 +337,11 @@ private fun ClassicButton(
                 enabled = active,
                 contentPadding = contentPadding,
                 colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = colors.error,
-                        contentColor = colors.onError,
-                    ),
+                    overrideColors
+                        ?: ButtonDefaults.buttonColors(
+                            containerColor = colors.error,
+                            contentColor = colors.onError,
+                        ),
                 content = content,
             )
         }

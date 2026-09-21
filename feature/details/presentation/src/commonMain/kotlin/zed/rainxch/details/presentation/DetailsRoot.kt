@@ -4,6 +4,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -73,6 +74,7 @@ import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
+import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
@@ -91,8 +93,6 @@ import zed.rainxch.githubstore.core.presentation.res.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
-import androidx.compose.foundation.layout.Column
-import zed.rainxch.core.presentation.locals.LocalPersonality
 
 @Composable
 fun DetailsRoot(
@@ -244,6 +244,7 @@ fun DetailsRoot(
             // KomiDialog only offers dismiss/confirm slots, so all three actions share one
             // row to keep cancel at the start and the two choices grouped at the end.
             confirmButton = {
+                val personality = LocalPersonality.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -264,20 +265,37 @@ fun DetailsRoot(
                                 viewModel.onAction(DetailsAction.UninstallApp)
                             },
                             label = stringResource(Res.string.uninstall_first),
-                            variant = KomiButtonVariant.Destructive,
+                            // Text rather than Destructive: the dialog offers three equal choices,
+                            // so the colour on the label carries the meaning instead of a fill.
+                            // Text also skips the manga personality's outline, which a transparent
+                            // container would otherwise draw. The container has to be stated for
+                            // the colour pair to be complete.
+                            variant = KomiButtonVariant.Text,
                             size = KomiButtonSize.Sm,
+                            containerColor = Color.Transparent,
+                            contentColor = personality.colors.error,
                         )
                         KomiButton(
                             onClick = {
                                 viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
                             },
                             label = stringResource(Res.string.install_anyway),
-                            variant = KomiButtonVariant.Primary,
+                            // Text rather than Primary, so neither choice reads as the one the
+                            // dialog recommends.
+                            variant = KomiButtonVariant.Text,
                             size = KomiButtonSize.Sm,
-                            // Fixed blue: the accent can itself be red, which would make
-                            // the safe action look like the destructive one.
-                            containerColor = Color(0xFF3B5BDB),
-                            contentColor = Color.White,
+                            containerColor = Color.Transparent,
+                            // A label sits on the dialog surface, so one fixed blue cannot serve
+                            // both surfaces: the light-mode blue reaches only 3.0:1 on the dark
+                            // ones. The pair keeps its meaning without following the accent,
+                            // which can itself be red and would make this read as the
+                            // destructive choice.
+                            contentColor =
+                                if (personality.colors.isDark) {
+                                    Color(0xFFB6C4FF)
+                                } else {
+                                    Color(0xFF3B5BDB)
+                                },
                         )
                     }
                 }
@@ -358,7 +376,7 @@ fun DetailsRoot(
                         viewModel.onAction(DetailsAction.OnConfirmUninstall)
                     },
                     label = stringResource(Res.string.uninstall),
-                    variant = KomiButtonVariant.Destructive,
+                    variant = KomiButtonVariant.Text,
                     size = KomiButtonSize.Sm,
                 )
             },
