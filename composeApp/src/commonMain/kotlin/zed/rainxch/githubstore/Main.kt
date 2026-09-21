@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -66,11 +68,19 @@ fun App(
     // tab finds it in the image cache whenever it is first opened. Warm-up only — an image
     // that fails here is fetched again, normally, wherever it is actually shown.
     val imageContext = LocalPlatformContext.current
+    // The profile card draws this avatar at 80.dp, so warm exactly that: with no size Coil
+    // decodes the source (GitHub avatars are ~460px) at full resolution for something that
+    // is only ever shown at 80dp.
+    val avatarSizePx = with(LocalDensity.current) { 80.dp.roundToPx() }
     LaunchedEffect(mainState.signedInAvatarUrl) {
         mainState.signedInAvatarUrl?.let { url ->
             runCatching {
                 SingletonImageLoader.get(imageContext).enqueue(
-                    ImageRequest.Builder(imageContext).data(url).build(),
+                    ImageRequest
+                        .Builder(imageContext)
+                        .data(url)
+                        .size(avatarSizePx)
+                        .build(),
                 )
             }
         }
