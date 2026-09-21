@@ -68,6 +68,5 @@ class GridColumnsTest {
         // An absurdly large but finite width is clamped to the column ceiling, not left unbounded.
         val hugeWidth = gridColumnCount(1_000_000f, 270f)
         assertEquals(16, hugeWidth)
-        assertTrue(hugeWidth != Int.MAX_VALUE)
     }
 }

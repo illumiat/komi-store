@@ -232,9 +232,20 @@ private class GridScrollbarAdapter(
             lineSpanSum += item.span
             heightSum += item.size.height
         }
-        val linesPerItem = (lineSpanSum.toFloat() / lanes) / visibleItems.size
+        // Total lines the visible window occupies: a normal item = 1/lanes of a line, a full-line
+        // item = 1 line.
+        val linesOccupied = lineSpanSum.toFloat() / lanes
+        val linesPerItem = linesOccupied / visibleItems.size
         val estimatedLines = layoutInfo.totalItemsCount * linesPerItem
-        val avgHeight = heightSum.toFloat() / visibleItems.size
-        return estimatedLines * avgHeight + layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
+        // Height of a line, so that `estimatedLines * avgLineHeight` is a height. Items sharing a
+        // line share its height, so the average per-item height is the right estimator — dividing by
+        // `linesOccupied` instead would multiply the line height by `lanes` and overestimate the
+        // content by that factor on an ordinary grid (every item spanning one lane).
+        val avgLineHeight = heightSum.toFloat() / visibleItems.size
+        // Rows are separated by mainAxisItemSpacing; with N estimated lines there are N-1 gaps
+        // (zero when there are fewer than two lines). `mainAxisItemSpacing` is an Int in px — 0 when
+        // no `Arrangement.spacedBy` is set — so a Dp.Unspecified concern does not apply here.
+        val lineSpacing = if (estimatedLines > 1f) (estimatedLines - 1f) * layoutInfo.mainAxisItemSpacing.toFloat() else 0f
+        return estimatedLines * avgLineHeight + lineSpacing + layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
     }
 }
