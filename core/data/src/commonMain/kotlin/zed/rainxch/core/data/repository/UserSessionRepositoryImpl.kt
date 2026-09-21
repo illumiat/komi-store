@@ -98,6 +98,13 @@ class UserSessionRepositoryImpl(
     private fun ownershipStamp(token: GithubDeviceTokenSuccessDto): String? =
         token.savedAtEpochMillis?.toString()
 
+    // True while [token] is still the live token in the store. Between capturing it at the
+    // top of getUser() and the network round-trip below, logout() or a 401-driven sign-out
+    // can replace/clear the token; awaiting that must never let this method write a
+    // logged-in snapshot for an account that is no longer the current one.
+    private suspend fun isCurrentToken(token: GithubDeviceTokenSuccessDto): Boolean =
+        tokenStore.currentToken()?.accessToken == token.accessToken
+
     override suspend fun primeSession() {
         val token = tokenStore.currentToken()
         // Stale is acceptable here: showing yesterday's account beats showing a
@@ -119,8 +126,14 @@ class UserSessionRepositoryImpl(
         val cached = ownedCachedProfile(token)
         if (cached != null) {
             logger.debug("Profile cache hit")
-            recordSession(isLoggedIn = true, profile = cached)
-            emit(cached)
+            if (isCurrentToken(token)) {
+                recordSession(isLoggedIn = true, profile = cached)
+                emit(cached)
+            } else {
+                // Token rotated/cleared while we were deciding; do not flip the session back
+                // to logged-in for an account that is no longer current.
+                emit(null)
+            }
             return@flow
         }
 
@@ -137,8 +150,14 @@ class UserSessionRepositoryImpl(
             cacheManager.put(CACHE_KEY, userProfile, USER_PROFILE)
             ownershipStamp(token)?.let { cacheManager.put(CACHE_OWNER_KEY, it, USER_PROFILE) }
             logger.debug("Fetched and cached user profile: ${userProfile.username}")
-            recordSession(isLoggedIn = true, profile = userProfile)
-            emit(userProfile)
+            if (isCurrentToken(token)) {
+                recordSession(isLoggedIn = true, profile = userProfile)
+                emit(userProfile)
+            } else {
+                // Sign-out landed during the fetch; cache the profile but keep the session
+                // reported as signed-out so the caller seeds the signed-out first frame.
+                emit(null)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -147,10 +166,18 @@ class UserSessionRepositoryImpl(
             val stale = ownedCachedProfile(token)
             if (stale != null) {
                 logger.debug("Using stale cached profile as fallback")
-                recordSession(isLoggedIn = true, profile = stale)
-                emit(stale)
+                if (isCurrentToken(token)) {
+                    recordSession(isLoggedIn = true, profile = stale)
+                    emit(stale)
+                } else {
+                    // Token gone mid-fallback: keep session signed-out, do not replay an
+                    // old account's profile into the new signed-out first frame.
+                    emit(null)
+                }
             } else {
-                recordSession(isLoggedIn = true, profile = null)
+                if (isCurrentToken(token)) {
+                    recordSession(isLoggedIn = true, profile = null)
+                }
                 emit(null)
             }
         }
