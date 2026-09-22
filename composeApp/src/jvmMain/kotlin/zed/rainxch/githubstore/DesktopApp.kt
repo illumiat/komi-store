@@ -21,10 +21,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.context.GlobalContext
@@ -58,6 +56,8 @@ import zed.rainxch.githubstore.desktop.WindowStateStore
 import zed.rainxch.githubstore.desktop.applyMacosWindowAppearance
 import zed.rainxch.githubstore.desktop.applyWindowsImmersiveDarkMode
 import zed.rainxch.githubstore.desktop.installMacosSystemAppearance
+import zed.rainxch.githubstore.utils.STARTUP_PREFERENCE_TIMEOUT_MS
+import zed.rainxch.githubstore.utils.readStartupPreference
 import java.awt.Desktop
 import java.net.URI
 import java.security.Security
@@ -65,8 +65,6 @@ import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val PRIVACY_POLICY_URL = "https://komistore.app/privacy-policy"
-
-private const val LANGUAGE_PREF_READ_TIMEOUT_MS = 2000L
 
 fun main(args: Array<String>) {
     installMacosSystemAppearance()
@@ -92,13 +90,11 @@ fun main(args: Array<String>) {
         val tweaksRepo = koin.get<TweaksRepository>()
         val localization = koin.get<LocalizationManager>()
         val tag =
-            try {
-                withTimeoutOrNull(LANGUAGE_PREF_READ_TIMEOUT_MS.milliseconds) {
-                    tweaksRepo.getAppLanguage().first()
-                }
-            } catch (_: Exception) {
-                null
-            }
+            readStartupPreference(
+                label = "appLanguage",
+                timeout = STARTUP_PREFERENCE_TIMEOUT_MS.milliseconds,
+                flow = tweaksRepo.getAppLanguage(),
+            )
         localization.setActiveLanguageTag(tag)
     }
 

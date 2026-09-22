@@ -2,16 +2,26 @@ package zed.rainxch.githubstore
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import zed.rainxch.core.domain.model.appearance.AccentId
+import zed.rainxch.core.domain.model.appearance.AppPersonality
+import zed.rainxch.core.domain.model.appearance.MangaPaperId
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.repository.RateLimitRepository
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.repository.UserSessionRepository
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
+import zed.rainxch.githubstore.utils.STARTUP_PREFERENCE_TIMEOUT_MS
+import kotlin.time.Duration.Companion.milliseconds
 
 class MainViewModel(
     private val tweaksRepository: TweaksRepository,
@@ -47,25 +57,6 @@ class MainViewModel(
         }
         viewModelScope.launch {
             tweaksRepository
-                .getAmoledTheme()
-                .collect { isAmoled ->
-                    _state.update {
-                        it.copy(isAmoledTheme = isAmoled)
-                    }
-                }
-        }
-        viewModelScope.launch {
-            tweaksRepository
-                .getIsDarkTheme()
-                .collect { isDarkTheme ->
-                    _state.update {
-                        it.copy(isDarkTheme = isDarkTheme)
-                    }
-                }
-        }
-
-        viewModelScope.launch {
-            tweaksRepository
                 .getFontTheme()
                 .collect { fontTheme ->
                     _state.update {
@@ -74,21 +65,45 @@ class MainViewModel(
                 }
         }
 
+        // Sole writer of the gated appearance fields: the combine chain emits
+        // only after all six sources have a first value — the five theme
+        // preferences plus appLanguageTag, which selects the font script and is
+        // therefore gated alongside the theme rather than collected separately.
+        // Fields and flag land in one update. If that emission never arrives
+        // within the timeout — or the collector throws — the watchdog releases
+        // the gate on defaults so the splash can never be held indefinitely.
         viewModelScope.launch {
-            tweaksRepository.getPersonality().collect { personality ->
-                _state.update { it.copy(personality = personality) }
+            val firstEmitted = CompletableDeferred<Unit>()
+            launch {
+                if (
+                    withTimeoutOrNull(STARTUP_PREFERENCE_TIMEOUT_MS.milliseconds) {
+                        firstEmitted.await()
+                    } == null
+                ) {
+                    Logger.w { "Appearance preference load timed out, releasing gate on defaults" }
+                    _state.update { it.copy(isAppearanceLoaded = true) }
+                }
             }
-        }
-
-        viewModelScope.launch {
-            tweaksRepository.getAccentId().collect { accent ->
-                _state.update { it.copy(accent = accent) }
-            }
-        }
-
-        viewModelScope.launch {
-            tweaksRepository.getMangaPaper().collect { paper ->
-                _state.update { it.copy(mangaPaper = paper) }
+            try {
+                combine(
+                    tweaksRepository.getPersonality(),
+                    tweaksRepository.getAccentId(),
+                    tweaksRepository.getMangaPaper(),
+                    tweaksRepository.getAmoledTheme(),
+                    tweaksRepository.getIsDarkTheme(),
+                ) { personality, accent, paper, amoled, isDark ->
+                    Appearance(personality, accent, paper, amoled, isDark)
+                }.combine(tweaksRepository.getAppLanguage()) { appearance, appLanguageTag ->
+                    appearance.copy(appLanguageTag = appLanguageTag)
+                }.collect { snapshot ->
+                    _state.update { it.withAppearance(snapshot).copy(isAppearanceLoaded = true) }
+                    firstEmitted.complete(Unit)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.w(e) { "Appearance preference stream failed, releasing gate on defaults" }
+                _state.update { it.copy(isAppearanceLoaded = true) }
             }
         }
 
@@ -101,12 +116,6 @@ class MainViewModel(
         viewModelScope.launch {
             tweaksRepository.getContentWidth().collect { width ->
                 _state.update { it.copy(contentWidth = width) }
-            }
-        }
-
-        viewModelScope.launch {
-            tweaksRepository.getAppLanguage().collect { tag ->
-                _state.update { it.copy(appLanguageTag = tag) }
             }
         }
 
@@ -149,3 +158,22 @@ class MainViewModel(
         }
     }
 }
+
+private data class Appearance(
+    val personality: AppPersonality,
+    val accent: AccentId,
+    val mangaPaper: MangaPaperId,
+    val isAmoledTheme: Boolean,
+    val isDarkTheme: Boolean?,
+    val appLanguageTag: String? = null,
+)
+
+private fun MainState.withAppearance(snapshot: Appearance): MainState =
+    copy(
+        personality = snapshot.personality,
+        accent = snapshot.accent,
+        mangaPaper = snapshot.mangaPaper,
+        isAmoledTheme = snapshot.isAmoledTheme,
+        isDarkTheme = snapshot.isDarkTheme,
+        appLanguageTag = snapshot.appLanguageTag,
+    )

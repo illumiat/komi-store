@@ -1,9 +1,12 @@
 package zed.rainxch.githubstore
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -17,6 +20,7 @@ import zed.rainxch.core.presentation.personality.mangaPersonality
 import zed.rainxch.core.presentation.personality.toMangaAccent
 import zed.rainxch.core.presentation.personality.toMangaPaper
 import zed.rainxch.core.presentation.personality.utils.PersonalityTheme
+import zed.rainxch.core.presentation.utils.ObserveTimeZoneChanges
 import zed.rainxch.githubstore.app.components.RateLimitDialog
 import zed.rainxch.githubstore.app.components.SessionExpiredDialog
 import zed.rainxch.githubstore.app.navigation.AppNavigation
@@ -38,6 +42,11 @@ fun App(
 
     val mainState by mainViewModel.state.collectAsStateWithLifecycle()
 
+    // Keeps TimeZoneChangeSignal.revision live for the whole session; the date
+    // producers that observe it re-map their local dates when the system zone
+    // changes. Registered above the appearance gate so it is active from launch.
+    ObserveTimeZoneChanges()
+
     val navController = rememberNavController()
 
     setSingletonImageLoaderFactory { context ->
@@ -45,6 +54,15 @@ fun App(
             .Builder(context)
             .components { add(SvgDecoder.Factory()) }
             .build()
+    }
+
+    // Nothing below may run before persisted appearance preferences load: the
+    // deep-link effect navigates a NavHost that is only composed after this
+    // gate, and the theme would be built from untrusted defaults. Android
+    // covers the wait with the splash; desktop shows a plain window frame.
+    if (!mainState.isAppearanceLoaded) {
+        Box(modifier = Modifier.fillMaxSize())
+        return
     }
 
     val currentScreen = navController.currentBackStackEntryAsState().value.getCurrentScreen()
