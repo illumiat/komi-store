@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -64,8 +63,7 @@ import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
-import zed.rainxch.core.presentation.layout.CardGridSpec
-import zed.rainxch.core.presentation.layout.rememberGridColumns
+import zed.rainxch.core.presentation.layout.rememberWidthCappedGridCells
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
@@ -315,7 +313,8 @@ fun AppsScreen(
                         else -> {
                             val listState = rememberLazyGridState()
                             val isScrollbarEnabled = LocalScrollbarEnabled.current
-                            val appGridSpan = rememberGridColumns(CardGridSpec.InfoMaxCardWidth)
+                            val appGridCells =
+                                rememberWidthCappedGridCells(contentPaddingHorizontal = 24.dp)
 
                             val onRowSelect: (InstalledAppUi) -> Unit =
                                 { app ->
@@ -335,7 +334,7 @@ fun AppsScreen(
                                 modifier = Modifier.fillMaxSize(),
                             ) {
                                 LazyVerticalGrid(
-                                    columns = GridCells.Fixed(appGridSpan),
+                                    columns = appGridCells,
                                     state = listState,
                                     modifier = Modifier.fillMaxSize().arrowKeyScroll(listState),
 
