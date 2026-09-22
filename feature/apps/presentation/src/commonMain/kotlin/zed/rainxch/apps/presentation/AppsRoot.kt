@@ -14,9 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
@@ -62,12 +63,12 @@ import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
+import zed.rainxch.core.presentation.layout.rememberWidthCappedGridCells
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.core.presentation.utils.arrowKeyScroll
-import zed.rainxch.core.presentation.utils.constrainedContentWidth
 import zed.rainxch.core.presentation.utils.formatLastChecked
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.add_by_link
@@ -239,7 +240,7 @@ fun AppsScreen(
                 contentAlignment = Alignment.TopCenter,
             ) {
                 Column(
-                    modifier = Modifier.constrainedContentWidth().fillMaxHeight(),
+                    modifier = Modifier.fillMaxHeight(),
                 ) {
                     KomiTextField(
                         value = state.searchQuery,
@@ -310,7 +311,7 @@ fun AppsScreen(
                         }
 
                         else -> {
-                            val listState = rememberLazyListState()
+                            val listState = rememberLazyGridState()
                             val isScrollbarEnabled = LocalScrollbarEnabled.current
 
                             val onRowSelect: (InstalledAppUi) -> Unit =
@@ -326,47 +327,51 @@ fun AppsScreen(
                                 }
 
                             ScrollbarContainer(
-                                listState = listState,
+                                gridState = listState,
                                 enabled = isScrollbarEnabled,
                                 modifier = Modifier.fillMaxSize(),
                             ) {
-                                LazyColumn(
+                                // Declared inside ScrollbarContainer on purpose: on desktop it
+                                // insets its content, so measuring from out there would be
+                                // measuring a wider region than the grid actually gets.
+                                val appGridCells =
+                                    rememberWidthCappedGridCells(contentPaddingHorizontal = 12.dp)
+
+                                LazyVerticalGrid(
+                                    columns = appGridCells,
                                     state = listState,
                                     modifier = Modifier.fillMaxSize().arrowKeyScroll(listState),
 
                                     contentPadding = PaddingValues(
-                                        start = 0.dp,
-                                        end = 0.dp,
+                                        start = 12.dp,
+                                        end = 12.dp,
                                         top = 8.dp,
                                         bottom = 88.dp,
                                     ),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     if (state.showImportProposalBanner) {
-                                        item(key = "external-import-banner") {
-                                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                                ImportProposalBanner(
-                                                    pendingCount = state.pendingExternalImportCount,
-                                                    onReview = { onAction(AppsAction.OnImportProposalReview) },
-                                                    onDismiss = { onAction(AppsAction.OnImportProposalDismiss) },
-                                                )
-                                            }
+                                        item(key = "external-import-banner", span = { GridItemSpan(maxLineSpan) }) {
+                                            ImportProposalBanner(
+                                                pendingCount = state.pendingExternalImportCount,
+                                                onReview = { onAction(AppsAction.OnImportProposalReview) },
+                                                onDismiss = { onAction(AppsAction.OnImportProposalDismiss) },
+                                            )
                                         }
                                     }
 
                                     if (state.showKaoBanner) {
-                                        item(key = "kao-banner") {
-                                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                                KaoBanner(
-                                                    onLearnMore = { onAction(AppsAction.OnKaoLearnMore) },
-                                                    onDismiss = { onAction(AppsAction.OnDismissKaoBanner) },
-                                                )
-                                            }
+                                        item(key = "kao-banner", span = { GridItemSpan(maxLineSpan) }) {
+                                            KaoBanner(
+                                                onLearnMore = { onAction(AppsAction.OnKaoLearnMore) },
+                                                onDismiss = { onAction(AppsAction.OnDismissKaoBanner) },
+                                            )
                                         }
                                     }
 
                                     if (state.pendingApps.isNotEmpty()) {
-                                        item(key = "header-pending-installs") {
+                                        item(key = "header-pending-installs", span = { GridItemSpan(maxLineSpan) }) {
                                             AppsSectionHeader(
                                                 title = stringResource(Res.string.apps_section_pending_installs),
                                                 count = state.pendingApps.size,
@@ -376,243 +381,232 @@ fun AppsScreen(
                                             )
                                         }
 
-                                        items(
-                                            items = state.pendingApps,
-                                            key = { "pending-${it.installedApp.packageName}" },
-                                        ) { appItem ->
-                                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                                AppItemCard(
-                                                    appItem = appItem,
-                                                    onOpenClick = {
-                                                        onAction(
-                                                            AppsAction.OnOpenApp(
-                                                                appItem.installedApp
-                                                            )
+                                        itemsIndexed(
+                                            state.pendingApps,
+                                            key = { _, appItem -> "pending-${appItem.installedApp.packageName}" },
+                                        ) { _, appItem ->
+                                            AppItemCard(
+                                                appItem = appItem,
+                                                onOpenClick = {
+                                                    onAction(
+                                                        AppsAction.OnOpenApp(
+                                                            appItem.installedApp
                                                         )
-                                                    },
-                                                    onUpdateClick = {
-                                                        onAction(
-                                                            AppsAction.OnUpdateApp(
-                                                                appItem.installedApp
-                                                            )
+                                                    )
+                                                },
+                                                onUpdateClick = {
+                                                    onAction(
+                                                        AppsAction.OnUpdateApp(
+                                                            appItem.installedApp
                                                         )
-                                                    },
-                                                    onCancelClick = {
-                                                        onAction(
-                                                            AppsAction.OnCancelUpdate(
-                                                                appItem.installedApp.packageName
-                                                            )
+                                                    )
+                                                },
+                                                onCancelClick = {
+                                                    onAction(
+                                                        AppsAction.OnCancelUpdate(
+                                                            appItem.installedApp.packageName
                                                         )
-                                                    },
-                                                    onUninstallClick = {
-                                                        onAction(
-                                                            AppsAction.OnUninstallApp(
-                                                                appItem.installedApp
-                                                            )
+                                                    )
+                                                },
+                                                onUninstallClick = {
+                                                    onAction(
+                                                        AppsAction.OnUninstallApp(
+                                                            appItem.installedApp
                                                         )
-                                                    },
-                                                    onRepoClick = { onRowSelect(appItem.installedApp) },
-                                                    onTogglePreReleases = { enabled ->
+                                                    )
+                                                },
+                                                onRepoClick = { onRowSelect(appItem.installedApp) },
+                                                onTogglePreReleases = { enabled ->
+                                                    onAction(
+                                                        AppsAction.OnTogglePreReleases(
+                                                            appItem.installedApp.packageName,
+                                                            enabled
+                                                        )
+                                                    )
+                                                },
+                                                onToggleUpdateCheck = { enabled ->
+                                                    onAction(
+                                                        AppsAction.OnToggleUpdateCheck(
+                                                            appItem.installedApp.packageName,
+                                                            enabled
+                                                        )
+                                                    )
+                                                },
+                                                onAdvancedSettingsClick = {
+                                                    onAction(
+                                                        AppsAction.OnOpenAdvancedSettings(
+                                                            appItem.installedApp
+                                                        )
+                                                    )
+                                                },
+                                                onPickVariantClick = {
+                                                    onAction(
+                                                        AppsAction.OnOpenVariantPicker(
+                                                            app = appItem.installedApp,
+                                                            resumeUpdateAfterPick = false,
+                                                        ),
+                                                    )
+                                                },
+                                                onInstallPendingClick = {
+                                                    onAction(
+                                                        AppsAction.OnInstallPendingApp(
+                                                            appItem.installedApp
+                                                        )
+                                                    )
+                                                },
+                                                onDiscardPendingClick = {
+                                                    onAction(
+                                                        AppsAction.OnDiscardPendingInstall(
+                                                            appItem.installedApp
+                                                        )
+                                                    )
+                                                },
+                                                onSkipVersionClick = {
+                                                    val tag =
+                                                        appItem.installedApp.latestVersion
+                                                            ?: appItem.installedApp.latestVersionName
+                                                    if (!tag.isNullOrBlank()) {
                                                         onAction(
-                                                            AppsAction.OnTogglePreReleases(
+                                                            AppsAction.OnSkipReleaseTag(
                                                                 appItem.installedApp.packageName,
-                                                                enabled
-                                                            )
-                                                        )
-                                                    },
-                                                    onToggleUpdateCheck = { enabled ->
-                                                        onAction(
-                                                            AppsAction.OnToggleUpdateCheck(
-                                                                appItem.installedApp.packageName,
-                                                                enabled
-                                                            )
-                                                        )
-                                                    },
-                                                    onAdvancedSettingsClick = {
-                                                        onAction(
-                                                            AppsAction.OnOpenAdvancedSettings(
-                                                                appItem.installedApp
-                                                            )
-                                                        )
-                                                    },
-                                                    onPickVariantClick = {
-                                                        onAction(
-                                                            AppsAction.OnOpenVariantPicker(
-                                                                app = appItem.installedApp,
-                                                                resumeUpdateAfterPick = false,
+                                                                tag,
                                                             ),
                                                         )
-                                                    },
-                                                    onInstallPendingClick = {
-                                                        onAction(
-                                                            AppsAction.OnInstallPendingApp(
-                                                                appItem.installedApp
-                                                            )
+                                                    }
+                                                },
+                                                onUnskipVersionClick = {
+                                                    onAction(
+                                                        AppsAction.OnUnskipReleaseTag(
+                                                            appItem.installedApp.packageName
                                                         )
-                                                    },
-                                                    onDiscardPendingClick = {
-                                                        onAction(
-                                                            AppsAction.OnDiscardPendingInstall(
-                                                                appItem.installedApp
-                                                            )
-                                                        )
-                                                    },
-                                                    onSkipVersionClick = {
-                                                        val tag =
-                                                            appItem.installedApp.latestVersion
-                                                                ?: appItem.installedApp.latestVersionName
-                                                        if (!tag.isNullOrBlank()) {
-                                                            onAction(
-                                                                AppsAction.OnSkipReleaseTag(
-                                                                    appItem.installedApp.packageName,
-                                                                    tag,
-                                                                ),
-                                                            )
-                                                        }
-                                                    },
-                                                    onUnskipVersionClick = {
-                                                        onAction(
-                                                            AppsAction.OnUnskipReleaseTag(
-                                                                appItem.installedApp.packageName
-                                                            )
-                                                        )
-                                                    },
-                                                )
-                                            }
+                                                    )
+                                                },
+                                            )
                                         }
                                     }
 
                                     if (state.updateApps.isNotEmpty() || state.isUpdatingAll) {
-                                        item(key = "updates-banner") {
-                                            Box(
-                                                modifier = Modifier.padding(
-                                                    horizontal = 16.dp,
-                                                    vertical = 4.dp
-                                                )
-                                            ) {
-                                                UpdatesBanner(
-                                                    count = state.updateApps.size,
-                                                    isExpanded = state.isUpdatesSectionExpanded,
-                                                    isUpdatingAll = state.isUpdatingAll,
-                                                    updateAllProgress = state.updateAllProgress,
-                                                    updateAllEnabled = state.updateAllButtonEnabled,
-                                                    onUpdateAll = { onAction(AppsAction.OnUpdateAll) },
-                                                    onCancelUpdateAll = { onAction(AppsAction.OnCancelUpdateAll) },
-                                                    onToggleExpanded = { onAction(AppsAction.OnToggleUpdatesSection) },
-                                                )
-                                            }
+                                        item(key = "updates-banner", span = { GridItemSpan(maxLineSpan) }) {
+                                            UpdatesBanner(
+                                                count = state.updateApps.size,
+                                                isExpanded = state.isUpdatesSectionExpanded,
+                                                isUpdatingAll = state.isUpdatingAll,
+                                                updateAllProgress = state.updateAllProgress,
+                                                updateAllEnabled = state.updateAllButtonEnabled,
+                                                onUpdateAll = { onAction(AppsAction.OnUpdateAll) },
+                                                onCancelUpdateAll = { onAction(AppsAction.OnCancelUpdateAll) },
+                                                onToggleExpanded = { onAction(AppsAction.OnToggleUpdatesSection) },
+                                            )
                                         }
                                     }
 
                                     if (state.updateApps.isNotEmpty() && state.isUpdatesSectionExpanded) {
-                                        items(
-                                            items = state.updateApps,
-                                            key = { "rich-${it.installedApp.packageName}" },
-                                        ) { appItem ->
-                                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                                AppItemCard(
-                                                    appItem = appItem,
-                                                    onOpenClick = {
-                                                        onAction(
-                                                            AppsAction.OnOpenApp(
-                                                                appItem.installedApp
-                                                            )
+                                        itemsIndexed(
+                                            state.updateApps,
+                                            key = { _, appItem -> "rich-${appItem.installedApp.packageName}" },
+                                        ) { _, appItem ->
+                                            AppItemCard(
+                                                appItem = appItem,
+                                                onOpenClick = {
+                                                    onAction(
+                                                        AppsAction.OnOpenApp(
+                                                            appItem.installedApp
                                                         )
-                                                    },
-                                                    onUpdateClick = {
-                                                        onAction(
-                                                            AppsAction.OnUpdateApp(
-                                                                appItem.installedApp
-                                                            )
+                                                    )
+                                                },
+                                                onUpdateClick = {
+                                                    onAction(
+                                                        AppsAction.OnUpdateApp(
+                                                            appItem.installedApp
                                                         )
-                                                    },
-                                                    onCancelClick = {
-                                                        onAction(
-                                                            AppsAction.OnCancelUpdate(
-                                                                appItem.installedApp.packageName
-                                                            )
+                                                    )
+                                                },
+                                                onCancelClick = {
+                                                    onAction(
+                                                        AppsAction.OnCancelUpdate(
+                                                            appItem.installedApp.packageName
                                                         )
-                                                    },
-                                                    onUninstallClick = {
-                                                        onAction(
-                                                            AppsAction.OnUninstallApp(
-                                                                appItem.installedApp
-                                                            )
+                                                    )
+                                                },
+                                                onUninstallClick = {
+                                                    onAction(
+                                                        AppsAction.OnUninstallApp(
+                                                            appItem.installedApp
                                                         )
-                                                    },
-                                                    onRepoClick = { onRowSelect(appItem.installedApp) },
-                                                    onTogglePreReleases = { enabled ->
+                                                    )
+                                                },
+                                                onRepoClick = { onRowSelect(appItem.installedApp) },
+                                                onTogglePreReleases = { enabled ->
+                                                    onAction(
+                                                        AppsAction.OnTogglePreReleases(
+                                                            appItem.installedApp.packageName,
+                                                            enabled
+                                                        )
+                                                    )
+                                                },
+                                                onToggleUpdateCheck = { enabled ->
+                                                    onAction(
+                                                        AppsAction.OnToggleUpdateCheck(
+                                                            appItem.installedApp.packageName,
+                                                            enabled
+                                                        )
+                                                    )
+                                                },
+                                                onAdvancedSettingsClick = {
+                                                    onAction(
+                                                        AppsAction.OnOpenAdvancedSettings(
+                                                            appItem.installedApp
+                                                        )
+                                                    )
+                                                },
+                                                onPickVariantClick = {
+                                                    onAction(
+                                                        AppsAction.OnOpenVariantPicker(
+                                                            app = appItem.installedApp,
+                                                            resumeUpdateAfterPick = false,
+                                                        ),
+                                                    )
+                                                },
+                                                onInstallPendingClick = {
+                                                    onAction(
+                                                        AppsAction.OnInstallPendingApp(
+                                                            appItem.installedApp
+                                                        )
+                                                    )
+                                                },
+                                                onDiscardPendingClick = {
+                                                    onAction(
+                                                        AppsAction.OnDiscardPendingInstall(
+                                                            appItem.installedApp
+                                                        )
+                                                    )
+                                                },
+                                                onSkipVersionClick = {
+                                                    val tag =
+                                                        appItem.installedApp.latestVersion
+                                                            ?: appItem.installedApp.latestVersionName
+                                                    if (!tag.isNullOrBlank()) {
                                                         onAction(
-                                                            AppsAction.OnTogglePreReleases(
+                                                            AppsAction.OnSkipReleaseTag(
                                                                 appItem.installedApp.packageName,
-                                                                enabled
-                                                            )
-                                                        )
-                                                    },
-                                                    onToggleUpdateCheck = { enabled ->
-                                                        onAction(
-                                                            AppsAction.OnToggleUpdateCheck(
-                                                                appItem.installedApp.packageName,
-                                                                enabled
-                                                            )
-                                                        )
-                                                    },
-                                                    onAdvancedSettingsClick = {
-                                                        onAction(
-                                                            AppsAction.OnOpenAdvancedSettings(
-                                                                appItem.installedApp
-                                                            )
-                                                        )
-                                                    },
-                                                    onPickVariantClick = {
-                                                        onAction(
-                                                            AppsAction.OnOpenVariantPicker(
-                                                                app = appItem.installedApp,
-                                                                resumeUpdateAfterPick = false,
+                                                                tag,
                                                             ),
                                                         )
-                                                    },
-                                                    onInstallPendingClick = {
-                                                        onAction(
-                                                            AppsAction.OnInstallPendingApp(
-                                                                appItem.installedApp
-                                                            )
+                                                    }
+                                                },
+                                                onUnskipVersionClick = {
+                                                    onAction(
+                                                        AppsAction.OnUnskipReleaseTag(
+                                                            appItem.installedApp.packageName
                                                         )
-                                                    },
-                                                    onDiscardPendingClick = {
-                                                        onAction(
-                                                            AppsAction.OnDiscardPendingInstall(
-                                                                appItem.installedApp
-                                                            )
-                                                        )
-                                                    },
-                                                    onSkipVersionClick = {
-                                                        val tag =
-                                                            appItem.installedApp.latestVersion
-                                                                ?: appItem.installedApp.latestVersionName
-                                                        if (!tag.isNullOrBlank()) {
-                                                            onAction(
-                                                                AppsAction.OnSkipReleaseTag(
-                                                                    appItem.installedApp.packageName,
-                                                                    tag,
-                                                                ),
-                                                            )
-                                                        }
-                                                    },
-                                                    onUnskipVersionClick = {
-                                                        onAction(
-                                                            AppsAction.OnUnskipReleaseTag(
-                                                                appItem.installedApp.packageName
-                                                            )
-                                                        )
-                                                    },
-                                                )
-                                            }
+                                                    )
+                                                },
+                                            )
                                         }
                                     }
 
                                     if (state.idleApps.isNotEmpty()) {
-                                        item(key = "header-up-to-date") {
+                                        item(key = "header-up-to-date", span = { GridItemSpan(maxLineSpan) }) {
                                             AppsSectionHeader(
                                                 title = stringResource(Res.string.apps_section_up_to_date),
                                                 count = state.idleApps.size,
@@ -625,87 +619,85 @@ fun AppsScreen(
                                         }
 
                                         if (state.isUpToDateSectionExpanded) {
-                                            items(
-                                                items = state.idleApps,
-                                                key = { "compact-${it.installedApp.packageName}" },
-                                            ) { appItem ->
-                                                Box(modifier = Modifier.padding(horizontal = 8.dp)) {
-                                                    CompactAppRow(
-                                                        appItem = appItem,
-                                                        onOpenClick = {
-                                                            onAction(
-                                                                AppsAction.OnOpenApp(
-                                                                    appItem.installedApp
-                                                                )
+                                            itemsIndexed(
+                                                state.idleApps,
+                                                key = { _, appItem -> "compact-${appItem.installedApp.packageName}" },
+                                                ) { _, appItem ->
+                                                CompactAppRow(
+                                                    appItem = appItem,
+                                                    onOpenClick = {
+                                                        onAction(
+                                                            AppsAction.OnOpenApp(
+                                                                appItem.installedApp
                                                             )
-                                                        },
-                                                        onInstallPendingClick = {
-                                                            onAction(
-                                                                AppsAction.OnInstallPendingApp(
-                                                                    appItem.installedApp
-                                                                )
+                                                        )
+                                                    },
+                                                    onInstallPendingClick = {
+                                                        onAction(
+                                                            AppsAction.OnInstallPendingApp(
+                                                                appItem.installedApp
                                                             )
-                                                        },
-                                                        onDiscardPendingClick = {
-                                                            onAction(
-                                                                AppsAction.OnDiscardPendingInstall(
-                                                                    appItem.installedApp
-                                                                )
+                                                        )
+                                                    },
+                                                    onDiscardPendingClick = {
+                                                        onAction(
+                                                            AppsAction.OnDiscardPendingInstall(
+                                                                appItem.installedApp
                                                             )
-                                                        },
-                                                        onAdvancedSettingsClick = {
-                                                            onAction(
-                                                                AppsAction.OnOpenAdvancedSettings(
-                                                                    appItem.installedApp
-                                                                )
+                                                        )
+                                                    },
+                                                    onAdvancedSettingsClick = {
+                                                        onAction(
+                                                            AppsAction.OnOpenAdvancedSettings(
+                                                                appItem.installedApp
                                                             )
-                                                        },
-                                                        onPickVariantClick = {
-                                                            onAction(
-                                                                AppsAction.OnOpenVariantPicker(
-                                                                    app = appItem.installedApp,
-                                                                    resumeUpdateAfterPick = false,
-                                                                ),
+                                                        )
+                                                    },
+                                                    onPickVariantClick = {
+                                                        onAction(
+                                                            AppsAction.OnOpenVariantPicker(
+                                                                app = appItem.installedApp,
+                                                                resumeUpdateAfterPick = false,
+                                                            ),
+                                                        )
+                                                    },
+                                                    onUninstallClick = {
+                                                        onAction(
+                                                            AppsAction.OnUninstallApp(
+                                                                appItem.installedApp
                                                             )
-                                                        },
-                                                        onUninstallClick = {
-                                                            onAction(
-                                                                AppsAction.OnUninstallApp(
-                                                                    appItem.installedApp
-                                                                )
-                                                            )
-                                                        },
-                                                        onTogglePreReleases = { enabled ->
-                                                            onAction(
-                                                                AppsAction.OnTogglePreReleases(
-                                                                    appItem.installedApp.packageName,
-                                                                    enabled,
-                                                                ),
-                                                            )
-                                                        },
-                                                        onToggleUpdateCheck = { enabled ->
-                                                            onAction(
-                                                                AppsAction.OnToggleUpdateCheck(
-                                                                    appItem.installedApp.packageName,
-                                                                    enabled,
-                                                                ),
-                                                            )
-                                                        },
-                                                        onUnskipVersionClick = {
-                                                            onAction(
-                                                                AppsAction.OnUnskipReleaseTag(
-                                                                    appItem.installedApp.packageName,
-                                                                ),
-                                                            )
-                                                        },
-                                                        onRowClick = { onRowSelect(appItem.installedApp) },
-                                                    )
-                                                }
+                                                        )
+                                                    },
+                                                    onTogglePreReleases = { enabled ->
+                                                        onAction(
+                                                            AppsAction.OnTogglePreReleases(
+                                                                appItem.installedApp.packageName,
+                                                                enabled,
+                                                            ),
+                                                        )
+                                                    },
+                                                    onToggleUpdateCheck = { enabled ->
+                                                        onAction(
+                                                            AppsAction.OnToggleUpdateCheck(
+                                                                appItem.installedApp.packageName,
+                                                                enabled,
+                                                            ),
+                                                        )
+                                                    },
+                                                    onUnskipVersionClick = {
+                                                        onAction(
+                                                            AppsAction.OnUnskipReleaseTag(
+                                                                appItem.installedApp.packageName,
+                                                            ),
+                                                        )
+                                                    },
+                                                    onRowClick = { onRowSelect(appItem.installedApp) },
+                                                )
                                             }
                                         }
                                     }
 
-                                    item {
+                                    item(key = "trailing-spacer", span = { GridItemSpan(maxLineSpan) }) {
                                         Spacer(Modifier.height(32.dp))
                                     }
                                 }
