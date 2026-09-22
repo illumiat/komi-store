@@ -7,9 +7,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -40,6 +41,7 @@ import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.home.domain.model.HomeCategory
 import zed.rainxch.home.presentation.model.toDiscoveryUi
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 
 @Composable
 fun CategoryListRoot(
@@ -69,12 +71,12 @@ private fun CategoryListScreen(
     onAction: (CategoryListAction) -> Unit,
     onBack: () -> Unit,
 ) {
-    val listState = rememberLazyListState()
+    val listState = rememberLazyStaggeredGridState()
 
     val shouldLoadMore by remember {
         derivedStateOf {
             val total = listState.layoutInfo.totalItemsCount
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: 0
             total > 0 && lastVisible >= total - 4
         }
     }
@@ -117,11 +119,14 @@ private fun CategoryListScreen(
                     KomiCircularProgress()
                 }
             } else {
-                LazyColumn(
+                LazyVerticalStaggeredGrid(
+                    columns =
+                        rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp),
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                    verticalItemSpacing = 10.dp,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     itemsIndexed(
                         items = state.cards,
@@ -141,7 +146,7 @@ private fun CategoryListScreen(
                     }
 
                     if (state.isLoadingMore) {
-                        item {
+                        item(span = StaggeredGridItemSpan.FullLine) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()

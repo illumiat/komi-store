@@ -26,7 +26,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
@@ -82,11 +82,11 @@ import zed.rainxch.core.presentation.components.surfaces.KomiSurface
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.core.presentation.utils.arrowKeyScroll
-import zed.rainxch.core.presentation.utils.constrainedContentWidth
 import zed.rainxch.core.presentation.utils.toIcon
 import zed.rainxch.core.presentation.utils.toLabel
 import zed.rainxch.githubstore.core.presentation.res.Res
@@ -249,7 +249,7 @@ fun SearchScreen(
                 return@derivedStateOf false
             }
 
-            val lastVisibleItem = visibleItems.lastOrNull() ?: return@derivedStateOf false
+            val lastVisibleItem = visibleItems.maxByOrNull { it.index } ?: return@derivedStateOf false
             val viewportEndOffset = layoutInfo.viewportEndOffset
 
             val hasEmptySpaceAtBottom =
@@ -293,7 +293,10 @@ fun SearchScreen(
     LaunchedEffect(listState.layoutInfo.totalItemsCount, listState.layoutInfo.viewportEndOffset) {
         val layoutInfo = listState.layoutInfo
         val visibleItems = layoutInfo.visibleItemsInfo
-        val lastVisible = visibleItems.lastOrNull()
+        // `lastOrNull()` is not the furthest-down-the-list item in a staggered grid: the visible
+        // items are gathered lane by lane, so the end of the list is the highest index, not the end
+        // of the collection. Same everywhere this window is read on these screens.
+        val lastVisible = visibleItems.maxByOrNull { it.index }
 
         if (lastVisible != null &&
             layoutInfo.totalItemsCount > 0 &&
@@ -345,9 +348,8 @@ fun SearchScreen(
             Column(
                 modifier =
                     Modifier
-                        .constrainedContentWidth()
                         .fillMaxHeight()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 12.dp),
             ) {
                 AnimatedVisibility(
                     visible = state.isClipboardBannerVisible && state.clipboardLinks.isNotEmpty(),
@@ -545,15 +547,12 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             LazyVerticalStaggeredGrid(
+                                columns = rememberWidthCappedStaggeredCells(),
                                 state = listState,
-                                columns = StaggeredGridCells.Adaptive(350.dp),
-                                verticalItemSpacing = 12.dp,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-
+                                verticalItemSpacing = 10.dp,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 contentPadding =
                                     PaddingValues(
-                                        start = 8.dp,
-                                        end = 8.dp,
                                         top = 12.dp,
                                         bottom = 12.dp,
                                     ),
@@ -564,7 +563,7 @@ fun SearchScreen(
                             ) {
                                 items(
                                     items = state.visibleRepos,
-                                    key = { it.repository.id },
+                                    key = { discoveryRepository -> discoveryRepository.repository.id },
                                 ) { discoveryRepository ->
                                     DiscoveryRepoCard(
                                         discoveryRepositoryUi = discoveryRepository,
@@ -604,8 +603,12 @@ fun SearchScreen(
                                     )
                                 }
 
-                                item {
-                                    if (state.isLoadingMore) {
+                                // The condition wraps the item rather than living inside it: an
+                                // item that emits nothing is still a full line, and a full line
+                                // still collects verticalItemSpacing on both sides — a gap that
+                                // vanishes the moment this flips.
+                                if (state.isLoadingMore) {
+                                    item(span = StaggeredGridItemSpan.FullLine) {
                                         Box(
                                             modifier =
                                                 Modifier
@@ -621,7 +624,7 @@ fun SearchScreen(
                                 }
 
                                 if (!state.isLoading && !state.isLoadingMore && state.query.isNotBlank()) {
-                                    item {
+                                    item(span = StaggeredGridItemSpan.FullLine) {
                                         ExploreFromGithubButton(
                                             status = state.exploreStatus,
                                             onExplore = { onAction(SearchAction.ExploreFromGithub) },
