@@ -1,5 +1,7 @@
 package zed.rainxch.core.presentation.layout
 
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -68,5 +70,43 @@ class GridColumnsTest {
         // An absurdly large but finite width is clamped to the column ceiling, not left unbounded.
         val hugeWidth = gridColumnCount(1_000_000f, 270f)
         assertEquals(16, hugeWidth)
+    }
+
+    @Test
+    fun cellsReproduceTheColumnCountTheseScreensAlreadyHad() {
+        // The grid hands over the width *inside* its content padding, so the padding goes back on
+        // before the count is decided — the width these screens have always split. Without it the
+        // count drops by one whenever a 560dp boundary lands inside the padding, which is a card
+        // grid silently reshaping itself between releases. 1136dp region is exactly such a case.
+        val density = Density(density = 1f, fontScale = 1f)
+        val maxCardWidth = 550.dp
+        val padding = 24.dp
+
+        val regions = listOf(360, 561, 800, 1136, 1280, 1692, 2240, 3440)
+        for (regionWidth in regions) {
+            val availableSize = regionWidth - 24
+            val expected = gridColumnCount(regionWidth.toFloat(), maxCardWidth.value)
+
+            val widths = widthCappedCellWidths(density, availableSize, 10, maxCardWidth, padding)
+
+            assertEquals(expected, widths.size, "region=$regionWidth")
+            // Columns are all one width and tile the space minus the gaps to within a pixel per
+            // column — integer division drops the remainder, which is what GridCells.Fixed does.
+            assertEquals(1, widths.toSet().size, "region=$regionWidth uneven: ${widths.toList()}")
+            val occupied = widths.sum() + 10 * (widths.size - 1)
+            assertTrue(
+                availableSize - occupied in 0 until widths.size,
+                "region=$regionWidth leaves ${availableSize - occupied}px over",
+            )
+        }
+    }
+
+    @Test
+    fun cellsWithoutContentPaddingSplitTheWidthTheyAreGiven() {
+        // SearchRoot's grid has no horizontal content padding, so the width it hands over is the
+        // one to split and the count matches gridColumnCount exactly.
+        val density = Density(density = 1f, fontScale = 1f)
+        val widths = widthCappedCellWidths(density, availableSize = 1136, spacing = 10, maxCardWidth = 550.dp, contentPaddingHorizontal = 0.dp)
+        assertEquals(gridColumnCount(1136f, 550f), widths.size)
     }
 }

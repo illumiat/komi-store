@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
@@ -55,8 +54,7 @@ import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.personality.usesDecor
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.core.presentation.utils.toLabel
-import zed.rainxch.core.presentation.layout.CardGridSpec
-import zed.rainxch.core.presentation.layout.rememberGridColumns
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.feed.presentation.components.FeedCategoryStrip
 import zed.rainxch.feed.presentation.components.FeedPlatformBar
 import zed.rainxch.feed.presentation.components.FeedPlatformPicker
@@ -185,7 +183,7 @@ private fun BoxScope.FeedContent(
 ) {
     val colors = LocalPersonality.current.colors
     val isManga = LocalPersonality.current is MangaPersonality
-    val infoColumns = rememberGridColumns(CardGridSpec.InfoMaxCardWidth)
+    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 24.dp)
 
     Column(
         modifier = Modifier
@@ -217,7 +215,7 @@ private fun BoxScope.FeedContent(
         }
 
         LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Fixed(infoColumns),
+            columns = infoCells,
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp),

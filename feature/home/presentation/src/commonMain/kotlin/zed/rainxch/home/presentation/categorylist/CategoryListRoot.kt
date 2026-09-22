@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
@@ -42,8 +41,7 @@ import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.home.domain.model.HomeCategory
 import zed.rainxch.home.presentation.model.toDiscoveryUi
-import zed.rainxch.core.presentation.layout.CardGridSpec
-import zed.rainxch.core.presentation.layout.rememberGridColumns
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 
 @Composable
 fun CategoryListRoot(
@@ -122,7 +120,8 @@ private fun CategoryListScreen(
                 }
             } else {
                 LazyVerticalStaggeredGrid(
-                    columns = StaggeredGridCells.Fixed(rememberGridColumns(CardGridSpec.InfoMaxCardWidth)),
+                    columns =
+                        rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 24.dp),
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
