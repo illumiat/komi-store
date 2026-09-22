@@ -119,7 +119,7 @@ private fun HomeScreen(
     val reachedEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
-            val lastIndex = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val lastIndex = info.visibleItemsInfo.maxOfOrNull { it.index } ?: -1
             lastIndex >= info.totalItemsCount - 4
         }
     }
@@ -223,7 +223,7 @@ private fun BoxScope.HomeChartFeed(
     onAction: (HomeAction) -> Unit,
 ) {
     val colors = LocalPersonality.current.colors
-    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 24.dp)
+    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp)
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -233,7 +233,7 @@ private fun BoxScope.HomeChartFeed(
                 Modifier
                     .fillMaxWidth()
                     .background(colors.background)
-                    .then(if (isAndroid()) Modifier.drivesPullToRefresh() else Modifier),
+                    .drivesPullToRefresh(),
         ) {
             HomeChartTabs(
                 selected = state.selectedChart,

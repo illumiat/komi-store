@@ -76,7 +76,7 @@ private fun CategoryListScreen(
     val shouldLoadMore by remember {
         derivedStateOf {
             val total = listState.layoutInfo.totalItemsCount
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: 0
             total > 0 && lastVisible >= total - 4
         }
     }
@@ -121,7 +121,7 @@ private fun CategoryListScreen(
             } else {
                 LazyVerticalStaggeredGrid(
                     columns =
-                        rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 24.dp),
+                        rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp),
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),

@@ -2,9 +2,9 @@ package zed.rainxch.core.presentation.layout
 
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class GridColumnsTest {
 
@@ -62,10 +62,11 @@ class GridColumnsTest {
         assertEquals(1, gridColumnCount(400f, 0f))
         assertEquals(1, gridColumnCount(400f, -50f))
 
-        // A pathological negative spacing cannot drive the denominator to zero/negative; the
-        // result stays finite, positive, and within the column ceiling.
+        // A pathological negative spacing must not divide by zero or leave the ceiling unclamped.
+        // The count is pinned exactly: a clamped-input regression that stopped clamping would sail
+        // past 16 here rather than landing on it.
         val negativeSpacing = gridColumnCount(400f, 270f, spacingDp = -1000f)
-        assertTrue(negativeSpacing in 1..16, "negativeSpacing=$negativeSpacing")
+        assertEquals(16, negativeSpacing, "negativeSpacing=$negativeSpacing")
 
         // An absurdly large but finite width is clamped to the column ceiling, not left unbounded.
         val hugeWidth = gridColumnCount(1_000_000f, 270f)
@@ -80,33 +81,73 @@ class GridColumnsTest {
         // grid silently reshaping itself between releases. 1136dp region is exactly such a case.
         val density = Density(density = 1f, fontScale = 1f)
         val maxCardWidth = 550.dp
-        val padding = 24.dp
+        // Per side, the same number the grids write into `contentPadding = PaddingValues(horizontal = 12.dp)`.
+        val padding = 12.dp
 
         val regions = listOf(360, 561, 800, 1136, 1280, 1692, 2240, 3440)
         for (regionWidth in regions) {
-            val availableSize = regionWidth - 24
+            val availableSize = regionWidth - 2 * with(density) { padding.roundToPx() }
             val expected = gridColumnCount(regionWidth.toFloat(), maxCardWidth.value)
 
             val widths = widthCappedCellWidths(density, availableSize, 10, maxCardWidth, padding)
 
             assertEquals(expected, widths.size, "region=$regionWidth")
-            // Columns are all one width and tile the space minus the gaps to within a pixel per
-            // column — integer division drops the remainder, which is what GridCells.Fixed does.
-            assertEquals(1, widths.toSet().size, "region=$regionWidth uneven: ${widths.toList()}")
-            val occupied = widths.sum() + 10 * (widths.size - 1)
-            assertTrue(
-                availableSize - occupied in 0 until widths.size,
-                "region=$regionWidth leaves ${availableSize - occupied}px over",
-            )
+            // The leftover pixels go to the leading columns, exactly how `GridCells.Fixed` splits
+            // the same space (`calculateCellsCrossAxisSizeImpl` adds one while the index is below
+            // the remainder). Pinning "all columns equal" here instead would have pinned the bug —
+            // a dropped remainder shaves a pixel off every leading column, which is a card width
+            // these screens were never approved with.
+            val gridWidth = availableSize - 10 * (widths.size - 1)
+            val size = gridWidth / widths.size
+            val remainder = gridWidth % widths.size
+            widths.forEachIndexed { i, w ->
+                assertEquals(size + if (i < remainder) 1 else 0, w, "region=$regionWidth col=$i of ${widths.toList()}")
+            }
         }
     }
 
     @Test
-    fun cellsWithoutContentPaddingSplitTheWidthTheyAreGiven() {
-        // SearchRoot's grid has no horizontal content padding, so the width it hands over is the
-        // one to split and the count matches gridColumnCount exactly.
+    fun contentPaddingIsPutBackOnBothSides() {
+        // A 12dp-per-side padding is put back as 24dp, so the count is decided over the same width
+        // a grid with no padding and 24dp more room would see. The width is picked just below a
+        // column boundary, so counting one side instead of two drops a column and fails here.
         val density = Density(density = 1f, fontScale = 1f)
-        val widths = widthCappedCellWidths(density, availableSize = 1136, spacing = 10, maxCardWidth = 550.dp, contentPaddingHorizontal = 0.dp)
-        assertEquals(gridColumnCount(1136f, 550f), widths.size)
+        val padded = widthCappedCellWidths(density, availableSize = 1110, spacing = 10, maxCardWidth = 550.dp, contentPaddingHorizontal = 12.dp)
+        val unpadded = widthCappedCellWidths(density, availableSize = 1134, spacing = 10, maxCardWidth = 550.dp, contentPaddingHorizontal = 0.dp)
+        assertEquals(unpadded.size, padded.size, "padded=${padded.toList()} unpadded=${unpadded.toList()}")
+    }
+
+    @Test
+    fun countMatchesTheRegionTheEarlierMeasurementSawAtEveryDensity() {
+        // The grid hands over whole pixels with the content padding already taken out as whole
+        // pixels, so the padding goes back the same way. Pin the column count against the width
+        // the earlier BoxWithConstraints-based measurement read at the same density: at a density
+        // that is not a clean multiple, adding the padding back as exact dp instead drifts from
+        // that width by a fraction of a dp, which is enough to cross a column boundary.
+        val paddingPerSide = 12.dp
+        // Column boundaries sit at 560k+10dp, so a fraction of a dp of rounding only ever flips a
+        // count there. Sample one pixel either side of each: an arbitrary width would leave the
+        // assertion unable to fail no matter how far the reconstruction drifts.
+        val boundaryWidthsDp = listOf(570f, 1130f, 1690f, 2250f)
+        for (densityValue in listOf(1f, 1.5f, 2f, 2.125f, 2.625f, 2.75f, 3f, 3.5f)) {
+            val density = Density(density = densityValue, fontScale = 1f)
+            val paddingPx = with(density) { paddingPerSide.roundToPx() }
+            for (boundaryDp in boundaryWidthsDp) {
+                val atBoundary = (boundaryDp * densityValue).roundToInt()
+                for (regionPx in listOf(atBoundary - 1, atBoundary, atBoundary + 1)) {
+                    val availableSize = regionPx - 2 * paddingPx
+
+                    val widths =
+                        widthCappedCellWidths(density, availableSize, 10, 550.dp, paddingPerSide)
+
+                    // What `BoxWithConstraints.maxWidth.value` read: the region's own width in dp.
+                    assertEquals(
+                        gridColumnCount(regionPx / densityValue, 550f),
+                        widths.size,
+                        "density=$densityValue regionPx=$regionPx boundary=$boundaryDp",
+                    )
+                }
+            }
+        }
     }
 }

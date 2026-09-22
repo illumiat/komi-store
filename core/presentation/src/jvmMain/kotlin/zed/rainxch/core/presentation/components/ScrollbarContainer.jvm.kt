@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 @Composable
 actual fun ScrollbarContainer(
@@ -123,15 +124,41 @@ actual fun ScrollbarContainer(
     }
 }
 
-private class StaggeredGridScrollbarAdapter(
-    private val gridState: LazyStaggeredGridState,
-) : ScrollbarAdapter {
+/**
+ * The mapping between a lazy grid's scroll position and the scrollbar's offset, shared by both
+ * grid flavours. They differ only in how they estimate the content height, and a copy that
+ * drifts would put the thumb and the grid out of step — which is what the two directions being
+ * written independently had already done: the offset was derived as `index/total * contentSize`
+ * while the inverse scaled a *fraction of the scrollable range* by `total - 1`, so a drag landed
+ * a couple of items away from where the pointer was (up to four in a 100-item, 3-lane grid), and
+ * the further down the grid, the further off it got.
+ *
+ * Both directions now share one scale: the average pixel height of an item. That is what makes
+ * them inverses, so a drag settles on the item it was dragged to.
+ */
+private abstract class GridScrollbarAdapterBase : ScrollbarAdapter {
+    protected abstract val totalItemsCount: Int
+
+    /** Index of the first visible item, or null when nothing is laid out yet. */
+    protected abstract val firstVisibleIndex: Int?
+
+    /** How far that item is scrolled past the viewport edge, in pixels. */
+    protected abstract val firstVisibleOffsetY: Int
+
+    protected abstract fun estimatedContentSize(): Float
+
+    protected abstract suspend fun scrollToItem(index: Int)
+
+    private val averageItemSize: Float
+        get() {
+            val count = totalItemsCount
+            return if (count > 0) estimatedContentSize() / count else 0f
+        }
+
     override val scrollOffset: Float
         get() {
-            val layoutInfo = gridState.layoutInfo
-            val firstVisible = layoutInfo.visibleItemsInfo.firstOrNull() ?: return 0f
-            val fraction = firstVisible.index.toFloat() / maxOf(layoutInfo.totalItemsCount, 1)
-            return fraction * estimatedContentSize() - firstVisible.offset.y.toFloat()
+            val index = firstVisibleIndex ?: return 0f
+            return index * averageItemSize - firstVisibleOffsetY
         }
 
     override fun maxScrollOffset(containerSize: Int): Float = (estimatedContentSize() - containerSize).coerceAtLeast(0f)
@@ -140,20 +167,32 @@ private class StaggeredGridScrollbarAdapter(
         containerSize: Int,
         scrollOffset: Float,
     ) {
-        val totalContent = estimatedContentSize()
-        val layoutInfo = gridState.layoutInfo
-        val maxOffset = maxScrollOffset(containerSize)
-        if (layoutInfo.totalItemsCount == 0 || totalContent <= 0f || maxOffset <= 0f) return
-        val fraction = (scrollOffset / maxOffset).coerceIn(0f, 1f)
+        // The inverse of `scrollOffset` above: an offset is turned back into an item through the
+        // same per-item scale it was built from.
+        val itemSize = averageItemSize
+        if (itemSize <= 0f) return
+        val lastIndex = totalItemsCount - 1
+        if (lastIndex < 0) return
+        scrollToItem((scrollOffset / itemSize).roundToInt().coerceIn(0, lastIndex))
+    }
+}
 
-        val targetIndex =
-            (fraction * (layoutInfo.totalItemsCount - 1))
-                .toInt()
-                .coerceIn(0, maxOf(layoutInfo.totalItemsCount - 1, 0))
-        gridState.scrollToItem(targetIndex)
+private class StaggeredGridScrollbarAdapter(
+    private val gridState: LazyStaggeredGridState,
+) : GridScrollbarAdapterBase() {
+    private val firstVisible get() = gridState.layoutInfo.visibleItemsInfo.firstOrNull()
+
+    override val totalItemsCount: Int get() = gridState.layoutInfo.totalItemsCount
+
+    override val firstVisibleIndex: Int? get() = firstVisible?.index
+
+    override val firstVisibleOffsetY: Int get() = firstVisible?.offset?.y ?: 0
+
+    override suspend fun scrollToItem(index: Int) {
+        gridState.scrollToItem(index)
     }
 
-    private fun estimatedContentSize(): Float {
+    override fun estimatedContentSize(): Float {
         val layoutInfo = gridState.layoutInfo
         if (layoutInfo.totalItemsCount == 0) return 0f
         val visibleItems = layoutInfo.visibleItemsInfo
@@ -171,38 +210,23 @@ private class StaggeredGridScrollbarAdapter(
 
 private class GridScrollbarAdapter(
     private val gridState: LazyGridState,
-) : ScrollbarAdapter {
-    override val scrollOffset: Float
-        get() {
-            val layoutInfo = gridState.layoutInfo
-            val firstVisible = layoutInfo.visibleItemsInfo.firstOrNull() ?: return 0f
-            val fraction = firstVisible.index.toFloat() / maxOf(layoutInfo.totalItemsCount, 1)
-            return fraction * estimatedContentSize() - firstVisible.offset.y.toFloat()
-        }
+) : GridScrollbarAdapterBase() {
+    private val firstVisible get() = gridState.layoutInfo.visibleItemsInfo.firstOrNull()
 
-    override fun maxScrollOffset(containerSize: Int): Float = (estimatedContentSize() - containerSize).coerceAtLeast(0f)
+    override val totalItemsCount: Int get() = gridState.layoutInfo.totalItemsCount
 
-    override suspend fun scrollTo(
-        containerSize: Int,
-        scrollOffset: Float,
-    ) {
-        val totalContent = estimatedContentSize()
-        val layoutInfo = gridState.layoutInfo
-        val maxOffset = maxScrollOffset(containerSize)
-        if (layoutInfo.totalItemsCount == 0 || totalContent <= 0f || maxOffset <= 0f) return
-        val fraction = (scrollOffset / maxOffset).coerceIn(0f, 1f)
+    override val firstVisibleIndex: Int? get() = firstVisible?.index
 
-        val targetIndex =
-            (fraction * (layoutInfo.totalItemsCount - 1))
-                .toInt()
-                .coerceIn(0, maxOf(layoutInfo.totalItemsCount - 1, 0))
-        gridState.scrollToItem(targetIndex)
+    override val firstVisibleOffsetY: Int get() = firstVisible?.offset?.y ?: 0
+
+    override suspend fun scrollToItem(index: Int) {
+        gridState.scrollToItem(index)
     }
 
     private var cachedLayoutInfo: LazyGridLayoutInfo? = null
     private var cachedContentSize = 0f
 
-    private fun estimatedContentSize(): Float {
+    override fun estimatedContentSize(): Float {
         // `scrollOffset`/`maxScrollOffset` are polled repeatedly while the scrollbar is hovered or
         // dragged. A measure result is immutable and is only replaced by the next measure, so the
         // estimate is a pure function of it and does not need to be re-derived for the same one.

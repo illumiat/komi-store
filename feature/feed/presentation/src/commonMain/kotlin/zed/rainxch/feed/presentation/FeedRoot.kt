@@ -116,7 +116,7 @@ private fun FeedScreen(
     val reachedEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
-            val lastIndex = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val lastIndex = info.visibleItemsInfo.maxOfOrNull { it.index } ?: -1
             lastIndex >= info.totalItemsCount - 4
         }
     }
@@ -183,7 +183,7 @@ private fun BoxScope.FeedContent(
 ) {
     val colors = LocalPersonality.current.colors
     val isManga = LocalPersonality.current is MangaPersonality
-    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 24.dp)
+    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp)
 
     Column(
         modifier = Modifier
@@ -244,7 +244,7 @@ private fun BoxScope.FeedContent(
                                 role = KomiTextRole.Label,
                                 color = colors.onSurfaceVariant,
                                 modifier = Modifier.fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 2.dp),
+                                    .padding(vertical = 2.dp),
                             )
                         }
                     }

@@ -45,27 +45,35 @@ object CardGridSpec {
 }
 
 /**
- * Cells that split the cross axis evenly so no card comes out wider than [maxCardWidth], for
- * [LazyVerticalGrid][androidx.compose.foundation.lazy.grid.LazyVerticalGrid] and
+ * Cells that split the cross axis evenly, keeping a card as close to [maxCardWidth] as a whole
+ * number of columns allows. It is a cap the count aims at, not one it can always honour: at 570dp
+ * against a 550dp cap one column of 570dp still beats two of 280dp, so a card can come out as much
+ * as two spacings over. See [GridColumnsTest]'s anchor cases.
+ *
+ * For [LazyVerticalGrid][androidx.compose.foundation.lazy.grid.LazyVerticalGrid] and
  * [LazyVerticalStaggeredGrid][androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid]
  * respectively. The two spell their one method differently — `List<Int>` against `IntArray` — and
- * a return type is not part of JVM overloading, so they cannot share an implementation even
- * though the arithmetic is [widthsFor]'s alone.
+ * a return type is not part of JVM overloading, so they cannot share a declaration even though the
+ * arithmetic is [widthCappedCellWidths]'s alone.
  *
  * The count comes from the width the grid is actually handed, at the moment the grid lays out —
- * not from a width measured on the side and written back into composition. That earlier shape
- * cost a frame: the grid composed with a guessed count, laid itself out with it, and only settled
- * on the real one once the measurement came back. On a wide screen that first frame is every card
- * stacked in one column, and on the screens that animate item placement the move is animated,
- * which reads as the cards jerking into place each time the screen is composed anew.
+ * not from a width measured on the side and written back into composition. That earlier shape cost
+ * a frame: the grid composed with a guessed count, laid itself out with it, and only settled on the
+ * real one once the measurement came back. On a wide screen that first frame is every card stacked
+ * in one column, and on the screens that animate item placement the move is animated, which reads
+ * as the cards jerking into place each time the screen is composed anew.
  *
- * The sizing rule is [gridColumnCount]'s applied to the real width, so the column count and card
- * width are what these screens already show — only the timing changes.
+ * [contentPaddingHorizontal] is **per side**, exactly what `PaddingValues(horizontal = …)` means,
+ * so a call site hands over the same number it writes into the grid's `contentPadding` and nothing
+ * else. The card grids pad both sides alike. It is also the one value that has to track that
+ * padding: if one moves without the other the column count drifts. Keep the declaration inside the
+ * container the grid itself sits in (a `ScrollbarContainer` insets its content on desktop), so
+ * what is measured here is what the grid measures.
  */
 @Stable
-class WidthCappedGridCells(
-    private val maxCardWidth: Dp,
-    private val contentPaddingHorizontal: Dp = 0.dp,
+data class WidthCappedGridCells(
+    val maxCardWidth: Dp,
+    val contentPaddingHorizontal: Dp = 0.dp,
 ) : GridCells {
 
     override fun Density.calculateCrossAxisCellSizes(
@@ -74,23 +82,15 @@ class WidthCappedGridCells(
     ): List<Int> =
         widthCappedCellWidths(this, availableSize, spacing, maxCardWidth, contentPaddingHorizontal)
             .toList()
-
-    override fun equals(other: Any?): Boolean =
-        other is WidthCappedGridCells &&
-            other.maxCardWidth == maxCardWidth &&
-            other.contentPaddingHorizontal == contentPaddingHorizontal
-
-    override fun hashCode(): Int =
-        31 * maxCardWidth.hashCode() + contentPaddingHorizontal.hashCode()
 }
 
 /**
  * The staggered-grid counterpart of [WidthCappedGridCells]; see its doc for why the two exist.
  */
 @Stable
-class WidthCappedStaggeredCells(
-    private val maxCardWidth: Dp,
-    private val contentPaddingHorizontal: Dp = 0.dp,
+data class WidthCappedStaggeredCells(
+    val maxCardWidth: Dp,
+    val contentPaddingHorizontal: Dp = 0.dp,
 ) : StaggeredGridCells {
 
     override fun Density.calculateCrossAxisCellSizes(
@@ -98,14 +98,6 @@ class WidthCappedStaggeredCells(
         spacing: Int,
     ): IntArray =
         widthCappedCellWidths(this, availableSize, spacing, maxCardWidth, contentPaddingHorizontal)
-
-    override fun equals(other: Any?): Boolean =
-        other is WidthCappedStaggeredCells &&
-            other.maxCardWidth == maxCardWidth &&
-            other.contentPaddingHorizontal == contentPaddingHorizontal
-
-    override fun hashCode(): Int =
-        31 * maxCardWidth.hashCode() + contentPaddingHorizontal.hashCode()
 }
 
 @Composable
@@ -127,10 +119,17 @@ fun rememberWidthCappedStaggeredCells(
 /**
  * As many equal-width columns as fit without one exceeding [maxCardWidth].
  *
- * [availableSize] is the width inside the grid's content padding, and the padding is put back
- * before deciding the count: that is the width these screens have always split, so the count and
- * the card width come out as they did. `density` is px per dp, so dividing is exactly toDp(),
+ * [availableSize] is what the grid has left for cells inside its content padding; the gaps
+ * between cells are taken out of it below, and the horizontal content padding — both sides of it —
+ * goes back on before the count is decided: that is the width these screens have always split, so
+ * the count and the card widths come out as they did. It goes back on in pixels, the way the grid took it off, because an exact dp here would
+ * disagree with the grid's own round-to-px at a density that is not a clean multiple and quietly
+ * move the width across a column boundary. `density` is px per dp, so dividing is exactly toDp(),
  * which keeps [gridColumnCount] the one sizing rule, pinned by GridColumnsTest.
+ *
+ * The count is decided with [CardGridSpec.GridSpacing] rather than the gap the grid passes, which
+ * is what the earlier measurement did; the widths below are still cut from the real gap. The two
+ * only part company where a screen stops spacing its cards by [CardGridSpec.GridSpacing].
  */
 internal fun widthCappedCellWidths(
     density: Density,
@@ -139,12 +138,23 @@ internal fun widthCappedCellWidths(
     maxCardWidth: Dp,
     contentPaddingHorizontal: Dp,
 ): IntArray {
+    val paddingPx = with(density) { contentPaddingHorizontal.roundToPx() }
     val columns = gridColumnCount(
-        contentWidthDp = availableSize / density.density + contentPaddingHorizontal.value,
+        contentWidthDp = (availableSize + paddingPx * 2) / density.density,
         maxCardWidthDp = maxCardWidth.value,
-        spacingDp = spacing / density.density,
     )
     val total = availableSize - spacing * (columns - 1)
     val size = total / columns
-    return IntArray(columns) { size }
+    val remainder = total % columns
+    // The leftover pixels go to the leading columns, which is how `GridCells.Fixed` splits the
+    // same space (its `calculateCellsCrossAxisSizeImpl` adds one to a column while its index is
+    // below the remainder). Dropping the remainder instead would shave a pixel off each leading
+    // column and change the card widths these screens were approved with.
+    //
+    // The count comes from the width with the padding put back, while these widths come from the
+    // pixels the grid handed over — a padding large enough to separate the two, or the column
+    // ceiling kicking in, can drive `total` to zero or below. gridColumnCount already refuses to
+    // emit absurd counts for degenerate input; the split has to survive them too rather than hand
+    // the grid a zero- or negative-width column.
+    return IntArray(columns) { i -> (size + if (i < remainder) 1 else 0).coerceAtLeast(1) }
 }

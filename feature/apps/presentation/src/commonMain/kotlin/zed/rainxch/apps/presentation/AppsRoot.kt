@@ -333,6 +333,12 @@ fun AppsScreen(
                                 enabled = isScrollbarEnabled,
                                 modifier = Modifier.fillMaxSize(),
                             ) {
+                                // Declared inside ScrollbarContainer on purpose: on desktop it
+                                // insets its content, so measuring from out there would be
+                                // measuring a wider region than the grid actually gets.
+                                val appGridCells =
+                                    rememberWidthCappedGridCells(contentPaddingHorizontal = 12.dp)
+
                                 LazyVerticalGrid(
                                     columns = appGridCells,
                                     state = listState,
