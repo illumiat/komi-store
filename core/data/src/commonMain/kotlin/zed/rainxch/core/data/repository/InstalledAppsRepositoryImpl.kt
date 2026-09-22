@@ -48,6 +48,13 @@ class InstalledAppsRepositoryImpl(
     private companion object {
 
         const val RELEASE_WINDOW = 50
+
+        /**
+         * How long a record that has just been written is left alone before a check may act on
+         * it. Long enough to cover the confirmation that follows an install, short enough that a
+         * release published in the meantime is only deferred, never lost.
+         */
+        const val INSTALL_SETTLE_WINDOW_MS = 10L * 60L * 1000L
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =
@@ -257,11 +264,34 @@ class InstalledAppsRepositoryImpl(
         return null
     }
 
-    override suspend fun checkForUpdates(packageName: String): Boolean {
+    override suspend fun checkForUpdates(packageName: String, force: Boolean): Boolean {
         val app = installedAppsDao.getAppByPackage(packageName) ?: return false
 
         if (!app.updateCheckEnabled) {
             return false
+        }
+
+        // A check that lands right after an install is reading a record another writer has only
+        // just finished with: the install confirmation re-runs this check seconds after the
+        // install itself rewrote the record, so the two writes describe different moments. Leave
+        // the record alone until the write has settled instead of acting on what it says
+        // mid-flight. Nothing is written while this window is open, and that is the point —
+        // forcing the availability flag to false here would erase a release the user is genuinely
+        // behind on. What the window finds is deferred to the next check, not denied.
+        //
+        // A check the user asked for is not deferred: it carries `force` and reads the live
+        // release, so someone looking right after an install is answered from the source rather
+        // than from the flag the install left behind.
+        val settledAt = app.lastUpdatedAt
+        if (!force &&
+            settledAt > 0L &&
+            System.currentTimeMillis() - settledAt < INSTALL_SETTLE_WINDOW_MS
+        ) {
+            Logger.d {
+                "Update check for ${app.appName} skipped: record settled " +
+                        "${System.currentTimeMillis() - settledAt}ms ago"
+            }
+            return app.isUpdateAvailable
         }
 
         try {
@@ -401,12 +431,12 @@ class InstalledAppsRepositoryImpl(
         return false
     }
 
-    override suspend fun checkAllForUpdates() {
+    override suspend fun checkAllForUpdates(force: Boolean) {
         val apps = installedAppsDao.getAllInstalledApps().first()
         apps.forEach { app ->
             if (app.updateCheckEnabled) {
                 try {
-                    checkForUpdates(app.packageName)
+                    checkForUpdates(app.packageName, force)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -415,6 +445,35 @@ class InstalledAppsRepositoryImpl(
             }
         }
     }
+
+    /**
+     * Whether [candidateTag] names a build after [referenceTag], used to answer "is there still
+     * an update after this install?".
+     *
+     * The codes decide it whenever both are known: they are monotonic, while the tags this app
+     * tracks are not (`nightly`, `v0.5.9.5`, `26.08.11f15e4`). Reading the ordering off the
+     * codes keeps this record's own update flag and its latestVersionCode from being written
+     * from a guess. Tags remain the fallback when a code is missing, matching the order
+     * resolveExternalInstallVerdict already uses.
+     *
+     * A blank candidate names nothing, so it is never ahead — that has to be checked here
+     * because the code branch would otherwise be entered with a real candidate code and report
+     * an ordering for a tag that does not exist.
+     */
+    private fun isAheadOf(
+        candidateTag: String?,
+        referenceTag: String,
+        candidateCode: Long?,
+        referenceCode: Long,
+    ): Boolean =
+        if (candidateTag.isNullOrBlank()) {
+            false
+        } else if (candidateCode != null && candidateCode > 0L && referenceCode > 0L) {
+            candidateCode > referenceCode
+        } else {
+            referenceTag.isNotBlank() &&
+                VersionMath.isVersionNewer(candidateTag, referenceTag)
+        }
 
     override suspend fun updateAppVersion(
         packageName: String,
@@ -447,9 +506,45 @@ class InstalledAppsRepositoryImpl(
         )
 
         val snapshotLatestVersion = app.latestVersion
+        // The three codes this rewrite reasons about: A is the detected latest, B what the record
+        // says is installed, C the build being installed.
+        val detectedCode = app.latestVersionCode
+        val installedCode = app.installedVersionCode
+        val incomingCode = newVersionCode
+        // Whether the build underneath actually changed, which is all this rewrite asks of the
+        // codes. B == C means nothing moved — a reinstall, or the same build seen twice — and
+        // then there is no state to derive, so the record is left as a plain copy.
+        val codeMoved = installedCode > 0L && incomingCode > 0L && incomingCode != installedCode
+        // Whether the record's idea of the latest is still ahead of the build being installed.
+        // Worked out once and reused below: the skip decision and the availability flag must not
+        // come from two evaluations that could drift apart in a later edit.
+        val latestAhead =
+            isAheadOf(snapshotLatestVersion, newTag, detectedCode, incomingCode)
+        // The record is about to call this build installed, so `codeMoved` says the install
+        // landed somewhere new, and `latestAhead` says a release still sits above where it
+        // landed. Offered any more it would only re-open a gap the user has just closed, and
+        // that holds whatever the two builds were: no direction is read out of the tags here.
+        //
+        // One exception, and it is the whole point of it: a tag that already names several
+        // builds must not carry a skip. The skip is keyed by tag, so writing this one down would
+        // say "stop offering `nightly`" — and the record's own `nightly` is exactly such a tag,
+        // having been called installed while the build underneath moved. The next `nightly`
+        // really is a new build and deserves to be shown, so the tag is left unskipped and the
+        // build that moved makes it recognisable here rather than needing a second lookup.
+        val tagNamesSeveralBuilds =
+            codeMoved && app.installedVersion == newTag
+        val skippedReleaseTag =
+            if (codeMoved && !tagNamesSeveralBuilds && latestAhead) {
+                snapshotLatestVersion
+            } else {
+                app.skippedReleaseTag
+            }
+        // An already-skipped release stays skipped here too: checkForUpdates is the only other
+        // place that consults skippedReleaseTag, so without the last term a rewrite would
+        // re-advertise the version the user had declined.
         val isUpdateStillAvailable =
-            !snapshotLatestVersion.isNullOrBlank() &&
-                    VersionMath.isVersionNewer(snapshotLatestVersion, newTag)
+            latestAhead &&
+                !VersionMath.isExactSameVersion(snapshotLatestVersion, skippedReleaseTag)
 
         installedAppsDao.updateApp(
             app.copy(
@@ -459,7 +554,11 @@ class InstalledAppsRepositoryImpl(
                 installedVersionName = newVersionName,
                 installedVersionCode = newVersionCode,
                 isUpdateAvailable = isUpdateStillAvailable,
-                latestVersionCode = if (isUpdateStillAvailable) app.latestVersionCode else newVersionCode,
+                skippedReleaseTag = skippedReleaseTag,
+                // Kept alongside `latestVersion`, which can still name a newer release than the
+                // one just installed. Falling through to `newVersionCode` would pair that newer
+                // tag with the older build's code, and downstream reads this code as the latest.
+                latestVersionCode = if (latestAhead) app.latestVersionCode else newVersionCode,
                 isPendingInstall = isPendingInstall,
                 lastUpdatedAt = System.currentTimeMillis(),
                 lastCheckedAt = System.currentTimeMillis(),
@@ -517,7 +616,7 @@ class InstalledAppsRepositoryImpl(
         installedAppsDao.updateUpdateCheckEnabled(packageName, enabled)
         if (enabled) {
             try {
-                checkForUpdates(packageName)
+                checkForUpdates(packageName, force = false)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -543,7 +642,7 @@ class InstalledAppsRepositoryImpl(
         )
 
         try {
-            checkForUpdates(packageName)
+            checkForUpdates(packageName, force = false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -575,7 +674,7 @@ class InstalledAppsRepositoryImpl(
         )
 
         try {
-            checkForUpdates(packageName)
+            checkForUpdates(packageName, force = false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

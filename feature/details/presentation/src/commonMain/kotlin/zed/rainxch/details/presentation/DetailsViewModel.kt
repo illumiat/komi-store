@@ -236,6 +236,11 @@ class DetailsViewModel(
                 dismissDowngradeWarning()
             }
 
+            DetailsAction.OnConfirmDowngradeInstall -> {
+                dismissDowngradeWarning()
+                install(ignoreDowngrade = true)
+            }
+
             DetailsAction.OnDismissSigningKeyWarning -> {
                 _state.update {
                     it.copy(
@@ -1451,13 +1456,14 @@ class DetailsViewModel(
         }
     }
 
-    private fun install() {
+    private fun install(ignoreDowngrade: Boolean = false) {
         val primary = _state.value.primaryAsset
         val release = _state.value.selectedRelease
         val installedApp = _state.value.installedApp
 
         if (primary != null && release != null) {
-            if (installedApp != null &&
+            if (!ignoreDowngrade &&
+                installedApp != null &&
                 !installedApp.isPendingInstall &&
                 VersionHelper.normalizeVersion(release.tagName) !=
                 VersionHelper.normalizeVersion(

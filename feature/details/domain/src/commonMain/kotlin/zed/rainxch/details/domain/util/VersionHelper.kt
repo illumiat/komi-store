@@ -38,11 +38,8 @@ object VersionHelper {
         if (candidateIndex != -1 && currentIndex != -1) {
             return candidateIndex > currentIndex
         }
-        return cmp < 0
+        // No ordering evidence, so don't claim a downgrade: the platform rejects a real
+        // one at install, while a wrong guess demanded an uninstall.
+        return false
     }
-
-    fun compareSemanticVersions(
-        a: String,
-        b: String,
-    ): Int = VersionMath.compareVersions(a, b)
 }
