@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -152,9 +153,23 @@ fun AppNavigation(
 
                     SharedTransitionLayout(
                         modifier =
-                            Modifier.padding(
-                                bottom = if (showBottomBar) bottomBarHeight else 0.dp,
-                            ),
+                            Modifier
+                                .padding(
+                                    bottom = if (showBottomBar) bottomBarHeight else 0.dp,
+                                )
+                                // Navigation bar clearance is handled here rather than by
+                                // individual screens: the bottom bar covers the inset when
+                                // present, and this container applies navigationBarsPadding()
+                                // when it is absent, since KomiScaffold no longer reserves it.
+                                .then(
+                                    if (showBottomBar) {
+                                        Modifier
+                                    } else {
+                                        Modifier
+                                            .background(LocalPersonality.current.colors.background)
+                                            .navigationBarsPadding()
+                                    },
+                                ),
                     ) {
                         NavHost(
                             navController = navController,
