@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
+import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
@@ -167,16 +168,10 @@ class PackageEventReceiver() :
                         } else {
 
                             repo.updateApp(
-                                app.copy(
-                                    isPendingInstall = false,
-                                    installedVersion = installedTag,
-                                    installedVersionName = systemInfo.versionName,
-                                    installedVersionCode = systemInfo.versionCode,
-                                    isUpdateAvailable =
-                                        (
-                                            app.latestVersionCode
-                                                ?: 0L
-                                        ) > systemInfo.versionCode,
+                                app.resolvePendingFromSystem(
+                                    resolvedTag = installedTag,
+                                    versionName = systemInfo.versionName,
+                                    versionCode = systemInfo.versionCode,
                                 ),
                             )
                             Logger.i {
@@ -255,7 +250,7 @@ class PackageEventReceiver() :
 
         repo.updateInstalledVersion(
             packageName = packageName,
-            installedVersion = systemInfo.versionName,
+            installedVersion = app.installedVersion,
             installedVersionName = systemInfo.versionName,
             installedVersionCode = systemInfo.versionCode,
             isUpdateAvailable = newIsUpdateAvailable,
