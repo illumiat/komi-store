@@ -4,11 +4,16 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
+import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.domain.model.appearance.AppPersonality
@@ -45,6 +50,28 @@ fun App(
             .Builder(context)
             .components { add(SvgDecoder.Factory()) }
             .build()
+    }
+
+    // Warm the account's avatar while the user is still on the first screen, so the profile
+    // tab finds it in the image cache whenever it is first opened. Warm-up only — an image
+    // that fails here is fetched again, normally, wherever it is actually shown.
+    val imageContext = LocalPlatformContext.current
+    // The profile card draws this avatar at 80.dp, so warm exactly that: with no size Coil
+    // decodes the source (GitHub avatars are ~460px) at full resolution for something that
+    // is only ever shown at 80dp.
+    val avatarSizePx = with(LocalDensity.current) { 80.dp.roundToPx() }
+    LaunchedEffect(mainState.signedInAvatarUrl) {
+        mainState.signedInAvatarUrl?.let { url ->
+            runCatching {
+                SingletonImageLoader.get(imageContext).enqueue(
+                    ImageRequest
+                        .Builder(imageContext)
+                        .data(url)
+                        .size(avatarSizePx)
+                        .build(),
+                )
+            }
+        }
     }
 
     val currentScreen = navController.currentBackStackEntryAsState().value.getCurrentScreen()
