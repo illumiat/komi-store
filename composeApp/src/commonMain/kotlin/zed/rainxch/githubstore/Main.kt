@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -13,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.svg.SvgDecoder
+import kotlinx.coroutines.channels.Channel
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.domain.model.appearance.AppPersonality
 import zed.rainxch.core.presentation.personality.classicPersonality
@@ -36,6 +38,7 @@ fun App(
     deepLinkUri: String? = null,
     onDeepLinkConsumed: () -> Unit = {},
     onResolvedDarkTheme: (Boolean) -> Unit = {},
+    onContentPainted: () -> Unit = {},
 ) {
     val mainViewModel: MainViewModel = koinViewModel()
     val whatsNewViewModel: WhatsNewViewModel = koinViewModel()
@@ -48,6 +51,16 @@ fun App(
     ObserveTimeZoneChanges()
 
     val navController = rememberNavController()
+
+    // Deep links must survive the appearance gate: the handler below is not
+    // composed until it opens, and the platform hands over a single replaceable
+    // String?, so of two links arriving while the gate is closed only the
+    // latest would ever be observable. Queue them into an event stream here —
+    // above the gate — and let the handler drain it once composed.
+    val pendingDeepLinks = remember { Channel<String>(Channel.UNLIMITED) }
+    LaunchedEffect(deepLinkUri) {
+        deepLinkUri?.let { pendingDeepLinks.trySend(it) }
+    }
 
     setSingletonImageLoaderFactory { context ->
         ImageLoader
@@ -65,12 +78,19 @@ fun App(
         return
     }
 
+    // The splash condition used to read MainState's StateFlow directly, which flips one
+    // frame before this branch is composed — releasing the splash onto a frame that still
+    // draws the placeholder above. Reporting from inside the composition makes "the real UI
+    // is here" the same event the caller waits on. Runs once: the key is Unit and the gate
+    // never closes again.
+    LaunchedEffect(Unit) { onContentPainted() }
+
     val currentScreen = navController.currentBackStackEntryAsState().value.getCurrentScreen()
 
     HandleKeyboardEvents(navController)
 
     HandleDesktopToolbarDeeplinks(
-        deepLinkUri = deepLinkUri,
+        deepLinkUris = pendingDeepLinks,
         onDeepLinkConsumed = onDeepLinkConsumed,
         navController = navController,
     )

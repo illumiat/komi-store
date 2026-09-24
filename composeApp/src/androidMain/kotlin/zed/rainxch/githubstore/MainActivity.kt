@@ -20,53 +20,54 @@ import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.getViewModel
-import zed.rainxch.core.data.services.LocalizationManager
 import zed.rainxch.core.data.utils.AndroidShareManager
 import zed.rainxch.core.domain.helpers.ShareManager
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
 import zed.rainxch.githubstore.app.deeplink.DeepLinkParser
-import zed.rainxch.githubstore.utils.STARTUP_PREFERENCE_TIMEOUT_MS
-import zed.rainxch.githubstore.utils.readStartupPreference
 import zed.rainxch.githubstore.utils.updateSystemBars
-import kotlin.time.Duration.Companion.milliseconds
 
 class MainActivity : ComponentActivity() {
     private var deepLinkUri by mutableStateOf<String?>(null)
 
     private val shareManager: ShareManager by inject()
     private val tweaksRepository: TweaksRepository by inject()
-    private val localizationManager: LocalizationManager by inject()
     private val syncInstalledAppsUseCase: SyncInstalledAppsUseCase by inject()
     private val appScope: CoroutineScope by inject()
 
+    // Flips once App() has composed the real UI past its appearance gate. A plain
+    // AtomicBoolean rather than Compose state: the splash condition is polled from the
+    // framework and only needs cross-thread visibility, not recomposition.
+    private val contentPainted =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
-        // KeepOnScreenCondition is polled before each draw: while it returns
-        // true every draw request is cancelled, so no placeholder frame is
-        // ever rendered. The frame released is the real themed UI; only on
-        // the rare watchdog timeout can it hold defaults briefly (see
-        // MainViewModel). Same StateFlow the Compose gate reads.
-        val mainViewModel = getViewModel<MainViewModel>()
-        splash.setKeepOnScreenCondition { !mainViewModel.state.value.isAppearanceLoaded }
         enableEdgeToEdge()
 
         (shareManager as? AndroidShareManager)?.registerActivityResultLauncher(this)
 
-        runBlocking {
-            val tag =
-                readStartupPreference(
-                    label = "appLanguage",
-                    timeout = STARTUP_PREFERENCE_TIMEOUT_MS.milliseconds,
-                    flow = tweaksRepository.getAppLanguage(),
-                )
-            localizationManager.setActiveLanguageTag(tag)
-        }
-
         super.onCreate(savedInstanceState)
+
+        // The startup language is read by MainViewModel alone; this Activity no longer
+        // performs its own preference read, so getViewModel() can follow super.onCreate
+        // directly. The Activity must be fully created first, though: the ViewModel and its
+        // SavedStateHandle are built on construction. Constructing it here also starts the
+        // appearance gate's read (and its watchdog) before the first composition.
+        //
+        // KeepOnScreenCondition is polled before each draw: while it returns true every draw
+        // request is cancelled, so no placeholder frame is ever rendered. It waits on
+        // contentPainted, which App() flips once the real UI past the gate has composed — not
+        // on MainState's StateFlow, whose value flips one frame before Compose recomposes and
+        // would release the splash onto the placeholder Box. Only on the rare watchdog
+        // timeout can the released frame still hold defaults briefly (see MainViewModel). The
+        // only ordering this condition requires is "before the first draw", which setContent
+        // far below still satisfies.
+        getViewModel<MainViewModel>()
+        splash.setKeepOnScreenCondition { !contentPainted.get() }
 
         handleIncomingIntent(intent)
 
@@ -75,8 +76,10 @@ class MainActivity : ComponentActivity() {
                 tweaksRepository
                     .getAppLanguage()
                     .drop(1)
-                    .collect { newTag ->
-                        localizationManager.setActiveLanguageTag(newTag)
+                    .collect {
+                        // Locales are applied centrally by MainViewModel, now the single
+                        // reader of the startup language; this Activity only rebuilds itself
+                        // so resources resolve against the newly stored language.
                         recreate()
                     }
             }
@@ -101,6 +104,7 @@ class MainActivity : ComponentActivity() {
                 onResolvedDarkTheme = { isDarkTheme ->
                     this@MainActivity.updateSystemBars(isDarkTheme)
                 },
+                onContentPainted = { contentPainted.set(true) },
             )
         }
     }
