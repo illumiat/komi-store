@@ -6,10 +6,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import zed.rainxch.core.domain.model.account.SessionSnapshot
@@ -20,8 +18,6 @@ class ProfileViewModel(
 ) : ViewModel() {
     private var userProfileJob: Job? = null
 
-    private var hasLoadedInitialData = false
-
     // Seeded from the session the process already knows about, so the first frame shows
     // the real card rather than a placeholder the user then watches change. On a cold
     // start that snapshot is filled during startup, behind the splash.
@@ -29,21 +25,20 @@ class ProfileViewModel(
         MutableStateFlow(
             ProfileState(session = sessionFrom(userSessionRepository.lastKnownSession)),
         )
-    val state = _state
-        .onStart {
-            if (!hasLoadedInitialData) {
-                observeLoggedInStatus()
 
-                hasLoadedInitialData = true
-            }
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000L),
-            initialValue = _state.value,
-        )
+    // Exposed directly rather than through stateIn(WhileSubscribed): _state is driven by
+    // viewModelScope for the whole lifetime of the ViewModel, so a shared coroutine added
+    // nothing but a stale replay — after the last collector left, the next one was handed
+    // the retained value first and only then corrected, flashing the old session (the
+    // signed-in card after a 401 sign-out) for a frame.
+    val state = _state.asStateFlow()
 
     private val _events = Channel<ProfileEvent>(capacity = Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    init {
+        observeLoggedInStatus()
+    }
 
     /** The only way [ProfileState.session] changes after construction. */
     private fun setSession(session: ProfileSession) {
@@ -65,6 +60,13 @@ class ProfileViewModel(
                         }
                         loadUserProfile()
                     } else {
+                        // Cancel the in-flight profile read first. It can still emit after
+                        // this point (a network round-trip started while the token was
+                        // present), and its setSession(SignedIn) would otherwise refill the
+                        // state after we have decided the session is over — and its
+                        // recordSession(true, profile) would write the expired account back
+                        // into lastKnownSession.
+                        userProfileJob?.cancel()
                         // Not going through getUser() on this path, so the snapshot has to
                         // be cleared here: otherwise a token that disappeared without a
                         // logout would leave a stale account to seed the next instance.

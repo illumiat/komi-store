@@ -5,7 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -17,6 +16,7 @@ import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.domain.model.appearance.AppPersonality
+import zed.rainxch.core.presentation.ProfileAvatarSpec
 import zed.rainxch.core.presentation.personality.classicPersonality
 import zed.rainxch.core.presentation.personality.mangaPersonality
 import zed.rainxch.core.presentation.personality.toMangaAccent
@@ -56,11 +56,13 @@ fun App(
     // tab finds it in the image cache whenever it is first opened. Warm-up only — an image
     // that fails here is fetched again, normally, wherever it is actually shown.
     val imageContext = LocalPlatformContext.current
-    // The profile card draws this avatar at 80.dp, so warm exactly that: with no size Coil
-    // decodes the source (GitHub avatars are ~460px) at full resolution for something that
-    // is only ever shown at 80dp.
-    val avatarSizePx = with(LocalDensity.current) { 80.dp.roundToPx() }
-    LaunchedEffect(mainState.signedInAvatarUrl) {
+    // The profile card draws this avatar at ProfileAvatarSpec.Size, so warm exactly that:
+    // with no size Coil decodes the source (GitHub avatars are ~460px) at full resolution
+    // for something that is only ever shown that small.
+    val avatarSizePx = with(LocalDensity.current) { ProfileAvatarSpec.Size.roundToPx() }
+    // avatarSizePx is a key too: on a density change the captured pixel size is stale, so
+    // the effect must re-run to warm the size the card now actually requests.
+    LaunchedEffect(mainState.signedInAvatarUrl, avatarSizePx) {
         mainState.signedInAvatarUrl?.let { url ->
             runCatching {
                 SingletonImageLoader.get(imageContext).enqueue(

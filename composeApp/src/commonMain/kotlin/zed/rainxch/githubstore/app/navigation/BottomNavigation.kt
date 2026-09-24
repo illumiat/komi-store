@@ -51,11 +51,17 @@ fun BottomNavigation(
         onSelect = { id ->
             // Re-selecting the current tab must not navigate. The navigate() options in
             // AppNavigation pop and restore this destination, so a re-tap would tear the
-            // screen down and build it again for no visible change — which is what made
-            // it flicker when tapped repeatedly.
-            if (id != selectedId) {
-                allowedScreens.firstOrNull { idOf(it.screen) == id }?.let { onNavigate(it.screen) }
-            }
+            // screen down and build it again for no visible change — which is what made it
+            // flicker when tapped repeatedly.
+            //
+            // Compared as destinations, not as the class-name id above: the id collapses a
+            // parameterised destination like SearchScreen(initialPlatform = "…") onto the
+            // same string as SearchScreen(), so an id comparison would treat a tap on Search
+            // while already on a platform-scoped Search as a no-op. The data class has value
+            // equality, so those two are different and the tap navigates; the data object
+            // tabs (Explore, Charts, …) stay equal to themselves and keep skipping.
+            val target = allowedScreens.firstOrNull { idOf(it.screen) == id }?.screen
+            if (target != null && target != currentScreen) onNavigate(target)
         },
         modifier = modifier,
     )

@@ -31,6 +31,11 @@ import coil3.request.ImageRequest
  * emitted a Loading state before running the fetch, so an image already in the memory cache
  * still flashed a placeholder — and its `CrossfadePlugin` replayed a 250ms fade each time.
  * Neither is a cache problem; both are per-composition work the wrapper did.
+ *
+ * [imageModel]'s result is used as a `remember` key, so it must have value-based `equals`
+ * — a `String` URL, or an `ImageRequest` the caller already built. A fresh object per
+ * composition would key a new request each time, rebuild it, restart the fetch, and the
+ * painter would cycle through Loading and may never settle.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -42,6 +47,18 @@ fun GitHubStoreImage(
     // wrapper showed a spinner by default, and a large image fetched over the network
     // still wants one. Callers that sit on a tinted block pass false.
     showLoadingIndicator: Boolean = true,
+    // Crop by default, and that is the icon case this component exists for: every one of its
+    // call sites draws a small square slot (18dp list glyphs, 36dp sheet rows, 80/92dp
+    // avatars), and icon art is meant to fill the slot. Markdown's images take the other
+    // route — `MarkdownImageTransformer` uses Fit — because a document image must be seen
+    // whole. So the two defaults differ on purpose; what was wrong was that this one could
+    // not be overridden at all, which would have cropped the first banner or social preview
+    // silently and offered no way out.
+    contentScale: ContentScale = ContentScale.Crop,
+    // Null by default so no call site changes: images here are decorative glyphs in list
+    // rows and avatars. Non-decorative callers (a social preview, a banner) pass a label so
+    // screen readers can describe what the image is instead of skipping it as unlabelled.
+    contentDescription: String? = null,
 ) {
     val model = imageModel()
     if (model == null) {
@@ -57,7 +74,7 @@ fun GitHubStoreImage(
     val sizeResolver = rememberConstraintsSizeResolver()
     val platformContext = LocalPlatformContext.current
     val request =
-        remember(model, sizeResolver, platformContext) {
+        remember(model, sizeResolver) {
             ImageRequest
                 .Builder(platformContext)
                 .data(model)
@@ -74,9 +91,9 @@ fun GitHubStoreImage(
         is AsyncImagePainter.State.Success ->
             Image(
                 painter = painter,
-                contentDescription = null,
+                contentDescription = contentDescription,
                 modifier = resolvedModifier,
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
                 colorFilter = colorFilter,
             )
 
@@ -99,7 +116,7 @@ fun GitHubStoreImage(
                 if (showLoadingIndicator) CircularWavyProgressIndicator()
             }
 
-        else ->
+        is AsyncImagePainter.State.Empty ->
             // Empty: the request has not started yet. Drawing the indicator here made every
             // caller that kept the default showLoadingIndicator flash a spinner on the very
             // first frame, and again whenever a lazy list rebuilt the item.
