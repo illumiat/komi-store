@@ -48,16 +48,30 @@ fun InstalledApp.confirmInstall(
     // versionName is the APK's numeric version (e.g. "26.09.01") and the only
     // comparable name is the requested release tag.
     //
-    // Timestamp-tracked tags (`nightly`, a commit-hash tail) are outside this
-    // judgement: one tag names many builds, so `isVersionNewer(tag, tag)` is always
-    // false and a landed code equal to the target code proves nothing either. Clearing
-    // the flag for such a build would also reconcile latestVersionCode down to the
-    // installed code — the snapshot evidence the timestamp branch compares publish
-    // times against — and since shouldReportTimestampUpdate's restart hangs on
-    // previousWasUpdateAvailable, the update would then never be offered again. Both
-    // fields are left untouched; the next checkForUpdates decides from publish time.
+    // Timestamp-tracked tags (`nightly`, a commit-hash tail) are outside the code
+    // judgement above: one tag names many builds, so `isVersionNewer(tag, tag)` is always
+    // false and a landed code equal to the snapshot code proves nothing either. What is
+    // left to decide is the flag, and here the install does decide it, because the flag
+    // is not a record of what the codes said — it is the timestamp branch's memory.
+    //
+    // While that flag is up, a scan of the same tag at the same publish time keeps
+    // reporting the release (see shouldReportTimestampUpdate, pinned by
+    // "timestamp_update_retained_across_scans_without_install"). That is its purpose:
+    // it holds an un-acted-on update on screen across scans, since publish time alone
+    // cannot tell a rebuilt release from the one already stored. Installing is the act
+    // that resolves it, so it must not outlive the install. Left standing, it re-reports
+    // the very release the package now is on every later scan, for as long as it takes
+    // the next build to be published — "you installed the nightly" rendered as "an
+    // update is available". The verdict side has always assumed the flag comes down
+    // here: "timestamp_update_not_reported_after_install" asserts silence for exactly
+    // this release and this publish time once it is down.
+    //
+    // The snapshot code is not the flag's to clear — it stays at previousSnapshotCode
+    // below, and it is the evidence the timestamp branch compares publish times against.
+    // Only the latch comes down, and it stays up in the one case where the landed code
+    // proves the install did not reach the snapshot: an older build went on, so the
+    // update is still waiting to be taken.
     val timestampTrackedTag = VersionMath.isTimestampTrackedTag(tag)
-    val previousUpdateFlag = isUpdateAvailable
     val previousSnapshotCode = latestVersionCode
 
     val installedSide =
@@ -83,7 +97,12 @@ fun InstalledApp.confirmInstall(
         installedAssetUrl = assetUrl,
         installedVersionName = versionName,
         installedVersionCode = versionCode,
-        isUpdateAvailable = if (timestampTrackedTag) previousUpdateFlag else isUpdateStillAvailable,
+        isUpdateAvailable =
+            when {
+                !timestampTrackedTag -> isUpdateStillAvailable
+                landedCodeBelowTarget -> true
+                else -> false
+            },
         latestVersionCode =
             if (timestampTrackedTag || isUpdateStillAvailable) previousSnapshotCode else versionCode,
         isPendingInstall = isPending,
