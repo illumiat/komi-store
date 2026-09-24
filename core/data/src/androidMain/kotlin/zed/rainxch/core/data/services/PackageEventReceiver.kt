@@ -12,7 +12,9 @@ import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
+import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
 import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
+import zed.rainxch.core.domain.model.installation.snapshotStillNamesNewerBuild
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
@@ -166,13 +168,32 @@ class PackageEventReceiver() :
                             repo.updatePendingStatus(packageName, false)
                             Logger.i { "Update confirmed via broadcast: $packageName (v${systemInfo.versionName}, tag=$installedTag)" }
                         } else {
-
-                            repo.updateApp(
+                            val resolved =
                                 app.resolvePendingFromSystem(
                                     resolvedTag = installedTag,
                                     versionName = systemInfo.versionName,
                                     versionCode = systemInfo.versionCode,
-                                ),
+                                )
+                            // Monotonic: the package was replaced but did not reach the
+                            // target, and the code-only comparison inside
+                            // resolvePendingFromSystem can read false while the snapshot
+                            // still names a build the user has not got — latestVersionCode
+                            // null after a tag drift, or a reused nightly that keeps its
+                            // code. Never lower the flag here (leave the real verdict to
+                            // the next checkForUpdates) so a visible update is not silently
+                            // dropped.
+                            repo.updateApp(
+                                if (resolved.isUpdateAvailable || app.isUpdateAvailable) {
+                                    resolved
+                                } else {
+                                    resolved.copy(
+                                        isUpdateAvailable =
+                                            app.snapshotStillNamesNewerBuild(
+                                                installedCode = systemInfo.versionCode,
+                                                installedVersion = systemInfo.versionName,
+                                            ),
+                                    )
+                                },
                             )
                             Logger.i {
                                 "Package replaced but not updated to target: $packageName " +
@@ -266,6 +287,34 @@ class PackageEventReceiver() :
         getBackstopScope().launch {
             try {
                 repo.checkForUpdates(packageName)
+                // Replay the observation-based verdict over the snapshot the check just
+                // refreshed. checkForUpdates derives its flag from the *stored* installed
+                // tag, which an external install leaves stale (updateInstalledVersion above
+                // writes the tag back unchanged) and from a latestVersionCode it may just
+                // have cleared on a tag drift; under those inputs its
+                // isVersionNewer(staleTag, matchedTag) fallback re-raises the flag this
+                // handler had correctly cleared, and adoptMatchedTag's gate never opens
+                // again. The replayed verdict is grounded in the system package — code
+                // first, version name second — so a drifting tag cannot mislead it, and it
+                // keeps latestVersionCode (hence the tag-adoption gate) alive. Replaying is
+                // also less fragile than threading systemInfo.versionCode into
+                // checkForUpdates, which would have spread the contract across the
+                // repository interface and every other caller for a fix that belongs to
+                // this one observation.
+                val refreshed = repo.getAppByPackage(packageName)
+                if (refreshed != null) {
+                    repo.updateInstalledVersion(
+                        packageName = packageName,
+                        installedVersion = refreshed.installedVersion,
+                        installedVersionName = systemInfo.versionName,
+                        installedVersionCode = systemInfo.versionCode,
+                        isUpdateAvailable =
+                            refreshed.externalInstallUpdateFlag(
+                                newVersionName = systemInfo.versionName,
+                                newVersionCode = systemInfo.versionCode,
+                            ),
+                    )
+                }
                 Logger.d {
                     "External-install re-validation completed for $packageName"
                 }

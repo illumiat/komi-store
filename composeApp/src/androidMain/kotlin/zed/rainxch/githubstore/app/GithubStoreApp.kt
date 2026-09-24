@@ -266,9 +266,21 @@ class GithubStoreApp : Application() {
         try {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName) ?: return
-            if (systemInfo.versionCode != existing.installedVersionCode) return
+            if (systemInfo.versionCode != existing.installedVersionCode ||
+                existing.latestVersionCode != systemInfo.versionCode
+            ) {
+                return
+            }
             repo.updateApp(
-                existing.normalizeInstalledTag(latestTag),
+                // The guard above proved the package is the snapshot build (system code ==
+                // stored installed code == snapshot code), so adopting the tag is valid.
+                // The flag is forwarded, not cleared: the same code under a
+                // timestamp-tracked tag can be a new build, so a stored true is a real
+                // verdict and hard-coding false would wipe it (see normalizeInstalledTag).
+                existing.normalizeInstalledTag(
+                    tag = latestTag,
+                    isUpdateAvailable = existing.isUpdateAvailable,
+                ),
             )
             Logger.i { "Normalized stale self installedVersion tag to $latestTag" }
         } catch (e: Exception) {
@@ -284,7 +296,21 @@ class GithubStoreApp : Application() {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName)
             if (systemInfo != null) {
-                val resolvedTag = existing.latestVersion ?: systemInfo.versionName
+                // Adopt the target tag only when the system code proves the install reached
+                // it. A cancelled dialog (or a silent failure) leaves systemInfo describing
+                // the old package; stamping the target tag then makes the next sameTag
+                // comparison read equal and silently drops the still-pending update. Same
+                // criterion as SyncInstalledAppsUseCase.resolvePending and
+                // resolvePendingFromSystem.
+                val targetCode = existing.latestVersionCode ?: 0L
+                val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
+                val resolvedTag =
+                    if (installReachedTarget) {
+                        existing.pendingInstallVersion ?: existing.latestVersion
+                            ?: systemInfo.versionName
+                    } else {
+                        existing.installedVersion
+                    }
                 repo.updateApp(
                     existing.resolvePendingFromSystem(
                         resolvedTag = resolvedTag,
@@ -292,11 +318,17 @@ class GithubStoreApp : Application() {
                         versionCode = systemInfo.versionCode,
                     ),
                 )
+                // resolvePendingFromSystem flips the flag only; the parked file metadata
+                // would otherwise linger and the UI, which reads pendingInstallFilePath as
+                // "ready to install", keeps offering the stale APK. Sibling resolvers
+                // (SyncInstalledAppsUseCase.resolvePending, PackageEventReceiver) clear it too.
+                repo.setPendingInstallFilePath(packageName, path = null)
                 Logger.i {
                     "Resolved self-update pending install: ${systemInfo.versionName} (code=${systemInfo.versionCode}, tag=$resolvedTag)"
                 }
             } else {
                 repo.updatePendingStatus(packageName, false)
+                repo.setPendingInstallFilePath(packageName, path = null)
                 Logger.i { "Resolved self-update pending install (no system info)" }
             }
         } catch (e: Exception) {
@@ -309,11 +341,11 @@ class GithubStoreApp : Application() {
         private const val SELF_SHA256_FINGERPRINT =
             @Suppress("ktlint:standard:max-line-length")
             "B7:F2:8E:19:8E:48:C1:93:B0:38:C6:5D:92:DD:F7:BC:07:7B:0D:B5:9E:BC:9B:25:0A:6D:AC:48:C1:18:03:CA"
-        private const val SELF_REPO_OWNER = "komi-store"
+        private const val SELF_REPO_OWNER = "kurikomi-labs"
         private const val SELF_REPO_NAME = "komi-store"
         private const val SELF_AVATAR_URL =
             @Suppress("ktlint:standard:max-line-length")
-            "https://raw.githubusercontent.com/komi-store/komi-store/refs/heads/main/media-resources/app_icon.png"
+            "https://raw.githubusercontent.com/kurikomi-labs/komi-store/refs/heads/main/media-resources/app_icon.png"
         const val UPDATES_CHANNEL_ID = "app_updates"
         const val UPDATE_SERVICE_CHANNEL_ID = "update_service"
         const val DOWNLOADS_CHANNEL_ID = "app_downloads"

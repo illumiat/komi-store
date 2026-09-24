@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import zed.rainxch.core.domain.utils.UpdateVerdict
 
 class InstalledAppUpdatesTest {
 
@@ -11,6 +12,7 @@ class InstalledAppUpdatesTest {
         installedVersion: String = "1.0.0",
         latestVersion: String? = "2.0.0",
         latestVersionCode: Long? = 200L,
+        latestVersionName: String? = "2.0.0",
         isUpdateAvailable: Boolean = true,
         isPendingInstall: Boolean = false,
         pendingFilePath: String? = "/data/parked.apk",
@@ -42,7 +44,7 @@ class InstalledAppUpdatesTest {
         isPendingInstall = isPendingInstall,
         installedVersionName = "1.0.0",
         installedVersionCode = 100L,
-        latestVersionName = "2.0.0",
+        latestVersionName = latestVersionName,
         latestVersionCode = latestVersionCode,
         latestReleasePublishedAt = "2026-08-01T00:00:00Z",
         pendingInstallFilePath = pendingFilePath,
@@ -105,6 +107,72 @@ class InstalledAppUpdatesTest {
     }
 
     @Test
+    fun confirmInstallKeepsFlagWhenLandedBuildIsOlderThanTarget() {
+        // B-1: the system installed an older build than the tracked target. The red
+        // dot must survive and latestVersionCode must NOT be reconciled downward,
+        // otherwise the update could never be offered again.
+        val result =
+            app(latestVersion = "2.0.0", latestVersionCode = 200L).confirmInstall(
+                tag = "2.0.0",
+                assetName = "a",
+                assetUrl = "u",
+                versionName = "1.5.0",
+                versionCode = 150L,
+                signingFingerprint = null,
+                at = 1L,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertEquals(200L, result.latestVersionCode)
+    }
+
+    @Test
+    fun confirmInstallKeepsFlagWhenLandedCodeIsBelowTargetCode() {
+        // Same version string but the landed versionCode is below the target's: the
+        // requested build was not actually installed, so the flag stays and the
+        // snapshot is left at the target code.
+        val result =
+            app(latestVersion = "2.0.0", latestVersionCode = 200L).confirmInstall(
+                tag = "2.0.0",
+                assetName = "a",
+                assetUrl = "u",
+                versionName = "2.0.0",
+                versionCode = 199L,
+                signingFingerprint = null,
+                at = 1L,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertEquals(200L, result.latestVersionCode)
+    }
+
+    @Test
+    fun confirmInstallKeepsFlagForTimestampTrackedTarget() {
+        // A timestamp-tracked target (an opaque marker such as `nightly`) names many
+        // builds, so confirming one of them proves nothing: isVersionNewer(tag, tag) is
+        // false and the landed code equals the target code, so the code test is silent
+        // too. Flag and snapshot code are left as they were — clearing them would wipe the
+        // evidence the timestamp branch compares publish times against, and the update
+        // would never be offered again. (This replaces the former claim that an opaque
+        // target clears the flag once the code reaches it, which the fix narrowed.)
+        val result =
+            app(
+                latestVersion = "nightly",
+                latestVersionCode = 500L,
+                isUpdateAvailable = true,
+            ).confirmInstall(
+                tag = "nightly",
+                assetName = "a",
+                assetUrl = "u",
+                versionName = "26.09.01",
+                versionCode = 500L,
+                signingFingerprint = null,
+                at = 1L,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertEquals(500L, result.latestVersionCode)
+        assertEquals("nightly", result.installedVersion)
+    }
+
+    @Test
     fun confirmInstallClearsUpdateFlagWhenSnapshotMissing() {
         val result = app(latestVersion = null, latestVersionCode = null).confirmInstall(
             tag = "1.0.0",
@@ -117,6 +185,25 @@ class InstalledAppUpdatesTest {
         )
         assertFalse(result.isUpdateAvailable)
         assertEquals(100L, result.latestVersionCode)
+    }
+
+    @Test
+    fun confirmInstallClearsFlagWhenSameTagCarriesNewerCode() {
+        // A rebuild under the same tag: the version string cannot show it, but the
+        // confirmation is for the current build, so the flag clears and the snapshot
+        // reconciles to the just-installed code.
+        val result =
+            app(latestVersion = "2.0.0", latestVersionCode = 200L).confirmInstall(
+                tag = "2.0.0",
+                assetName = "a",
+                assetUrl = "u",
+                versionName = "2.0.0",
+                versionCode = 201L,
+                signingFingerprint = null,
+                at = 1L,
+            )
+        assertFalse(result.isUpdateAvailable)
+        assertEquals(201L, result.latestVersionCode)
     }
 
     @Test
@@ -179,7 +266,32 @@ class InstalledAppUpdatesTest {
     }
 
     @Test
-    fun observeExternalInstallNeverTouchesInstalledTag() {
+    fun updateFlagIsFalseWhenSnapshotCodeIsNull() {
+        val result =
+            app(latestVersionCode = null).resolvePendingFromSystem(
+                resolvedTag = "2.0.0",
+                versionName = "2.0.0",
+                versionCode = 100L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun updateFlagIsFalseWhenSnapshotCodeIsZero() {
+        val result =
+            app(latestVersionCode = 0L).observeExternalInstall(
+                versionName = "2.0.0",
+                versionCode = 100L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun observeExternalInstallKeepsInstalledTagBelowTheSnapshot() {
+        // Observe may adopt the installed tag only on evidence that the package is the
+        // snapshot build. Code 120 does not equal the snapshot's 200, so there is no
+        // such evidence and the tag is left alone. (This replaces the former blanket
+        // claim that observe never touches the installed tag, which the verdict narrowed.)
         val result = app().observeExternalInstall(
             versionName = "1.2.0",
             versionCode = 120L,
@@ -189,6 +301,21 @@ class InstalledAppUpdatesTest {
         assertEquals(120L, result.installedVersionCode)
         // 200 > 120 → still an update available
         assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun observeExternalInstallAdoptsSnapshotTagOnceObservationReachesIt() {
+        // The observation proves the package is the snapshot build (system code equals the
+        // snapshot's code), so the tag naming that build is the snapshot's and observe
+        // adopts it. The update flag clears because nothing is left above the snapshot.
+        val result = app().observeExternalInstall(
+            versionName = "2.0.0",
+            versionCode = 200L,
+        )
+        assertEquals("2.0.0", result.installedVersion)
+        assertEquals("2.0.0", result.installedVersionName)
+        assertEquals(200L, result.installedVersionCode)
+        assertFalse(result.isUpdateAvailable)
     }
 
     @Test
@@ -261,9 +388,159 @@ class InstalledAppUpdatesTest {
     }
 
     @Test
-    fun normalizeInstalledTagAlignsTagAndClearsFlag() {
-        val result = app(installedVersion = "1.9.0").normalizeInstalledTag("2.0.0")
+    fun normalizeInstalledTagAlignsTagAndForwardsTheVerdict() {
+        // The verdict is forwarded, not forced to false: for a tag that names many builds
+        // the same code can be a new build, so a stored true is a real verdict that the
+        // old hard-coded false would have wiped (same rule as adoptMatchedTag).
+        val result =
+            app(installedVersion = "1.9.0", isUpdateAvailable = true).normalizeInstalledTag(
+                tag = "2.0.0",
+                isUpdateAvailable = true,
+            )
+        assertEquals("2.0.0", result.installedVersion)
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun normalizeInstalledTagKeepsAClearedVerdictCleared() {
+        // The other direction: a verdict of false stays false. The function only carries
+        // the caller's decision, it never invents one.
+        val result =
+            app(installedVersion = "1.9.0", isUpdateAvailable = false).normalizeInstalledTag(
+                tag = "2.0.0",
+                isUpdateAvailable = false,
+            )
         assertEquals("2.0.0", result.installedVersion)
         assertFalse(result.isUpdateAvailable)
+        // snapshot fields are left alone
+        assertEquals(200L, result.latestVersionCode)
+    }
+
+    @Test
+    fun normalizeInstalledTagLeavesPendingAndSnapshotFieldsUntouched() {
+        // pendingInstallVersion ("2.0.0") differs from latestVersion ("3.0.0"); a tag
+        // normalization rewrites installedVersion only and must not disturb either,
+        // nor the pending flag.
+        val result =
+            app(latestVersion = "3.0.0", latestVersionCode = 300L, isPendingInstall = true)
+                .normalizeInstalledTag(tag = "2.0.0", isUpdateAvailable = false)
+        assertEquals("2.0.0", result.installedVersion)
+        assertTrue(result.isPendingInstall)
+        assertEquals("2.0.0", result.pendingInstallVersion)
+        assertEquals("3.0.0", result.latestVersion)
+        assertEquals(300L, result.latestVersionCode)
+    }
+
+    @Test
+    fun resolvePendingFromSystemKeepsTheOldTagWhenTheInstallDidNotReachTarget() {
+        // The parked tag names the target, but the system reports an older code — the
+        // dialog was cancelled or the install failed. Stamping the target tag would leave
+        // installedVersionCode on the old code while installedVersion claims the target, and
+        // the next sameTag comparison would read equal and drop the pending update.
+        val result =
+            app(
+                installedVersion = "1.0.0",
+                latestVersion = "2.0.0",
+                latestVersionCode = 200L,
+                isPendingInstall = true,
+            ).resolvePendingFromSystem(
+                resolvedTag = "2.0.0",
+                versionName = "1.0.0",
+                versionCode = 100L,
+            )
+        assertEquals("1.0.0", result.installedVersion)
+        assertFalse(result.isPendingInstall)
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun resolvePendingFromSystemAdoptsTheParkedTagWhenTheInstallReachedTarget() {
+        // pendingInstallVersion ("2.0.0") differs from the resolvedTag ("3.0.0"): the parked
+        // tag names the release actually handed to the installer and outranks the snapshot's
+        // tag, which a checkForUpdates may have moved on during the install window.
+        val result =
+            app(
+                installedVersion = "1.0.0",
+                latestVersion = "3.0.0",
+                latestVersionCode = 300L,
+                isPendingInstall = true,
+            ).resolvePendingFromSystem(
+                resolvedTag = "3.0.0",
+                versionName = "1.5.0",
+                versionCode = 300L,
+            )
+        assertEquals("2.0.0", result.installedVersion)
+        assertFalse(result.isPendingInstall)
+    }
+
+    @Test
+    fun externalInstallFlagIsNotFooledByAStaleInstalledTag() {
+        // PackageEventReceiver backstop regression: the external install landed build 2.0.0
+        // (code 200) while the stored installed tag is still the old "1.0.0" and the
+        // snapshot code was cleared to null by an earlier tag drift. Re-deriving the flag
+        // from that stale tag is what the pre-fix checkForUpdates did — it reports an update
+        // that is already installed. The replayed, package-grounded verdict stays silent.
+        val afterExternalInstall =
+            app(installedVersion = "1.0.0", latestVersion = "2.0.0", latestVersionCode = null)
+
+        val preFix = UpdateVerdict.decide(
+            installed = UpdateVerdict.Installed("1.0.0", 200L),
+            stored = UpdateVerdict.Stored(
+                latestTag = "2.0.0",
+                latestVersionCode = null,
+                publishedAt = "2026-08-01T00:00:00Z",
+                wasUpdateAvailable = false,
+            ),
+            matched = UpdateVerdict.Matched("2.0.0", "2026-08-01T00:00:00Z", false),
+            skippedTag = null,
+        )
+        assertTrue(preFix.isUpdateAvailable)
+
+        assertFalse(
+            afterExternalInstall.externalInstallUpdateFlag(
+                newVersionName = "2.0.0",
+                newVersionCode = 200L,
+            ),
+        )
+    }
+
+    @Test
+    fun externalInstallFlagStillReportsANewerRelease() {
+        // The replay is not a blanket "clear": when the refreshed snapshot names a build
+        // above the installed one, the update is still reported.
+        val refreshed =
+            app(
+                installedVersion = "2.0.0",
+                latestVersion = "3.0.0",
+                latestVersionCode = null,
+                latestVersionName = "3.0.0",
+            )
+        assertTrue(
+            refreshed.externalInstallUpdateFlag(
+                newVersionName = "2.0.0",
+                newVersionCode = 200L,
+            ),
+        )
+    }
+
+    @Test
+    fun snapshotComparisonRaisesTheFlagWhenTheBaselineSurvivedButTheCodeDidNot() {
+        // The replace-without-target path: latestVersionCode was nulled by a tag drift, so
+        // the code test cannot see the outstanding build — but latestVersion still names one
+        // above the versionName the system reports, so the flag must not be dropped. The
+        // other direction stays silent when the installed build is the snapshot's.
+        val drifted = app(latestVersion = "3.0.0", latestVersionCode = null)
+        assertTrue(
+            drifted.snapshotStillNamesNewerBuild(
+                installedCode = 200L,
+                installedVersion = "2.0.0",
+            ),
+        )
+        assertFalse(
+            drifted.snapshotStillNamesNewerBuild(
+                installedCode = 300L,
+                installedVersion = "3.0.0",
+            ),
+        )
     }
 }

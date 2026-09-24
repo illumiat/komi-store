@@ -65,21 +65,28 @@ class VersionMathTest {
     }
 
     @Test
-    fun opaque_marker_with_dotted_digit_suffix_is_timestamp_tracked() {
-        // Pins CURRENT behavior: a known pre-release marker followed by a
-        // hyphen and a *dotted* digit suffix (e.g. "beta-1.2.3", "rc-1.0.10",
-        // "nightly-2026.08.01") is treated as an opaque / timestamp-tracked tag
-        // because the suffix is "not all digits" at isMarkerWithOpaqueSuffix.
-        // This is intentionally NOT a calver nightly like "nightly-20260731"
-        // (pure digits → not opaque, see opaque_marker_detects_release_tag_alone).
-        // These assertions document the status quo; changing the classification
-        // is out of scope for this PR and belongs in a follow-up.
-        assertTrue(VersionMath.isOpaqueMarker("beta-1.2.3"))
-        assertTrue(VersionMath.isTimestampTrackedTag("beta-1.2.3"))
-        assertTrue(VersionMath.isOpaqueMarker("rc-1.0.10"))
-        assertTrue(VersionMath.isTimestampTrackedTag("rc-1.0.10"))
-        assertTrue(VersionMath.isOpaqueMarker("nightly-2026.08.01"))
-        assertTrue(VersionMath.isTimestampTrackedTag("nightly-2026.08.01"))
+    fun marker_with_a_dotted_digit_suffix_stays_numerically_comparable() {
+        // A known pre-release marker followed by a hyphen and *dotted digits*
+        // ("beta-1.2.3", "rc-1.0.10", "nightly-2026.08.01") is an ordinary version
+        // carrying a pre-release prefix, not an opaque marker: the number after the
+        // prefix is what orders it, and dropping it made two builds incomparable.
+        // Reading the tag as opaque returned it verbatim, which pushed the pair into
+        // a string compare where "beta-1.10.0" sorted *below* "beta-1.9.0".
+        //
+        // Classification is not cosmetic here — it decides which comparison runs, so
+        // this test pins both halves: the classification itself, and the numeric
+        // ordering that depends on it.
+        assertFalse(VersionMath.isOpaqueMarker("beta-1.2.3"))
+        assertFalse(VersionMath.isTimestampTrackedTag("beta-1.2.3"))
+        assertFalse(VersionMath.isOpaqueMarker("rc-1.0.10"))
+        assertFalse(VersionMath.isTimestampTrackedTag("rc-1.0.10"))
+        assertFalse(VersionMath.isOpaqueMarker("nightly-2026.08.01"))
+        assertFalse(VersionMath.isTimestampTrackedTag("nightly-2026.08.01"))
+        // The payoff: the dotted digit suffix falls through to DOTTED_DIGIT_PATTERN,
+        // so these compare as numbers rather than as strings.
+        assertTrue(VersionMath.isVersionNewer("beta-1.10.0", "beta-1.9.0"))
+        assertTrue(VersionMath.isVersionNewer("rc-1.0.10", "rc-1.0.9"))
+        assertFalse(VersionMath.isVersionNewer("beta-1.9.0", "beta-1.10.0"))
     }
 
     @Test
@@ -202,6 +209,109 @@ class VersionMathTest {
                 previousLatestPublishedAt = null,
                 previousWasUpdateAvailable = false,
                 previousLatestTag = null,
+            ),
+        )
+    }
+
+    // --- absolute-time parsing (B-7). GitHub sends "…Z", Forgejo/Codeberg send
+    // "…+HH:MM"; the three spellings below are the same instant but would order
+    // differently under string comparison.
+
+    @Test
+    fun published_at_parses_z_and_numeric_offsets_to_the_same_instant() {
+        val utc = VersionMath.parsePublishedAtToInstant("2026-09-17T15:27:32Z")
+        val plusTwo = VersionMath.parsePublishedAtToInstant("2026-09-17T17:27:32+02:00")
+        val minusSeven = VersionMath.parsePublishedAtToInstant("2026-09-17T08:27:32-07:00")
+
+        assertEquals(1789658852000L, utc?.toEpochMilliseconds())
+        assertEquals(utc, plusTwo)
+        assertEquals(utc, minusSeven)
+    }
+
+    @Test
+    fun published_at_parse_failure_degrades_to_null() {
+        assertEquals(null, VersionMath.parsePublishedAtToInstant(null))
+        assertEquals(null, VersionMath.parsePublishedAtToInstant(""))
+        assertEquals(null, VersionMath.parsePublishedAtToInstant("   "))
+        // local time without an offset is not a valid Instant per RFC 3339 here
+        assertEquals(null, VersionMath.parsePublishedAtToInstant("2026-09-17T15:27:32"))
+        assertEquals(null, VersionMath.parsePublishedAtToInstant("refs/tags/nightly"))
+        assertEquals(null, VersionMath.parsePublishedAtToInstant("not-a-time"))
+    }
+
+    @Test
+    fun is_published_at_after_orders_absolute_time_not_lexicographic() {
+        // 17:27:32+02:00 == 15:27:32Z: equal instants are not "after".
+        assertFalse(
+            VersionMath.isPublishedAtAfter(
+                "2026-09-17T17:27:32+02:00",
+                "2026-09-17T15:27:32Z",
+            ),
+        )
+        // "+02:00" sorts after "16:00:00Z" as a string, but 17:27+02:00 (15:27Z)
+        // is EARLIER than 16:00Z — string order would have claimed newer.
+        assertFalse(
+            VersionMath.isPublishedAtAfter(
+                "2026-09-17T17:27:32+02:00",
+                "2026-09-17T16:00:00Z",
+            ),
+        )
+        // A genuinely later offset form still reports newer.
+        assertTrue(
+            VersionMath.isPublishedAtAfter(
+                "2026-09-17T18:27:32+02:00",
+                "2026-09-17T15:27:32Z",
+            ),
+        )
+        // Unparseable side is never "after".
+        assertFalse(VersionMath.isPublishedAtAfter("not-a-time", "2026-09-17T15:27:32Z"))
+        assertFalse(VersionMath.isPublishedAtAfter("2026-09-17T15:27:32Z", "not-a-time"))
+    }
+
+    @Test
+    fun timestamp_update_treats_equal_instants_across_offset_forms_as_not_newer() {
+        assertFalse(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-17T17:27:32+02:00",
+                previousLatestPublishedAt = "2026-09-17T15:27:32Z",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+            ),
+        )
+    }
+
+    @Test
+    fun timestamp_update_reports_offset_form_that_is_truly_newer() {
+        assertTrue(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-17T18:27:32+02:00",
+                previousLatestPublishedAt = "2026-09-17T15:27:32Z",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+            ),
+        )
+    }
+
+    @Test
+    fun timestamp_update_degrades_to_silent_when_either_side_is_unparseable() {
+        assertFalse(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "not-a-time",
+                previousLatestPublishedAt = "2026-08-01T00:00:00Z",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+            ),
+        )
+        assertFalse(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-08-02T00:00:00Z",
+                previousLatestPublishedAt = "not-a-time",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
             ),
         )
     }

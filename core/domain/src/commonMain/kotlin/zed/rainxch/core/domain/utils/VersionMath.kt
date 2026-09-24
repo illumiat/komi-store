@@ -1,5 +1,7 @@
 package zed.rainxch.core.domain.utils
 
+import kotlin.time.Instant
+
 object VersionMath {
 
     fun normalizeVersion(version: String?): String {
@@ -133,6 +135,13 @@ object VersionMath {
         if (rest.isEmpty()) return true
         if (rest.first() != '-' && rest.first() != '.') return false
         val suffix = rest.substring(1)
+        // A marker followed only by dotted digits ("beta-1.2.3", "rc-1.0.10") is a
+        // normal version with a pre-release prefix, not an opaque marker. Falling
+        // through lets DOTTED_DIGIT_PATTERN recover "1.2.3" so the pair compares
+        // numerically; treating it as opaque sent it to a string compare where
+        // "1.10.0" sorted below "1.9.0". Only a non-numeric token (a hash, a word)
+        // makes the tag opaque.
+        if (suffix.all { it.isDigit() || it == '.' }) return false
         return suffix.isNotEmpty() && !suffix.all { it.isDigit() }
     }
 
@@ -149,6 +158,53 @@ object VersionMath {
         return hasHexTailAfterNumericPrefix(normalizeVersion(version))
     }
 
+    // Whether the stored snapshot baseline (latestReleasePublishedAt and the latest*
+    // fields that pair with it) must survive a failed check instead of being cleared.
+    //
+    // A timestamp-tracked tag has no version ordering to fall back on: once the
+    // publishedAt baseline is dropped the next check sees a null previous timestamp and
+    // re-announces the same, unchanged release. That holds whenever *either* side is
+    // timestamp-tracked — a reused `nightly` (the stored latest) or an installed
+    // commit-hash build — and also when the two sides cannot be compared at all, which
+    // is precisely the `!reconcilable` leg UpdateVerdict routes to the timestamp branch
+    // (installed "1.0.0-abc1234" vs matched "1.1.0-beta.2" is such a pair). For plain,
+    // comparable pairs the baseline is safe to drop: the next check recomputes the same
+    // verdict from the version numbers.
+    fun shouldRetainSnapshotBaseline(
+        installedTag: String?,
+        storedLatestTag: String?,
+    ): Boolean =
+        isTimestampTrackedTag(storedLatestTag) ||
+            isTimestampTrackedTag(installedTag) ||
+            !versionsReconcilable(installedTag, storedLatestTag)
+
+    // Release publish times arrive in two RFC 3339 shapes: GitHub returns UTC
+    // ("2025-05-22T22:48:54Z") while Forgejo/Codeberg return a numeric offset
+    // ("2026-09-17T17:27:32+02:00"). Both name the same instant as their UTC
+    // spelling but compare differently as plain strings, so every "which is
+    // newer" question must be answered on the parsed Instant, never on
+    // lexicographic order.
+    //
+    // Degradation: null, blank, or unparseable input yields null. Callers read
+    // a null as "no usable publish time" and therefore report nothing rather
+    // than guessing — a build is only announced as newer when both sides carry
+    // a real, comparable timestamp.
+    internal fun parsePublishedAtToInstant(raw: String?): Instant? {
+        val trimmed = raw?.trim().orEmpty()
+        if (trimmed.isEmpty()) return null
+        return runCatching { Instant.parse(trimmed) }.getOrNull()
+    }
+
+    // True only when both timestamps parse and `candidate` is strictly later.
+    // A missing or unparseable side is not evidence of a newer build (see the
+    // degradation note above), so it returns false instead of falling back to
+    // string order.
+    internal fun isPublishedAtAfter(candidate: String?, baseline: String?): Boolean {
+        val candidateInstant = parsePublishedAtToInstant(candidate) ?: return false
+        val baselineInstant = parsePublishedAtToInstant(baseline) ?: return false
+        return candidateInstant > baselineInstant
+    }
+
     fun shouldReportTimestampUpdate(
         matchedTag: String?,
         matchedPublishedAt: String?,
@@ -156,13 +212,11 @@ object VersionMath {
         previousWasUpdateAvailable: Boolean,
         previousLatestTag: String?,
     ): Boolean {
-        // Lexicographic compare is only valid because GitHub API publishedAt
-        // is always UTC ISO-8601 ending in "Z" — no offset normalization here.
+        // Presence, not parseability, decides the first-scan case: with no stored
+        // baseline any non-null matched timestamp is the first observation. The
+        // order comparison below is the part that needs absolute instants.
         if (previousLatestPublishedAt == null && matchedPublishedAt != null) return true
-        val newerByTimestamp =
-            matchedPublishedAt != null &&
-                previousLatestPublishedAt != null &&
-                matchedPublishedAt > previousLatestPublishedAt
+        val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
         return newerByTimestamp ||
             (previousWasUpdateAvailable && isExactSameVersion(matchedTag, previousLatestTag))
     }
@@ -257,12 +311,21 @@ object VersionMath {
 
     private val DOTTED_DIGIT_PATTERN = Regex("""\d+(?:\.\d+)*(?:-[\w.]+)?""")
 
+    // A hash tail is a commit short-sha: a run of >=4 hex characters of which at least
+    // two are letters. A digit-prefixed tag whose *version* part carries letters
+    // ("1.2.3b1234", "2.0.5a2024", "2026.09.23a1") has only one a-f among digits — a
+    // build/revision suffix, not a commit hash — and must keep falling through to the
+    // numeric comparison. The letter count is taken from the captured tail alone, not
+    // from the whole string, so letters before the tail cannot satisfy it.
     private val HEX_TAIL_AFTER_NUMERIC_PREFIX =
-        Regex("""^\d+(?:\.\d+)*(?:\.)?[0-9a-f]{4,}$""", RegexOption.IGNORE_CASE)
+        Regex("""^\d+(?:\.\d+)*(?:\.)?([0-9a-f]{4,})$""", RegexOption.IGNORE_CASE)
 
-    private fun hasHexTailAfterNumericPrefix(version: String): Boolean =
-        HEX_TAIL_AFTER_NUMERIC_PREFIX.containsMatchIn(version) &&
-            version.any { it in 'a'..'f' || it in 'A'..'F' }
+    private fun hasHexTailAfterNumericPrefix(version: String): Boolean {
+        val tail =
+            HEX_TAIL_AFTER_NUMERIC_PREFIX.matchEntire(version)?.groupValues?.getOrNull(1)
+                ?: return false
+        return tail.count { it in 'a'..'f' || it in 'A'..'F' } >= 2
+    }
 
     private val VERSION_WORD_PREFIX =
         Regex(

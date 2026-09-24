@@ -189,7 +189,21 @@ class SyncInstalledAppsUseCase(
     private suspend fun resolvePending(app: InstalledApp, systemInfo: SystemPackageInfo?) {
         try {
             if (systemInfo != null) {
-                val resolvedTag = app.latestVersion ?: systemInfo.versionName
+                // Adopt the target tag only when the system code proves the install reached
+                // it. A cancelled dialog (or a silent failure) leaves systemInfo describing
+                // the old package; stamping the target tag would leave installedVersionCode
+                // on the old code while installedVersion claims the target, and the next
+                // sameTag comparison would then read equal and silently drop the
+                // still-pending update. Same criterion as GithubStoreApp and
+                // resolvePendingFromSystem.
+                val targetCode = app.latestVersionCode ?: 0L
+                val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
+                val resolvedTag =
+                    if (installReachedTarget) {
+                        app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
+                    } else {
+                        app.installedVersion
+                    }
                 installedAppsRepository.updateApp(
                     app.resolvePendingFromSystem(
                         resolvedTag = resolvedTag,
@@ -253,8 +267,10 @@ class SyncInstalledAppsUseCase(
     private suspend fun syncVersion(app: InstalledApp, systemInfo: SystemPackageInfo?) {
         try {
             // installedVersion is the GitHub release tag and is owned by install
-            // events only. External install sync must never touch it — it only
-            // refreshes the versionName/versionCode observed from the system.
+            // events. This sync never writes it directly: it refreshes only the
+            // versionName/versionCode observed from the system, and leaves the tag
+            // to observeExternalInstall, which adopts the snapshot tag on its own
+            // evidence — the observed code is the build that snapshot names.
             if (systemInfo != null && systemInfo.versionCode != app.installedVersionCode) {
                 val wasDowngrade = systemInfo.versionCode < app.installedVersionCode
 
