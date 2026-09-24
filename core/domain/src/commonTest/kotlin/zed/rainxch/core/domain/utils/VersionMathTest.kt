@@ -65,24 +65,28 @@ class VersionMathTest {
     }
 
     @Test
-    fun opaque_marker_with_dotted_digit_suffix_is_timestamp_tracked() {
-        // New behavior added by this PR, not a pre-existing status quo:
-        // isMarkerWithOpaqueSuffix / isTimestampTrackedTag are introduced here, so
-        // these assertions document the classification this change adds rather than
-        // pinning an established contract. A known pre-release marker followed by a
-        // hyphen and a *dotted* digit suffix (e.g. "beta-1.2.3", "rc-1.0.10",
-        // "nightly-2026.08.01") is treated as an opaque / timestamp-tracked tag
-        // because the suffix is "not all digits" at isMarkerWithOpaqueSuffix.
-        // This is intentionally NOT a calver nightly like "nightly-20260731"
-        // (pure digits → not opaque, see opaque_marker_detects_release_tag_alone).
-        // Changing the classification is out of scope for this PR and belongs in a
-        // follow-up.
-        assertTrue(VersionMath.isOpaqueMarker("beta-1.2.3"))
-        assertTrue(VersionMath.isTimestampTrackedTag("beta-1.2.3"))
-        assertTrue(VersionMath.isOpaqueMarker("rc-1.0.10"))
-        assertTrue(VersionMath.isTimestampTrackedTag("rc-1.0.10"))
-        assertTrue(VersionMath.isOpaqueMarker("nightly-2026.08.01"))
-        assertTrue(VersionMath.isTimestampTrackedTag("nightly-2026.08.01"))
+    fun marker_with_a_dotted_digit_suffix_stays_numerically_comparable() {
+        // A known pre-release marker followed by a hyphen and *dotted digits*
+        // ("beta-1.2.3", "rc-1.0.10", "nightly-2026.08.01") is an ordinary version
+        // carrying a pre-release prefix, not an opaque marker: the number after the
+        // prefix is what orders it, and dropping it made two builds incomparable.
+        // Reading the tag as opaque returned it verbatim, which pushed the pair into
+        // a string compare where "beta-1.10.0" sorted *below* "beta-1.9.0".
+        //
+        // Classification is not cosmetic here — it decides which comparison runs, so
+        // this test pins both halves: the classification itself, and the numeric
+        // ordering that depends on it.
+        assertFalse(VersionMath.isOpaqueMarker("beta-1.2.3"))
+        assertFalse(VersionMath.isTimestampTrackedTag("beta-1.2.3"))
+        assertFalse(VersionMath.isOpaqueMarker("rc-1.0.10"))
+        assertFalse(VersionMath.isTimestampTrackedTag("rc-1.0.10"))
+        assertFalse(VersionMath.isOpaqueMarker("nightly-2026.08.01"))
+        assertFalse(VersionMath.isTimestampTrackedTag("nightly-2026.08.01"))
+        // The payoff: the dotted digit suffix falls through to DOTTED_DIGIT_PATTERN,
+        // so these compare as numbers rather than as strings.
+        assertTrue(VersionMath.isVersionNewer("beta-1.10.0", "beta-1.9.0"))
+        assertTrue(VersionMath.isVersionNewer("rc-1.0.10", "rc-1.0.9"))
+        assertFalse(VersionMath.isVersionNewer("beta-1.9.0", "beta-1.10.0"))
     }
 
     @Test

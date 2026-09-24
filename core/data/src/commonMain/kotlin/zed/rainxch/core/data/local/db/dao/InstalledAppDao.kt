@@ -139,6 +139,26 @@ interface InstalledAppDao {
         timestamp: Long,
     )
 
+    // "Check ran, but no release matched": the deterministic sibling of
+    // clearUpdateMetadata. The flag goes — the badge must not be frozen on a state that
+    // will not change by itself — while the latestReleasePublishedAt baseline stays,
+    // because dropping it would make the next check read a null baseline and re-announce
+    // the very release this state says cannot be matched. A narrow column write on
+    // purpose: clearUpdateMetadata would take latestVersion/latestVersionCode/
+    // latestReleasePublishedAt down with it.
+    @Query(
+        """
+        UPDATE installed_apps
+           SET isUpdateAvailable = 0,
+               lastCheckedAt = :timestamp
+         WHERE packageName = :packageName
+        """,
+    )
+    suspend fun clearUpdateFlagKeepBaseline(
+        packageName: String,
+        timestamp: Long,
+    )
+
     @Query(
         """
         UPDATE installed_apps

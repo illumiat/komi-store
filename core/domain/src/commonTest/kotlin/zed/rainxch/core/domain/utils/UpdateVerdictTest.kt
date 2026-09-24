@@ -182,13 +182,16 @@ class UpdateVerdictTest {
 
 
     @Test
-    fun installerx_hash_tail_is_silent_without_the_prerelease_flag() {
+    fun installerx_hash_tail_routes_to_timestamp_without_the_prerelease_flag() {
         // Same inputs as installerx_unparseable_hash_prerelease_routes_to_timestamp
-        // with only matchedIsPrerelease flipped to false. A hash tail is not an
-        // opaque marker, so usedTimestampLogic can only fire through
-        // matched.isPrerelease or isPreReleaseTag — and isPreReleaseTag is false for
-        // a hex tail. With the flag false the tags are irreconcilable and the
-        // verdict falls through to silent.
+        // with only matchedIsPrerelease flipped to false. The tag carries a commit
+        // hash tail, which says its version number names a build rather than an
+        // ordering — so publish time is the question, and the maintainer's filing
+        // decision on GitHub does not get a vote. The hash tail sorts below the
+        // installed tag as a string ("26.08.11…" < "26.08.21…"), so string order
+        // would call the newer build silent; publish time is what recognises it.
+        // With no stored baseline yet the first scan reports, which is why this
+        // reads as an update.
         val result =
             decide(
                 installedTag = "26.08.21fae85",
@@ -197,7 +200,7 @@ class UpdateVerdictTest {
                 storedPublishedAt = null,
                 matchedIsPrerelease = false,
             )
-        assertFalse(result.isUpdateAvailable)
+        assertTrue(result.isUpdateAvailable)
     }
 
     @Test
@@ -221,6 +224,13 @@ class UpdateVerdictTest {
         // A live stored code: with storedLatestVersionCode non-null and storedLatestTag
         // equal to the matched tag, codesAlreadyMatch is judged on real values instead
         // of short-circuiting on a null snapshot (the 1509L dead-input shape).
+        //
+        // The update flag follows the same route as any other tag tracked by publish
+        // time: the matched release was published after the stored baseline, so the
+        // tag names a newer build than the record had seen and the update is reported.
+        // Codes matching does not argue against that — the code is the build's
+        // ordering, publish time is what distinguishes one build of a tag from the
+        // next, and only the latter can see a rebuild.
         val result =
             decide(
                 installedTag = "26.08.21fae85",
@@ -233,7 +243,7 @@ class UpdateVerdictTest {
                 matchedIsPrerelease = false,
             )
         assertTrue(result.codesAlreadyMatch)
-        assertFalse(result.isUpdateAvailable)
+        assertTrue(result.isUpdateAvailable)
     }
 
     @Test
@@ -469,5 +479,64 @@ class UpdateVerdictTest {
         assertTrue(result.codesAlreadyMatch)
         assertFalse(result.skipBecameStale)
         assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun adopt_gate_opens_on_the_irreconcilable_self_healing_route() {
+        // The row the strict gate locks up: the installed tag is a version name
+        // ("26.09.01") the matched opaque tag cannot be, and codesAlreadyMatch is shut
+        // because a drifting tag cleared the stored code. The irreconcilable route keeps the
+        // rewrite alive; the old codesAlreadyMatch-only gate left it a dead path and the
+        // stale tag in place for good.
+        val codesAlreadyMatch = false
+        assertFalse(codesAlreadyMatch)
+
+        assertTrue(
+            UpdateVerdict.shouldAdoptMatchedTag(
+                codesAlreadyMatch = codesAlreadyMatch,
+                installedTag = "26.09.01",
+                matchedTag = "nightly",
+            ),
+        )
+    }
+
+    @Test
+    fun adopt_gate_keeps_its_other_bounds() {
+        // Nothing to rewrite when the tag already names the matched release.
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(true, "2.0.0", "2.0.0"))
+        // Reconcilable pair with the codes not matching: neither route is open.
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(false, "1.0.0", "2.0.0"))
+        // The strict route still opens it on its own.
+        assertTrue(UpdateVerdict.shouldAdoptMatchedTag(true, "1.0.0", "2.0.0"))
+    }
+
+    @Test
+    fun snapshot_baseline_survives_when_only_the_installed_side_is_timestamp_tracked() {
+        // The pair UpdateVerdict routes to its timestamp branch through the !reconcilable
+        // leg: installed "1.0.0-abc1234" (a commit-hash build) vs the matched
+        // "1.1.0-beta.2". Neither tag is timestamp-tracked on its own, so the old
+        // isTimestampTrackedTag(storedLatestTag) test cleared the baseline and the next
+        // check re-announced the same unchanged release from a null baseline.
+        assertFalse(VersionMath.isTimestampTrackedTag("1.1.0-beta.2"))
+        assertFalse(VersionMath.isTimestampTrackedTag("1.0.0-abc1234"))
+
+        assertTrue(
+            VersionMath.shouldRetainSnapshotBaseline(
+                installedTag = "1.0.0-abc1234",
+                storedLatestTag = "1.1.0-beta.2",
+            ),
+        )
+    }
+
+    @Test
+    fun snapshot_baseline_is_cleared_for_a_plain_comparable_pair() {
+        // The self-heal direction is preserved: two ordinary semver tags carry no publish
+        // time to lose, so the baseline is dropped and the next check recomputes.
+        assertFalse(
+            VersionMath.shouldRetainSnapshotBaseline(
+                installedTag = "1.0.0",
+                storedLatestTag = "1.1.0",
+            ),
+        )
     }
 }

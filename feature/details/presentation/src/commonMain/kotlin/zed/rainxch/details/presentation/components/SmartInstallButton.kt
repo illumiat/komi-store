@@ -107,19 +107,27 @@ fun SmartInstallButton(
     // the update check already computed, otherwise the channel holding the real
     // update shows "Open" while the stable channel advertises it instead.
     val selectedIsTimestampTracked = normSelected?.let { VersionMath.isTimestampTrackedTag(it) } == true
-    val isSameVersionInstalled =
-        isInstalled &&
-            normInstalled != null &&
-            normSelected != null &&
-            VersionMath.isExactSameVersion(normInstalled, normSelected) &&
-            !(selectedIsTimestampTracked && installedApp?.isUpdateAvailable == true)
-
     // Only advertise an update for the release actually on screen, so the label
     // always matches what a tap installs.
     val selectedIsLatestRelease =
         normSelected != null &&
             (installedApp?.latestVersion.isNullOrBlank() ||
                 VersionMath.isExactSameVersion(normSelected, installedApp?.latestVersion))
+    val isSameVersionInstalled =
+        isInstalled &&
+            normInstalled != null &&
+            normSelected != null &&
+            VersionMath.isExactSameVersion(normInstalled, normSelected) &&
+            // The reused-tag exemption is only for the release the update actually points
+            // at. A timestamp-tracked match can report true for any prerelease it cannot
+            // reconcile, so without selectedIsLatestRelease a selected tag other than the
+            // update target would drop the Open/Uninstall row and offer a re-install of
+            // the build already on the device.
+            !(
+                selectedIsTimestampTracked &&
+                    installedApp?.isUpdateAvailable == true &&
+                    selectedIsLatestRelease
+            )
     // One gate drives the label, the leading icon and the in-progress text, so the
     // three can never disagree about whether the button is installing an update.
     val showUpdateAffordance = isUpdateAvailable && selectedIsLatestRelease
@@ -154,7 +162,7 @@ fun SmartInstallButton(
         state.isPendingInstallReady -> stringResource(Res.string.install_ready)
         showUpdateAffordance -> stringResource(
             Res.string.update_to_version,
-            displaySelected ?: normSelected ?: "",
+            normSelected ?: displaySelected ?: "",
         )
         isInstalled &&
             normInstalled != null &&
@@ -204,7 +212,7 @@ fun SmartInstallButton(
                 progress = progress,
                 onClick = {
                     if (!state.isDownloading && state.downloadStage == DownloadStage.IDLE) {
-                        if (isUpdateAvailable) {
+                        if (showUpdateAffordance) {
                             onAction(DetailsAction.UpdateApp)
                         } else {
                             onAction(DetailsAction.InstallPrimary)

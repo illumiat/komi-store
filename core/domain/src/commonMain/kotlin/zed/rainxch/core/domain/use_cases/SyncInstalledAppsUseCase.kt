@@ -189,7 +189,21 @@ class SyncInstalledAppsUseCase(
     private suspend fun resolvePending(app: InstalledApp, systemInfo: SystemPackageInfo?) {
         try {
             if (systemInfo != null) {
-                val resolvedTag = app.latestVersion ?: systemInfo.versionName
+                // Adopt the target tag only when the system code proves the install reached
+                // it. A cancelled dialog (or a silent failure) leaves systemInfo describing
+                // the old package; stamping the target tag would leave installedVersionCode
+                // on the old code while installedVersion claims the target, and the next
+                // sameTag comparison would then read equal and silently drop the
+                // still-pending update. Same criterion as GithubStoreApp and
+                // resolvePendingFromSystem.
+                val targetCode = app.latestVersionCode ?: 0L
+                val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
+                val resolvedTag =
+                    if (installReachedTarget) {
+                        app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
+                    } else {
+                        app.installedVersion
+                    }
                 installedAppsRepository.updateApp(
                     app.resolvePendingFromSystem(
                         resolvedTag = resolvedTag,

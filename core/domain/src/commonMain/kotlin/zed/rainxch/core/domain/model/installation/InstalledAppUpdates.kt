@@ -1,6 +1,8 @@
 package zed.rainxch.core.domain.model.installation
 
 import zed.rainxch.core.domain.utils.VersionMath
+import zed.rainxch.core.domain.utils.VersionVerdict
+import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
 
 // Zone-scoped write surface for InstalledApp. A bare copy() with dozens of
 // named args let any writer overwrite fields owned by another writer (the
@@ -13,10 +15,11 @@ import zed.rainxch.core.domain.utils.VersionMath
 // every field the zone owns. Three declared cross-side owners: the migrate zone
 // (one-time import normalizer owning both sides' version name/code, never tags,
 // flags, or assets), confirmInstall reconciling latestVersionCode to the installed
-// code — but only when the landed build actually reached the update target;
-// otherwise the target is left intact — and observeExternalInstall adopting the
-// snapshot tag once the observed code proves the package is the snapshot build
-// (see the observe zone's own note).
+// code — but only when the landed build actually reached the update target, and never
+// for a timestamp-tracked tag, whose snapshot is the only evidence the timestamp
+// branch has; otherwise the target is left intact — and observeExternalInstall
+// adopting the snapshot tag once the observed code proves the package is the snapshot
+// build (see the observe zone's own note).
 
 // install zone — real install/confirm events only
 
@@ -29,8 +32,8 @@ fun InstalledApp.confirmInstall(
     versionName: String,
     versionCode: Long,
     signingFingerprint: String?,
-    isPending: Boolean = false,
     at: Long,
+    isPending: Boolean = false,
 ): InstalledApp {
     // Writes only the install zone (see the header). The red dot is judged
     // against the build that actually landed, not the tag we asked the installer
@@ -44,6 +47,19 @@ fun InstalledApp.confirmInstall(
     // comparable to the target version; for opaque markers such as `nightly` the
     // versionName is the APK's numeric version (e.g. "26.09.01") and the only
     // comparable name is the requested release tag.
+    //
+    // Timestamp-tracked tags (`nightly`, a commit-hash tail) are outside this
+    // judgement: one tag names many builds, so `isVersionNewer(tag, tag)` is always
+    // false and a landed code equal to the target code proves nothing either. Clearing
+    // the flag for such a build would also reconcile latestVersionCode down to the
+    // installed code — the snapshot evidence the timestamp branch compares publish
+    // times against — and since shouldReportTimestampUpdate's restart hangs on
+    // previousWasUpdateAvailable, the update would then never be offered again. Both
+    // fields are left untouched; the next checkForUpdates decides from publish time.
+    val timestampTrackedTag = VersionMath.isTimestampTrackedTag(tag)
+    val previousUpdateFlag = isUpdateAvailable
+    val previousSnapshotCode = latestVersionCode
+
     val installedSide =
         versionName.takeIf {
             it.isNotBlank() && VersionMath.versionsReconcilable(latestVersion, it)
@@ -67,8 +83,9 @@ fun InstalledApp.confirmInstall(
         installedAssetUrl = assetUrl,
         installedVersionName = versionName,
         installedVersionCode = versionCode,
-        isUpdateAvailable = isUpdateStillAvailable,
-        latestVersionCode = if (isUpdateStillAvailable) latestVersionCode else versionCode,
+        isUpdateAvailable = if (timestampTrackedTag) previousUpdateFlag else isUpdateStillAvailable,
+        latestVersionCode =
+            if (timestampTrackedTag || isUpdateStillAvailable) previousSnapshotCode else versionCode,
         isPendingInstall = isPending,
         lastUpdatedAt = at,
         lastCheckedAt = at,
@@ -83,34 +100,105 @@ fun InstalledApp.resolvePendingFromSystem(
     resolvedTag: String,
     versionName: String?,
     versionCode: Long,
-): InstalledApp = copy(
-    isPendingInstall = false,
-    installedVersion = resolvedTag,
-    installedVersionName = versionName,
-    installedVersionCode = versionCode,
-    isUpdateAvailable = updateFlagAgainstSnapshot(versionCode),
-)
+): InstalledApp {
+    // Which tag the finished install carries. The parked tag names the exact release
+    // handed to the installer and outranks latestVersion/versionName, which a
+    // checkForUpdates during the install window may have moved on — otherwise a build
+    // installed early gets stamped with a newer name and the next sameTag comparison
+    // reads equal, silently dropping the still-pending update.
+    //
+    // The parked/target tag is adopted only when the system code proves that release
+    // actually landed. When the user cancels the system dialog (or the install fails
+    // silently) systemInfo still describes the old package, and stamping the target tag
+    // would leave installedVersionCode on the old code while installedVersion claims the
+    // target — the same sameTag lock, now permanent. Below target the old tag is kept
+    // and only the pending flag is cleared. Same criterion the callers apply when they
+    // choose resolvedTag.
+    val targetCode = latestVersionCode ?: 0L
+    val installReachedTarget = targetCode > 0L && versionCode >= targetCode
+    val adoptedTag =
+        if (installReachedTarget) {
+            pendingInstallVersion ?: resolvedTag
+        } else {
+            installedVersion
+        }
+    return copy(
+        isPendingInstall = false,
+        installedVersion = adoptedTag,
+        installedVersionName = versionName,
+        installedVersionCode = versionCode,
+        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
+    )
+}
 
 // an installed code below the stored snapshot means an update is still on
-// the table; a null snapshot means nothing newer is known
-private fun InstalledApp.updateFlagAgainstSnapshot(installedCode: Long): Boolean =
-    (latestVersionCode ?: 0L) > installedCode
+// the table. A null or zero snapshot code carries no ordering — reading it as
+// "0 is not above the installed code" hid a real update behind a stale badge —
+// so fall back to the version names, where an uncomparable side degrades to
+// "not newer" rather than a false negative.
+private fun InstalledApp.updateFlagAgainstSnapshot(
+    installedCode: Long,
+    installedVersion: String?,
+): Boolean {
+    val snapshotCode = latestVersionCode
+    if (snapshotCode != null && snapshotCode > 0L) return snapshotCode > installedCode
+    return VersionMath.isVersionNewer(latestVersion, installedVersion)
+}
 
-// only valid when the system confirms the installed code already matches
-fun InstalledApp.normalizeInstalledTag(tag: String): InstalledApp = copy(
+// The snapshot-vs-installed comparison behind the flag, exposed so the
+// PackageEventReceiver path (a replace that fell short of the parked target) can reuse
+// it instead of duplicating the ordering. Public rather than internal because that
+// caller lives in core/data, a different module, where an internal declaration of
+// core/domain is not visible.
+fun InstalledApp.snapshotStillNamesNewerBuild(
+    installedCode: Long,
+    installedVersion: String?,
+): Boolean = updateFlagAgainstSnapshot(installedCode, installedVersion)
+
+// The verdict of an observed external install, expressed as the update flag the stored
+// snapshot now justifies. It compares the package to the snapshot by versionCode first
+// and version name second, and deliberately never through the stored installed tag:
+// after an external install that tag is stale, and re-deriving from it
+// (isVersionNewer(staleTag, matchedTag)) is exactly what re-raised a flag the
+// observation had just cleared. The PackageEventReceiver backstop replays this after
+// its checkForUpdates for that reason.
+fun InstalledApp.externalInstallUpdateFlag(
+    newVersionName: String,
+    newVersionCode: Long,
+): Boolean =
+    when (resolveExternalInstallVerdict(this, newVersionName, newVersionCode)) {
+        VersionVerdict.UP_TO_DATE -> false
+        VersionVerdict.UPDATE_AVAILABLE -> true
+        VersionVerdict.UNKNOWN -> isUpdateAvailable
+    }
+
+// Adopting the tag is only valid once the system confirms the installed code already
+// matches that build, so the flag is forwarded from the verdict the caller reached —
+// exactly as adoptMatchedTag does — instead of being recomputed here. Hard-coding
+// `false` would wipe a correct "update available": for a tag that names many builds
+// (nightly, a hash tail) the same code can be a new build, and the stored true is the
+// right timestamp verdict for it.
+fun InstalledApp.normalizeInstalledTag(
+    tag: String,
+    isUpdateAvailable: Boolean,
+): InstalledApp = copy(
     installedVersion = tag,
-    isUpdateAvailable = false,
+    isUpdateAvailable = isUpdateAvailable,
 )
 
-// one-time import/migration normalization; owns both sides' version fields by design
+// one-time import/migration normalization; owns both sides' version fields by design.
+// The check-zone snapshot (latestVersionName/Code) is only rewritten when the migrated
+// code is positive: the fallback migration path reports code 0L, and copying that onto
+// the snapshot would contradict it — a later `0 > 0` comparison and the `> 0L` guards
+// would both misfire against a snapshot that holds a real version name.
 fun InstalledApp.withMigratedVersionInfo(
     versionName: String?,
     versionCode: Long,
 ): InstalledApp = copy(
     installedVersionName = versionName,
     installedVersionCode = versionCode,
-    latestVersionName = versionName,
-    latestVersionCode = versionCode,
+    latestVersionName = if (versionCode > 0L) versionName else latestVersionName,
+    latestVersionCode = if (versionCode > 0L) versionCode else latestVersionCode,
 )
 
 // observe zone — system observations; the installed tag is adopted only where the
@@ -139,7 +227,7 @@ fun InstalledApp.observeExternalInstall(
         installedVersion = adoptedTag,
         installedVersionName = versionName,
         installedVersionCode = versionCode,
-        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode),
+        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
     )
 }
 

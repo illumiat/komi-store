@@ -2486,11 +2486,21 @@ class DetailsViewModel(
                 // nightly must land on the pre-release channel: defaulting to stable
                 // shows v2.0.0 next to an "update to nightly" button, and the primary
                 // asset then belongs to the stable release.
-                val installedIsPreRelease =
-                    allReleases
-                        .firstOrNull {
-                            VersionMath.isSameVersion(it.tagName, installedApp?.installedVersion)
-                        }?.isEffectivelyPreRelease() == true
+                //
+                // The installed release is matched exactly first. isSameVersion compares
+                // numerically, and normalizeVersion maps "rc1" -> "1", so it treats rc1
+                // and v1 as equal — with both present, newest-first would match the wrong
+                // release and push a stable user onto the pre-release channel (or the
+                // reverse). isSameVersion is kept only as the spelling-variant fallback
+                // ("1.0.0" vs "1.0"), where the digits really do name the same build.
+                val installedVersionTag = installedApp?.installedVersion
+                val installedRelease =
+                    allReleases.firstOrNull {
+                        VersionMath.isExactSameVersion(it.tagName, installedVersionTag)
+                    } ?: allReleases.firstOrNull {
+                        VersionMath.isSameVersion(it.tagName, installedVersionTag)
+                    }
+                val installedIsPreRelease = installedRelease?.isEffectivelyPreRelease() == true
                 val selectedRelease =
                     allReleases.firstInCategory(
                         if (installedIsPreRelease) {

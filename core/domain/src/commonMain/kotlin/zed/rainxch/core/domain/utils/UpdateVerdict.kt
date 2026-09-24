@@ -79,12 +79,27 @@ object UpdateVerdict {
             skipSupersededByNewBuild ||
                 (skippedTag != null &&
                     !matchesSkipped &&
+                    // isVersionNewer degrades to a string compare on tags it cannot parse
+                    // (hash tails, opaque markers), where a lexicographically larger name
+                    // does not mean a newer build — "26.08.11f15e4" sorts below
+                    // "26.08.21fae85". Those tags are time-tracked; only a plain,
+                    // comparable tag names a single build an ordering can supersede.
+                    !VersionMath.isTimestampTrackedTag(matched.tag) &&
+                    !VersionMath.isTimestampTrackedTag(skippedTag) &&
                     VersionMath.isVersionNewer(matched.tag, skippedTag))
 
-        val opaqueMatched = VersionMath.isOpaqueMarker(matched.tag)
+        // The tag decides on its own whether publish time is the right question, and it decides
+        // before the pre-release flag is consulted. A tag tracked by publish time — an opaque
+        // marker (nightly) or a numeric prefix carrying a commit hash tail (`26.08.11f15e4`) —
+        // is asked for its publish time whether or not the release carries GitHub's pre-release
+        // flag: the flag records how the maintainer filed the release, the tag records that its
+        // version number names a build rather than an ordering. Reading the flag first left every
+        // unflagged hash tail comparing as plain strings, where `26.08.11f15e4` sorts below the
+        // installed `26.08.21fae85` and the newer build was announced as nothing at all.
+        val timestampTracked = VersionMath.isTimestampTrackedTag(matched.tag)
         val sameTag = VersionMath.isExactSameVersion(matched.tag, installed.tag)
         val usedTimestampLogic =
-            opaqueMatched ||
+            timestampTracked ||
                 (sameTag && !reconcilable) ||
                 (!reconcilable && (matched.isPrerelease || VersionMath.isPreReleaseTag(matched.tag)))
 
@@ -127,12 +142,33 @@ object UpdateVerdict {
         )
     }
 
+    // Whether the stored installed tag may be rewritten to the matched release's tag.
+    //
+    // codesAlreadyMatch is the strict proof: the installed code is the code the stored
+    // snapshot pairs with the matched tag, so only the tag text drifted. It is not the
+    // only route, though. codesAlreadyMatch reads stored.latestVersionCode, which
+    // checkForUpdates clears to null whenever the matched tag moves past the stored one
+    // (see updateVersionInfo), so once a snapshot drifts the strict route stays shut for
+    // good and the rewrite becomes a dead path. Rows written before tags were tracked —
+    // an installedVersion that is really a versionName — are exactly the ones that need
+    // the rewrite, and they are recognisable by being irreconcilable with the matched
+    // tag, which names a build they cannot be. Keeping that second route lets the
+    // rewrite self-heal instead of locking the tag in place for good.
+    fun shouldAdoptMatchedTag(
+        codesAlreadyMatch: Boolean,
+        installedTag: String?,
+        matchedTag: String,
+    ): Boolean =
+        installedTag != matchedTag &&
+            (codesAlreadyMatch || !VersionMath.versionsReconcilable(installedTag, matchedTag))
+
     data class Result(
         val isUpdateAvailable: Boolean,
         val skipBecameStale: Boolean,
         // true when the installed APK's versionCode already equals the matched
-        // release's (the package really is that build) — the only case where
-        // rewriting the installed tag is legitimate
+        // release's (the package really is that build) — the strict proof that
+        // rewriting the installed tag is legitimate (see shouldAdoptMatchedTag for the
+        // self-healing second route)
         val codesAlreadyMatch: Boolean,
     )
 }
