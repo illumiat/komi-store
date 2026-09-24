@@ -11,6 +11,7 @@ class InstalledAppUpdatesTest {
 
     private fun app(
         installedVersion: String = "1.0.0",
+        installedVersionCode: Long = 100L,
         latestVersion: String? = "2.0.0",
         latestVersionCode: Long? = 200L,
         latestVersionName: String? = "2.0.0",
@@ -44,7 +45,7 @@ class InstalledAppUpdatesTest {
         fileExtension = "apk",
         isPendingInstall = isPendingInstall,
         installedVersionName = "1.0.0",
-        installedVersionCode = 100L,
+        installedVersionCode = installedVersionCode,
         latestVersionName = latestVersionName,
         latestVersionCode = latestVersionCode,
         latestReleasePublishedAt = "2026-08-01T00:00:00Z",
@@ -146,14 +147,18 @@ class InstalledAppUpdatesTest {
     }
 
     @Test
-    fun confirmInstallKeepsFlagForTimestampTrackedTarget() {
+    fun confirmInstallReleasesTheTimestampLatchAndKeepsTheSnapshotCode() {
         // A timestamp-tracked target (an opaque marker such as `nightly`) names many
-        // builds, so confirming one of them proves nothing: isVersionNewer(tag, tag) is
-        // false and the landed code equals the target code, so the code test is silent
-        // too. Flag and snapshot code are left as they were — clearing them would wipe the
-        // evidence the timestamp branch compares publish times against, and the update
-        // would never be offered again. (This replaces the former claim that an opaque
-        // target clears the flag once the code reaches it, which the fix narrowed.)
+        // builds, so the code judgement cannot confirm one of them. The flag is a
+        // different thing: it is the timestamp branch's memory of an update the user has
+        // not acted on, and installing is the act that resolves it. Left up, it makes the
+        // next scan re-report the release the package now is, because that scan sees the
+        // same tag at the same publish time and reads the standing flag as "still
+        // pending".
+        //
+        // The snapshot code is what the timestamp branch compares publish times against,
+        // so it is deliberately kept — the two are not coupled, and the flag comes down
+        // on its own.
         val result =
             app(
                 latestVersion = "nightly",
@@ -168,9 +173,114 @@ class InstalledAppUpdatesTest {
                 signingFingerprint = null,
                 at = 1L,
             )
-        assertTrue(result.isUpdateAvailable)
+        assertFalse(result.isUpdateAvailable)
         assertEquals(500L, result.latestVersionCode)
         assertEquals("nightly", result.installedVersion)
+    }
+
+    @Test
+    fun confirmInstallKeepsTheLatchWhenTheLandedBuildIsOlderThanTheSnapshot() {
+        // The one case where the code does prove something for a timestamp-tracked tag:
+        // an older build went on than the snapshot names, so the offered update was not
+        // taken and must stay reported. Without this the latch would come down on an
+        // install that did not reach the target.
+        val result =
+            app(
+                latestVersion = "nightly",
+                latestVersionCode = 500L,
+                isUpdateAvailable = true,
+            ).confirmInstall(
+                tag = "nightly",
+                assetName = "a",
+                assetUrl = "u",
+                versionName = "26.09.01",
+                versionCode = 400L,
+                signingFingerprint = null,
+                at = 1L,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertEquals(500L, result.latestVersionCode)
+    }
+
+    @Test
+    fun installedNightlyIsNotOfferedBackOnTheNextScan() {
+        // The whole point, end to end and in the order it happens on a device: a nightly
+        // is offered (flag up), the user installs it, and the next scan sees the same
+        // release at the same publish time. Written against the two functions that decide
+        // it, because the bug was the seam between them — the verdict was always right,
+        // it was handed the wrong flag.
+        val offeredWithNightlyAvailable =
+            app(
+                installedVersion = "nightly",
+                installedVersionCode = 400L,
+                latestVersion = "nightly",
+                latestVersionCode = 500L,
+                isUpdateAvailable = true,
+            )
+
+        val afterInstall =
+            offeredWithNightlyAvailable.confirmInstall(
+                tag = "nightly",
+                assetName = "a",
+                assetUrl = "u",
+                versionName = "26.09.01",
+                versionCode = 500L,
+                signingFingerprint = null,
+                at = 5_000L,
+            )
+
+        val verdict =
+            UpdateVerdict.decide(
+                installed =
+                    UpdateVerdict.Installed(
+                        tag = afterInstall.installedVersion,
+                        versionCode = afterInstall.installedVersionCode,
+                    ),
+                stored =
+                    UpdateVerdict.Stored(
+                        latestTag = afterInstall.latestVersion,
+                        latestVersionCode = afterInstall.latestVersionCode,
+                        publishedAt = "2026-09-01T00:00:00Z",
+                        wasUpdateAvailable = afterInstall.isUpdateAvailable,
+                    ),
+                matched =
+                    UpdateVerdict.Matched(
+                        tag = "nightly",
+                        publishedAt = "2026-09-01T00:00:00Z",
+                        isPrerelease = true,
+                    ),
+                skippedTag = null,
+            )
+
+        assertFalse(verdict.isUpdateAvailable)
+    }
+
+    @Test
+    fun anUninstalledNightlyStaysOfferedAcrossScans() {
+        // The counterpart: nothing was installed, so the flag is still the user's
+        // pending update and the scan must keep reporting it. This is what the latch is
+        // for, and the fix above must not have taken it away.
+        val verdict =
+            UpdateVerdict.decide(
+                installed =
+                    UpdateVerdict.Installed(tag = "nightly", versionCode = 400L),
+                stored =
+                    UpdateVerdict.Stored(
+                        latestTag = "nightly",
+                        latestVersionCode = 500L,
+                        publishedAt = "2026-09-01T00:00:00Z",
+                        wasUpdateAvailable = true,
+                    ),
+                matched =
+                    UpdateVerdict.Matched(
+                        tag = "nightly",
+                        publishedAt = "2026-09-01T00:00:00Z",
+                        isPrerelease = true,
+                    ),
+                skippedTag = null,
+            )
+
+        assertTrue(verdict.isUpdateAvailable)
     }
 
     @Test
