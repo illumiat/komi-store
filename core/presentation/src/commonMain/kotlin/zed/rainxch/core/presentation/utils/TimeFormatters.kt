@@ -113,6 +113,10 @@ fun formatIsoDate(isoTimestamp: String?): String? {
 }
 
 @OptIn(ExperimentalTime::class)
+fun formatIsoDateOrRaw(iso: String): String =
+    if (iso.length > 10) formatIsoDate(iso) ?: iso.take(10) else iso.take(10)
+
+@OptIn(ExperimentalTime::class)
 fun formatEpochDate(timestamp: Long): String? {
     if (timestamp <= 0L) return null
     return Instant

@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
 import zed.rainxch.core.domain.model.account.github.GithubRelease
-import zed.rainxch.core.presentation.utils.formatIsoDate
+import zed.rainxch.core.presentation.utils.formatIsoDateOrRaw
 import zed.rainxch.details.domain.repository.DetailsRepository
 import zed.rainxch.details.domain.repository.TranslationRepository
 import zed.rainxch.details.presentation.model.SupportedLanguages
@@ -169,8 +169,7 @@ class DetailsWhatsNewViewModel(
             WhatsNewReleaseUi(
                 id = release.id,
                 tagName = release.tagName,
-                publishedDate = formatIsoDate(release.publishedAt)
-                    ?: release.publishedAt.take(10),
+                publishedDate = formatIsoDateOrRaw(release.publishedAt),
                 body = body,
             )
         }.toImmutableList()
