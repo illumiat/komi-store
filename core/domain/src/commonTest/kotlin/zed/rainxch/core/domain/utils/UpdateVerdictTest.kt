@@ -22,6 +22,10 @@ class UpdateVerdictTest {
         storedAssetSize: Long? = null,
         matchedAssetDigest: String? = null,
         matchedAssetSize: Long? = null,
+        storedReleaseId: Long? = null,
+        storedAssetId: Long? = null,
+        matchedReleaseId: Long? = null,
+        matchedAssetId: Long? = null,
     ): UpdateVerdict.Result =
         UpdateVerdict.decide(
             installed = UpdateVerdict.Installed(installedTag, installedVersionCode),
@@ -31,6 +35,8 @@ class UpdateVerdictTest {
                     latestVersionCode = storedLatestVersionCode,
                     publishedAt = storedPublishedAt,
                     wasUpdateAvailable = wasUpdateAvailable,
+                    latestReleaseId = storedReleaseId,
+                    latestAssetId = storedAssetId,
                     latestAssetDigest = storedAssetDigest,
                     latestAssetSize = storedAssetSize,
                 ),
@@ -39,6 +45,8 @@ class UpdateVerdictTest {
                     tag = matchedTag,
                     publishedAt = matchedPublishedAt,
                     isPrerelease = matchedIsPrerelease,
+                    releaseId = matchedReleaseId,
+                    assetId = matchedAssetId,
                     assetDigest = matchedAssetDigest,
                     assetSize = matchedAssetSize,
                 ),
@@ -551,6 +559,58 @@ class UpdateVerdictTest {
                 storedLatestTag = "1.1.0",
             ),
         )
+    }
+
+    @Test
+    fun a_rebuilt_nightly_is_reported_from_its_release_identity_alone() {
+        // The deletion-and-re-creation case, decided by the identity rather than by the
+        // timestamp proxy: same tag, same publish time to the second (a re-creation inside
+        // one second, or a host that omits the rebuild's publish time), no digest — and
+        // still reported, because the release object is a different one.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedReleaseId = 800L,
+                storedAssetId = 801L,
+                matchedReleaseId = 900L,
+                matchedAssetId = 901L,
+            )
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun an_untouched_nightly_is_quiet_even_with_identities_recorded() {
+        // Every signal agrees that nothing was replaced: the state a freshly installed
+        // nightly is in, and the case that used to be re-reported on every scan.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedReleaseId = 900L,
+                storedAssetId = 901L,
+                matchedReleaseId = 900L,
+                matchedAssetId = 901L,
+                storedAssetDigest = "sha256:aaaa",
+                matchedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 1024L,
+                matchedAssetSize = 1024L,
+            )
+        assertFalse(result.isUpdateAvailable)
     }
 
     @Test

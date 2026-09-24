@@ -382,6 +382,8 @@ class InstalledAppsRepositoryImpl(
                             latestVersionCode = app.latestVersionCode,
                             publishedAt = app.latestReleasePublishedAt,
                             wasUpdateAvailable = app.isUpdateAvailable,
+                            latestReleaseId = app.latestReleaseId,
+                            latestAssetId = app.latestAssetId,
                             latestAssetDigest = app.latestAssetDigest,
                             latestAssetSize = app.latestAssetSize,
                         ),
@@ -390,6 +392,8 @@ class InstalledAppsRepositoryImpl(
                             tag = matchedRelease.tagName,
                             publishedAt = matchedRelease.publishedAt,
                             isPrerelease = matchedRelease.isPrerelease,
+                            releaseId = matchedRelease.id,
+                            assetId = primaryAsset.id,
                             assetDigest = primaryAsset.digest,
                             assetSize = primaryAsset.size,
                         ),
@@ -420,10 +424,12 @@ class InstalledAppsRepositoryImpl(
                 assetName = primaryAsset.name,
                 assetUrl = primaryAsset.downloadUrl,
                 assetSize = primaryAsset.size,
-                // The snapshot's new identity, in the same write that moves the tag:
-                // next scan compares the asset it finds against this. Written
-                // unconditionally because it belongs to whatever release was just
-                // matched, not to the previously stored tag.
+                // The identity of whatever release was just matched, in the same write that
+                // moves the tag: next scan compares the release and asset it finds against
+                // these. Written unconditionally because they describe the matched release,
+                // not the previously stored tag.
+                releaseId = matchedRelease.id,
+                assetId = primaryAsset.id,
                 assetDigest = primaryAsset.digest,
                 releaseNotes = matchedRelease.description ?: "",
                 timestamp = System.currentTimeMillis(),

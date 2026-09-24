@@ -205,6 +205,41 @@ object VersionMath {
         return candidateInstant > baselineInstant
     }
 
+    // Whether the tag now resolves to a different release or asset *object*.
+    //
+    // This is the primary answer to "is the build behind this tag still the one the
+    // baseline was taken from?", because these two ids are identities, not proxies.
+    // Neither moves when the release is merely edited, and both move whenever the
+    // thing they identify is replaced:
+    //
+    // - A deleted-and-re-created Release is a new object, so `release.id` changes.
+    //   This is what #934 was written for, and it is stricter than comparing
+    //   `published_at`, which is only a proxy for it: publish times carry
+    //   second resolution, so a re-creation within the same second would compare
+    //   equal and be missed.
+    // - Uploading an asset creates a new asset, so `asset.id` changes. Replacing an
+    //   asset in place (what `gh release upload --clobber` does) leaves the Release
+    //   and its `published_at` untouched, so this is the only identity that moves.
+    //
+    // Both ids are non-null from GitHub and already carried on the domain models.
+    // Either side missing — a forge that omits them, or a row written before this
+    // migration — is not evidence, so the caller keeps the older proxy signals as
+    // fallbacks rather than reading a null as "changed".
+    fun releaseObjectChanged(
+        matchedReleaseId: Long?,
+        matchedAssetId: Long?,
+        storedReleaseId: Long?,
+        storedAssetId: Long?,
+    ): Boolean {
+        if (matchedReleaseId != null && storedReleaseId != null && matchedReleaseId != storedReleaseId) {
+            return true
+        }
+        if (matchedAssetId != null && storedAssetId != null && matchedAssetId != storedAssetId) {
+            return true
+        }
+        return false
+    }
+
     // Whether the release the tag points at is now a different build than the one
     // the stored baseline was taken from.
     //
@@ -229,6 +264,10 @@ object VersionMath {
     // It is weaker — a rebuild could coincidentally land on the same byte count —
     // but it is already carried in the baseline. Neither side present is not
     // evidence of anything, so it reports nothing rather than guessing.
+    //
+    // This is the content-level companion to releaseObjectChanged: the object ids
+    // say "the same release and asset are still there", the digest says "and they
+    // still hold the same bytes". Either alone is enough to report.
     fun assetIdentityChanged(
         matchedDigest: String?,
         matchedSize: Long?,
@@ -250,16 +289,29 @@ object VersionMath {
         matchedAssetSize: Long? = null,
         previousAssetDigest: String? = null,
         previousAssetSize: Long? = null,
+        matchedReleaseId: Long? = null,
+        matchedAssetId: Long? = null,
+        previousReleaseId: Long? = null,
+        previousAssetId: Long? = null,
     ): Boolean {
         // Presence, not parseability, decides the first-scan case: with no stored
         // baseline any non-null matched timestamp is the first observation. The
         // order comparison below is the part that needs absolute instants.
         if (previousLatestPublishedAt == null && matchedPublishedAt != null) return true
         val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
-        // The asset term covers the same-tag rebuilds that leave `published_at`
-        // alone (see assetIdentityChanged). It is an OR rather than a replacement:
-        // a re-created Release can also arrive with the same bytes, and then only
-        // the timestamp has moved.
+        // "The build behind this tag is not the one the baseline was taken from", asked
+        // in two complementary ways: the object identities (authoritative where the host
+        // supplies them) and the asset contents (the fallback for hosts that do not).
+        // These are OR-ed with the timestamp rather than replacing it: a re-created
+        // Release can also arrive with byte-identical assets, or with an id missing from
+        // one side, and then only the timestamp has moved.
+        val newerByObject =
+            releaseObjectChanged(
+                matchedReleaseId = matchedReleaseId,
+                matchedAssetId = matchedAssetId,
+                storedReleaseId = previousReleaseId,
+                storedAssetId = previousAssetId,
+            )
         val newerByAsset =
             assetIdentityChanged(
                 matchedDigest = matchedAssetDigest,
@@ -267,7 +319,7 @@ object VersionMath {
                 storedDigest = previousAssetDigest,
                 storedSize = previousAssetSize,
             )
-        return newerByTimestamp || newerByAsset ||
+        return newerByTimestamp || newerByObject || newerByAsset ||
             (previousWasUpdateAvailable && isExactSameVersion(matchedTag, previousLatestTag))
     }
 

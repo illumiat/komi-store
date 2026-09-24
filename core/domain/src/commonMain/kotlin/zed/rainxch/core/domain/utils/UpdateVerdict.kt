@@ -16,9 +16,12 @@ object UpdateVerdict {
         val latestVersionCode: Long?,
         val publishedAt: String?,
         val wasUpdateAvailable: Boolean,
-        // The asset the baseline was taken from: its digest is the build's identity
-        // for a tag that names many builds, and its size is the fallback for hosts
-        // that supply no digest. See VersionMath.assetIdentityChanged.
+        // Identity of the release and asset the baseline was taken from, and the asset's
+        // contents. The ids are authoritative where the host supplies them; the digest and
+        // size are the fallback for hosts that do not. See VersionMath.releaseObjectChanged
+        // and VersionMath.assetIdentityChanged.
+        val latestReleaseId: Long? = null,
+        val latestAssetId: Long? = null,
         val latestAssetDigest: String? = null,
         val latestAssetSize: Long? = null,
     )
@@ -27,6 +30,8 @@ object UpdateVerdict {
         val tag: String,
         val publishedAt: String?,
         val isPrerelease: Boolean,
+        val releaseId: Long? = null,
+        val assetId: Long? = null,
         val assetDigest: String? = null,
         val assetSize: Long? = null,
     )
@@ -122,6 +127,10 @@ object UpdateVerdict {
                     matchedAssetSize = matched.assetSize,
                     previousAssetDigest = stored.latestAssetDigest,
                     previousAssetSize = stored.latestAssetSize,
+                    matchedReleaseId = matched.releaseId,
+                    matchedAssetId = matched.assetId,
+                    previousReleaseId = stored.latestReleaseId,
+                    previousAssetId = stored.latestAssetId,
                 )
             } else {
                 false

@@ -317,6 +317,103 @@ class VersionMathTest {
     }
 
     @Test
+    fun release_identity_sees_a_rebuild_that_the_timestamp_cannot() {
+        // The identity check is not a second proxy for the timestamp; it is the thing the
+        // timestamp was a proxy for. Two ways it is strictly stronger:
+        //
+        // 1. Publish times carry second resolution, so a deleted-and-re-created Release
+        //    inside the same second compares equal and the timestamp term says nothing.
+        // 2. A host that omits `published_at` on the rebuild leaves the timestamp term
+        //    with nothing to compare at all.
+        assertTrue(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                previousLatestPublishedAt = "2026-09-24T11:46:11Z",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+                matchedReleaseId = 900L,
+                matchedAssetId = 901L,
+                previousReleaseId = 800L,
+                previousAssetId = 801L,
+            ),
+        )
+    }
+
+    @Test
+    fun release_identity_catches_an_asset_replaced_without_any_digest() {
+        // The in-place replacement again, but on a host that reports neither digest nor a
+        // usable timestamp: the asset id is on its own enough, because re-uploading an
+        // asset creates a new one.
+        assertTrue(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = null,
+                previousLatestPublishedAt = null,
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+                matchedReleaseId = 900L,
+                matchedAssetId = 999L,
+                previousReleaseId = 900L,
+                previousAssetId = 901L,
+            ),
+        )
+    }
+
+    @Test
+    fun release_identity_stays_quiet_when_nothing_was_replaced() {
+        // Same release, same asset, same bytes: the state a freshly installed nightly sits
+        // in. Every identity signal agrees, so nothing is reported.
+        assertFalse(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                previousLatestPublishedAt = "2026-09-24T11:46:11Z",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+                matchedReleaseId = 900L,
+                matchedAssetId = 901L,
+                previousReleaseId = 900L,
+                previousAssetId = 901L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 1024L,
+                previousAssetDigest = "sha256:aaaa",
+                previousAssetSize = 1024L,
+            ),
+        )
+    }
+
+    @Test
+    fun release_identity_says_nothing_without_both_sides() {
+        assertTrue(VersionMath.releaseObjectChanged(
+            matchedReleaseId = 900L,
+            matchedAssetId = null,
+            storedReleaseId = 800L,
+            storedAssetId = null,
+        ))
+        assertTrue(VersionMath.releaseObjectChanged(
+            matchedReleaseId = null,
+            matchedAssetId = 999L,
+            storedReleaseId = null,
+            storedAssetId = 901L,
+        ))
+        // One side missing is not evidence: a row written before identities were stored,
+        // or a host that omits them, must not read as a replacement.
+        assertFalse(VersionMath.releaseObjectChanged(
+            matchedReleaseId = 900L,
+            matchedAssetId = 901L,
+            storedReleaseId = null,
+            storedAssetId = null,
+        ))
+        assertFalse(VersionMath.releaseObjectChanged(
+            matchedReleaseId = null,
+            matchedAssetId = null,
+            storedReleaseId = 800L,
+            storedAssetId = 801L,
+        ))
+    }
+
+    @Test
     fun asset_identity_reports_a_swapped_asset_at_the_same_publish_time() {
         // The case `published_at` cannot see: the Release is not re-created, only its
         // asset is replaced — what `gh release upload --clobber` does, and what most
