@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -318,6 +319,11 @@ private fun CommentComposer(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    // This composer sits in the Scaffold's bottomBar slot and does not scroll, so
+                    // without an IME inset the soft keyboard simply covers it and the field the
+                    // user is typing into disappears. Applied here rather than on the surface so
+                    // the surface keeps painting behind the keyboard.
+                    .imePadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             if (!isLoggedIn) {

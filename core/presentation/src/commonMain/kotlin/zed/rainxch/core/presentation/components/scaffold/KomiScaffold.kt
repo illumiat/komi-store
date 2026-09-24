@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.HorizontalDivider
@@ -83,10 +86,14 @@ fun KomiScaffold(
             // inset handling. Leaving the default insets here made Scaffold reserve the
             // navigation bar a second time on devices that report a non-zero bottom inset,
             // cutting every page off behind a band the colour of the background.
+            // The default insets bundle the bottom display cutout together with the
+            // navigation bar, so dropping the whole Bottom side dropped the cutout too.
+            // Re-add only the bottom cutout; the navigation bar stays with the outer
+            // container that already reserves it.
             contentWindowInsets =
-                ScaffoldDefaults.contentWindowInsets.only(
-                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
-                ),
+                ScaffoldDefaults.contentWindowInsets
+                    .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+                    .union(WindowInsets.displayCutout.only(WindowInsetsSides.Bottom)),
         ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize()) {
                 if (isManga && grid) {
