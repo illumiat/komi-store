@@ -1,10 +1,14 @@
 package zed.rainxch.core.presentation.layout
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,6 +53,18 @@ fun gridColumnCount(
 object CardGridSpec {
     val InfoMaxCardWidth: Dp = 550.dp
     val GridSpacing: Dp = 10.dp
+
+    /**
+     * The horizontal gap every card grid must use. The column count is decided from
+     * [GridSpacing] while the cell widths are cut from the gap the grid actually passes, so
+     * the two agree only while a screen spaces its cards by this value. Handing out the
+     * arrangement — rather than letting each call site write `spacedBy(…)` itself — is what
+     * keeps them from parting company.
+     */
+    val GridArrangement: Arrangement.Horizontal = Arrangement.spacedBy(GridSpacing)
+
+    /** The vertical counterpart, for the staggered grids' `verticalItemSpacing`. */
+    val GridItemSpacing: Dp = GridSpacing
 }
 
 /**
@@ -109,22 +125,30 @@ data class WidthCappedStaggeredCells(
 
 @Composable
 fun rememberWidthCappedGridCells(
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     maxCardWidth: Dp = CardGridSpec.InfoMaxCardWidth,
-    contentPaddingHorizontal: Dp = 0.dp,
-): GridCells = remember(maxCardWidth, contentPaddingHorizontal) {
-    WidthCappedGridCells(maxCardWidth, contentPaddingHorizontal)
+): GridCells {
+    val horizontal = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
+    return remember(maxCardWidth, horizontal) {
+        WidthCappedGridCells(maxCardWidth, horizontal)
+    }
 }
 
 @Composable
 fun rememberWidthCappedStaggeredCells(
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     maxCardWidth: Dp = CardGridSpec.InfoMaxCardWidth,
-    contentPaddingHorizontal: Dp = 0.dp,
-): StaggeredGridCells = remember(maxCardWidth, contentPaddingHorizontal) {
-    WidthCappedStaggeredCells(maxCardWidth, contentPaddingHorizontal)
+): StaggeredGridCells {
+    val horizontal = contentPadding.calculateStartPadding(LocalLayoutDirection.current)
+    return remember(maxCardWidth, horizontal) {
+        WidthCappedStaggeredCells(maxCardWidth, horizontal)
+    }
 }
 
 /**
- * As many equal-width columns as fit without one exceeding [maxCardWidth].
+ * As many equal-width columns as fit while keeping a card as near [maxCardWidth] as a whole number
+ * of columns allows. It is a target cap, not a hard one: as [WidthCappedGridCells]'s doc sets out, a
+ * card can come out as much as two spacings over it.
  *
  * [availableSize] is what the grid has left for cells inside its content padding; the gaps
  * between cells are taken out of it below, and the horizontal content padding — both sides of it —
@@ -137,6 +161,12 @@ fun rememberWidthCappedStaggeredCells(
  * The count is decided with [CardGridSpec.GridSpacing] rather than the gap the grid passes, which
  * is what the earlier measurement did; the widths below are still cut from the real gap. The two
  * only part company where a screen stops spacing its cards by [CardGridSpec.GridSpacing].
+ *
+ * That premise is now enforced rather than left to each call site: a grid takes its gap from
+ * [CardGridSpec.GridArrangement] (with [CardGridSpec.GridItemSpacing] as the staggered vertical
+ * counterpart), so no screen can hand over a gap of its own and drive the two apart. Changing the
+ * gap means changing [CardGridSpec.GridSpacing] alone — the column count and the cell widths both
+ * follow it.
  */
 internal fun widthCappedCellWidths(
     density: Density,

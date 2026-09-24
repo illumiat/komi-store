@@ -82,6 +82,7 @@ import zed.rainxch.core.presentation.components.surfaces.KomiSurface
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
+import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
@@ -345,11 +346,16 @@ fun SearchScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             contentAlignment = Alignment.TopCenter,
         ) {
+            // One source for the pane's horizontal inset: the Column below writes it into its own
+            // padding, so the results grid inside adds none of its own — yet the helper is handed
+            // the same value, so the column count is decided across the pane rather than across
+            // the 24dp narrower region the grid is given.
+            val gridEdgeInset = 12.dp
             Column(
                 modifier =
                     Modifier
                         .fillMaxHeight()
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = gridEdgeInset),
             ) {
                 AnimatedVisibility(
                     visible = state.isClipboardBannerVisible && state.clipboardLinks.isNotEmpty(),
@@ -547,10 +553,23 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             LazyVerticalStaggeredGrid(
-                                columns = rememberWidthCappedStaggeredCells(),
+                                // The 12dp edge inset sits on the parent Column above (it is the
+                                // `gridEdgeInset` written into that Column's padding), so the grid
+                                // is handed a region already 24dp narrower than the pane. Handing
+                                // that same 12dp to the helper puts the width back before the column
+                                // count is decided, so this screen splits the same region as the
+                                // other four card grids. Without it the count is decided on a basis
+                                // 24dp narrower, and the two disagree in the band just inside every
+                                // column boundary. The padding is not applied twice: only the count
+                                // uses it, the cell widths still come from the grid's own width.
+                                columns =
+                                    rememberWidthCappedStaggeredCells(
+                                        contentPadding =
+                                            PaddingValues(start = gridEdgeInset, end = gridEdgeInset),
+                                    ),
                                 state = listState,
-                                verticalItemSpacing = 10.dp,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalItemSpacing = CardGridSpec.GridItemSpacing,
+                                horizontalArrangement = CardGridSpec.GridArrangement,
                                 contentPadding =
                                     PaddingValues(
                                         top = 12.dp,

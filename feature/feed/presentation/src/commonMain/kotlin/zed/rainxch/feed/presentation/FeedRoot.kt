@@ -52,6 +52,7 @@ import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.personality.usesDecor
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.core.presentation.utils.toLabel
+import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.feed.presentation.components.FeedCategoryStrip
 import zed.rainxch.feed.presentation.components.FeedPlatformBar
@@ -149,17 +150,14 @@ private fun FeedScreen(
                 )
             }
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            ) {
-                FeedContent(
-                    listState = listState,
-                    state = state,
-                    onAction = onAction,
-                )
-            }
+            FeedContent(
+                listState = listState,
+                state = state,
+                onAction = onAction,
+                // The wrapper Box used to carry nothing but this padding; it now rides on the
+                // composable itself.
+                modifier = Modifier.padding(innerPadding),
+            )
         }
     }
 
@@ -177,13 +175,15 @@ private fun FeedContent(
     listState: LazyStaggeredGridState,
     state: FeedState,
     onAction: (FeedAction) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val isManga = LocalPersonality.current is MangaPersonality
-    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp)
+    val gridPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp)
+    val infoCells = rememberWidthCappedStaggeredCells(contentPadding = gridPadding)
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize(),
     ) {
         if (!isDesktop()) {
@@ -215,9 +215,9 @@ private fun FeedContent(
             columns = infoCells,
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp),
-            verticalItemSpacing = 10.dp,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = gridPadding,
+            verticalItemSpacing = CardGridSpec.GridItemSpacing,
+            horizontalArrangement = CardGridSpec.GridArrangement,
         ) {
             when {
                 state.isLoading && state.repos.isEmpty() -> {

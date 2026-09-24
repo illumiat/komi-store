@@ -61,6 +61,7 @@ import zed.rainxch.core.presentation.components.refresh.drivesPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
+import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedGridCells
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
@@ -233,9 +234,13 @@ fun AppsScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            // A plain passthrough: its only wide-screen affordance was a TopCenter alignment,
+            // which stopped having any effect once the content column became full-width, so the
+            // alignment is gone rather than left reading as something it no longer does. The
+            // wrapper itself stays — dropping it would re-indent ~300 lines for no behavioural
+            // gain, and this file's diff is already large.
             Box(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.TopCenter,
             ) {
                 Column(
                     modifier = Modifier.fillMaxHeight(),
@@ -342,25 +347,35 @@ fun AppsScreen(
                                 enabled = isScrollbarEnabled,
                                 modifier = Modifier.fillMaxSize(),
                             ) {
-                                // Declared inside ScrollbarContainer on purpose: on desktop it
-                                // insets its content, so measuring from out there would be
-                                // measuring a wider region than the grid actually gets.
+                                // This is a remembered cell spec, not a measurement:
+                                // `rememberWidthCappedGridCells` only remembers the card width and
+                                // the padding's start inset, and the column count is decided by the
+                                // width the grid is handed when it lays out. The one
+                                // `PaddingValues` below is handed to both the helper and the grid,
+                                // so the inset the count is taken at cannot drift from the one the
+                                // grid lays out with.
+                                val appGridPadding =
+                                    PaddingValues(
+                                        start = 12.dp,
+                                        end = 12.dp,
+                                        top = 8.dp,
+                                        bottom = 88.dp,
+                                    )
                                 val appGridCells =
-                                    rememberWidthCappedGridCells(contentPaddingHorizontal = 12.dp)
+                                    rememberWidthCappedGridCells(contentPadding = appGridPadding)
 
                                 LazyVerticalGrid(
                                     columns = appGridCells,
                                     state = listState,
                                     modifier = Modifier.fillMaxSize().arrowKeyScroll(listState),
 
-                                    contentPadding = PaddingValues(
-                                        start = 12.dp,
-                                        end = 12.dp,
-                                        top = 8.dp,
-                                        bottom = 88.dp,
-                                    ),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    contentPadding = appGridPadding,
+                                    // Both axes from the spec. The vertical gap takes no part in the
+                                    // column-count contract, but leaving it a literal would let the
+                                    // two drift the moment GridSpacing changes — the same failure
+                                    // this screen's horizontal gap was just moved out of.
+                                    verticalArrangement = Arrangement.spacedBy(CardGridSpec.GridItemSpacing),
+                                    horizontalArrangement = CardGridSpec.GridArrangement,
                                 ) {
                                     if (state.showImportProposalBanner) {
                                         item(key = "external-import-banner", span = { GridItemSpan(maxLineSpan) }) {

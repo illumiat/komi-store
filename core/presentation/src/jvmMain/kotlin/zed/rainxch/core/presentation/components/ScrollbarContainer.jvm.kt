@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 
 @Composable
 actual fun ScrollbarContainer(
@@ -145,6 +144,9 @@ private class GridScrollbarAdapterBase(
 
     private val scrollToItem: suspend (Int) -> Unit,
 
+    /** Applies a raw pixel delta on the main axis; the flavour's `dispatchRawDelta`. */
+    private val scrollByPixels: (Float) -> Unit,
+
     /** Identity of the measure result the estimate is derived from, for that cache. */
     private val measureResult: () -> Any,
 ) : ScrollbarAdapter {
@@ -182,12 +184,25 @@ private class GridScrollbarAdapterBase(
         scrollOffset: Float,
     ) {
         // The inverse of `scrollOffset` above: an offset is turned back into an item through the
-        // same per-item scale it was built from.
+        // same per-item scale it was built from, then the leftover fraction of an item is applied
+        // in pixels. `scrollToItem` alone can only land on an item's start, so it discards that
+        // fraction; and because the thumb is positioned from the `scrollOffset` read back after
+        // every drag sample, discarding it makes the thumb jump in whole-item steps and lag the
+        // pointer by up to half an item.
         val itemSize = averageItemSize
         if (itemSize <= 0f) return
+        val exactIndex = scrollOffset / itemSize
         // No "empty list" guard is needed on top of the one above: with no items,
         // averageItemSize is 0 and it has already returned.
-        scrollToItem((scrollOffset / itemSize).roundToInt().coerceIn(0, totalItemsCount() - 1))
+        val targetIndex = exactIndex.toInt().coerceIn(0, totalItemsCount() - 1)
+        scrollToItem(targetIndex)
+        // The fraction of an item the snap above left behind. A positive delta scrolls forward,
+        // pushing the item's start above the viewport edge by exactly this remainder — which is
+        // what `scrollOffset` (index - firstVisibleOffsetY) reads back as the target offset.
+        val remainder = scrollOffset - targetIndex * itemSize
+        if (remainder != 0f) {
+            scrollByPixels(remainder)
+        }
     }
 }
 
@@ -200,6 +215,7 @@ private fun StaggeredGridScrollbarAdapter(
         firstVisibleOffsetY = { gridState.layoutInfo.visibleItemsInfo.firstOrNull()?.offset?.y ?: 0 },
         estimateContentSize = { estimateStaggeredGridContentSize(gridState.layoutInfo) },
         scrollToItem = { gridState.scrollToItem(it) },
+        scrollByPixels = { delta -> gridState.dispatchRawDelta(delta) },
         measureResult = { gridState.layoutInfo },
     )
 
@@ -212,6 +228,7 @@ private fun GridScrollbarAdapter(
         firstVisibleOffsetY = { gridState.layoutInfo.visibleItemsInfo.firstOrNull()?.offset?.y ?: 0 },
         estimateContentSize = { estimateLazyGridContentSize(gridState.layoutInfo) },
         scrollToItem = { gridState.scrollToItem(it) },
+        scrollByPixels = { delta -> gridState.dispatchRawDelta(delta) },
         measureResult = { gridState.layoutInfo },
     )
 
@@ -229,41 +246,103 @@ private fun estimateStaggeredGridContentSize(layoutInfo: LazyStaggeredGridLayout
     return rows * avgHeight + layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
 }
 
-private fun estimateLazyGridContentSize(layoutInfo: LazyGridLayoutInfo): Float {
-    if (layoutInfo.totalItemsCount == 0) return 0f
-    val visibleItems = layoutInfo.visibleItemsInfo
+/** One visible grid item reduced to the two numbers the height estimate reads. */
+internal data class GridItemExtent(
+    val height: Int,
+    val span: Int,
+)
+
+/**
+ * Estimate the full content height of a grid from the items currently on screen.
+ *
+ * Kept as arithmetic on plain numbers rather than on `LazyGridLayoutInfo` so the formula can be
+ * pinned by a test; the adapter below is the only thing that reads the layout. See
+ * [estimateLazyGridContentSize] for what the estimate assumes and where it is approximate.
+ */
+internal fun estimateGridContentHeight(
+    totalItemsCount: Int,
+    visibleItems: List<GridItemExtent>,
+    lanes: Int,
+    mainAxisItemSpacing: Int,
+    contentPadding: Int,
+): Float {
+    if (totalItemsCount == 0) return 0f
     if (visibleItems.isEmpty()) return 0f
     // The grid's line count (e.g. 3 for `GridCells.Fixed(3)`). Do not derive it from the
     // visible window: a viewport showing only full-line items would report 1 and break the
     // math below.
-    val lanes = maxOf(layoutInfo.maxSpan, 1)
+    val laneCount = maxOf(lanes, 1)
     // A full-line item (`GridItemSpan(maxLineSpan)`, like the banners in AppsScreen) occupies a
     // whole line, not 1/lanes of one. Weight each visible item by its span so the line count we
     // extrapolate matches the grid: a normal item contributes 1/lanes of a line, a full-line
     // item a full line.
+    //
+    // The same weight has to reach the height below, or the two disagree and the estimate
+    // inflates. Work the AppsScreen shape through — one full-line banner (40px over 3 lanes)
+    // above three cards (200px each) in a 3-lane grid. The window holds two lines, 40px and
+    // 200px, so the content is 240px. A per-item mean height gives (40 + 600) / 4 = 160, and
+    // 2 lines × 160 = 320: a third too tall, which draws the thumb too short and lands the
+    // content in the wrong place when the bar is dragged. Weighting by span/lanes gives
+    // 40·(3/3) + 3 × 200·(1/3) = 240 over those two lines — 120 a line — and 2 × 120 = 240 is
+    // the content exactly.
+    //
+    // The weight is exact whenever a line is fully tiled by the items in it, which is why the
+    // uniform case also comes out right: 99 items over 3 lanes is 99 × 100 × 1/3 = 3300 across
+    // 33 lines = 100 a line, the item height. What remains approximate is a partly-filled last
+    // line, which the average down-weights — a far smaller error than reading a line count
+    // against a per-item height, and the thumb only needs to be approximately right.
     var lineSpanSum = 0L
-    var heightSum = 0L
+    var weightedHeightSum = 0f
     for (item in visibleItems) {
         lineSpanSum += item.span
-        heightSum += item.size.height
+        weightedHeightSum += item.height * (item.span.toFloat() / laneCount)
     }
     // Total lines the visible window occupies: a normal item = 1/lanes of a line, a full-line
     // item = 1 line.
-    val linesOccupied = lineSpanSum.toFloat() / lanes
+    val linesOccupied = lineSpanSum.toFloat() / laneCount
+    // Lines per ITEM, read off the window and applied to the whole list. This is the estimate's
+    // one knowingly weak step, and it is worth being precise about why.
+    //
+    // The window is assumed to be a representative sample of the list. That holds while every
+    // item occupies the same number of lines, and it is exact in both of the limits that matter:
+    // a window of ordinary cards reports 1/lanes (99 items / 3 lanes = 33 lines), and a window of
+    // full-line items reports 1 (6 banners = 6 lines). Both are covered by the tests.
+    //
+    // It stops holding where a screen mixes the two and clusters the full-line items — which is
+    // exactly AppsScreen, whose banners and section headers sit at the top of the list and between
+    // groups. Scrolling one into view raises the window's full-line share well above the list's,
+    // so `linesPerItem` drifts, `estimatedLines` with it, and the thumb shifts under the pointer.
+    //
+    // No closed form fixes this, and it is not for want of trying: replacing the window average
+    // with the ordinary item's exact 1/lanes over-corrects, because a window that *is* the whole
+    // list should report the mixed answer — for one banner (40px) above three cards (200px) in a
+    // 3-lane grid the true content is the two lines' 240px, which the average reproduces exactly
+    // and 1/lanes would report as 160. Each formula is right at one end and wrong at the other,
+    // and the window is the only thing that says which end it is at.
+    //
+    // Smoothing the value across frames would help — the drift is a rate, not an offset — but that
+    // needs state this pure function deliberately does not have (see the note on
+    // `GridContentHeightTest`), so it is left as a known approximation rather than traded for a
+    // stateful estimator nobody asked for. The thumb only needs to be approximately right.
     val linesPerItem = linesOccupied / visibleItems.size
-    val estimatedLines = layoutInfo.totalItemsCount * linesPerItem
-    // `avgLineHeight` is a per-ITEM mean and `estimatedLines` a LINE count, which reads like a unit
-    // mismatch. It is not: with `estimatedLines = totalItemsCount * linesOccupied / n` the two
-    // multiply out to `totalItemsCount * avgItemHeight / itemsPerLine`, a coherent estimator. The
-    // uniform case checks out exactly — 33 lines * 100px = 3300 = 99 items * 100px / 3 per line.
-    // The real approximation is that `linesOccupied` is fractional once spans are mixed (one
-    // full-line item among single-lane ones reports 1.667 lines where two are visible), which
-    // skews itemsPerLine. That is inherent to extrapolating from a window; no obvious formula
-    // improves it, and the thumb only needs to be approximately right.
-    val avgLineHeight = heightSum.toFloat() / visibleItems.size
+    val estimatedLines = totalItemsCount * linesPerItem
+    // Height per LINE, from the span-weighted sum above — not a per-item mean, which would put
+    // the two factors of `estimatedLines * avgLineHeight` in different units the moment the
+    // window mixes spans. Guarded rather than assumed positive: a span of zero throughout would
+    // leave the sum empty, and a non-finite value here propagates into the thumb's geometry.
+    val avgLineHeight = if (linesOccupied > 0f) weightedHeightSum / linesOccupied else 0f
     // Rows are separated by mainAxisItemSpacing; with N estimated lines there are N-1 gaps
     // (zero when there are fewer than two lines). `mainAxisItemSpacing` is an Int in px — 0 when
     // no `Arrangement.spacedBy` is set — so a Dp.Unspecified concern does not apply here.
-    val lineSpacing = if (estimatedLines > 1f) (estimatedLines - 1f) * layoutInfo.mainAxisItemSpacing.toFloat() else 0f
-    return estimatedLines * avgLineHeight + lineSpacing + layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding
+    val lineSpacing = if (estimatedLines > 1f) (estimatedLines - 1f) * mainAxisItemSpacing.toFloat() else 0f
+    return estimatedLines * avgLineHeight + lineSpacing + contentPadding
 }
+
+private fun estimateLazyGridContentSize(layoutInfo: LazyGridLayoutInfo): Float =
+    estimateGridContentHeight(
+        totalItemsCount = layoutInfo.totalItemsCount,
+        visibleItems = layoutInfo.visibleItemsInfo.map { GridItemExtent(it.size.height, it.span) },
+        lanes = layoutInfo.maxSpan,
+        mainAxisItemSpacing = layoutInfo.mainAxisItemSpacing,
+        contentPadding = layoutInfo.beforeContentPadding + layoutInfo.afterContentPadding,
+    )
