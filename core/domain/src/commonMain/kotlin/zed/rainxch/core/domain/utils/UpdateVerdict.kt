@@ -79,10 +79,29 @@ object UpdateVerdict {
         // those spell the same instant differently (see VersionMath).
         val publishedAtAdvanced =
             VersionMath.isPublishedAtAfter(matched.publishedAt, stored.publishedAt)
+        // A re-created Release moves publishedAt, but replacing the asset in place does not —
+        // and that is the other way a reused tag gets a new build (see
+        // VersionMath.releaseObjectChanged). The skip names the build, not the tag, so it has
+        // served its purpose here too. Without these terms "skip this build" would quietly
+        // become "ignore this tag for good" for exactly the case this route exists for, and
+        // the only way out would be the manual un-skip in Tweaks.
+        val identityAdvanced =
+            VersionMath.releaseObjectChanged(
+                matchedReleaseId = matched.releaseId,
+                matchedAssetId = matched.assetId,
+                storedReleaseId = stored.latestReleaseId,
+                storedAssetId = stored.latestAssetId,
+            ) ||
+                VersionMath.assetIdentityChanged(
+                    matchedDigest = matched.assetDigest,
+                    matchedSize = matched.assetSize,
+                    storedDigest = stored.latestAssetDigest,
+                    storedSize = stored.latestAssetSize,
+                )
         val skipSupersededByNewBuild =
             matchesSkipped &&
                 VersionMath.isTimestampTrackedTag(matched.tag) &&
-                publishedAtAdvanced
+                (publishedAtAdvanced || identityAdvanced)
         // Everything else keeps its skip: a release under a plain tag stays skipped until a
         // strictly newer tag arrives, and a reused tag whose publish time has not moved names the
         // very build the user declined, so it is not offered back.

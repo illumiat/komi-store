@@ -302,6 +302,28 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun skipped_nightly_is_released_when_the_asset_is_replaced_in_place() {
+        // The second way a reused tag gets a new build: the Release is not re-created, only
+        // its asset is replaced, so publishedAt stays exactly where it was. A skip names the
+        // build, not the tag, so it has served its purpose here too — otherwise the user who
+        // skipped one nightly would stop being offered every later in-place rebuild of it,
+        // and the only way back would be the manual un-skip screen.
+        val result =
+            decide(
+                installedTag = "nightly",
+                matchedTag = "nightly",
+                skippedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertTrue(result.skipBecameStale)
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
     fun skipped_nightly_stays_skipped_while_the_build_is_unchanged() {
         // The same build seen again is not a new one — the skip still holds.
         val result =
