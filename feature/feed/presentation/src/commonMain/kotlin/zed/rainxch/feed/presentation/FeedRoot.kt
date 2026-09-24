@@ -1,10 +1,8 @@
 package zed.rainxch.feed.presentation
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +52,7 @@ import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.personality.usesDecor
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.core.presentation.utils.toLabel
+import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.feed.presentation.components.FeedCategoryStrip
 import zed.rainxch.feed.presentation.components.FeedPlatformBar
@@ -105,7 +104,6 @@ fun FeedRoot(
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FeedScreen(
     state: FeedState,
@@ -152,17 +150,14 @@ private fun FeedScreen(
                 )
             }
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            ) {
-                FeedContent(
-                    listState = listState,
-                    state = state,
-                    onAction = onAction,
-                )
-            }
+            FeedContent(
+                listState = listState,
+                state = state,
+                onAction = onAction,
+                // The wrapper Box used to carry nothing but this padding; it now rides on the
+                // composable itself.
+                modifier = Modifier.padding(innerPadding),
+            )
         }
     }
 
@@ -176,17 +171,19 @@ private fun FeedScreen(
 }
 
 @Composable
-private fun BoxScope.FeedContent(
+private fun FeedContent(
     listState: LazyStaggeredGridState,
     state: FeedState,
     onAction: (FeedAction) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val isManga = LocalPersonality.current is MangaPersonality
-    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp)
+    val gridPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp)
+    val infoCells = rememberWidthCappedStaggeredCells(contentPadding = gridPadding)
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize(),
     ) {
         if (!isDesktop()) {
@@ -218,9 +215,9 @@ private fun BoxScope.FeedContent(
             columns = infoCells,
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp),
-            verticalItemSpacing = 10.dp,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = gridPadding,
+            verticalItemSpacing = CardGridSpec.GridItemSpacing,
+            horizontalArrangement = CardGridSpec.GridArrangement,
         ) {
             when {
                 state.isLoading && state.repos.isEmpty() -> {
@@ -258,10 +255,10 @@ private fun BoxScope.FeedContent(
                             )
                         }
                     } else {
-                        itemsIndexed(
+                        items(
                             state.repos,
-                            key = { _, card -> "feed_${card.repository.id}" },
-                        ) { _, card ->
+                            key = { card -> "feed_${card.repository.id}" },
+                        ) { card ->
                             DiscoveryRepoCard(
                                 discoveryRepositoryUi = card,
                                 onClick = { onAction(FeedAction.OnRepoClick(card.repository)) },

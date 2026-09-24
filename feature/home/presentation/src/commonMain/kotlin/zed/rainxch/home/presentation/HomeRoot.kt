@@ -1,10 +1,8 @@
 package zed.rainxch.home.presentation
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -56,6 +54,7 @@ import zed.rainxch.core.presentation.personality.usesDecor
 import zed.rainxch.core.presentation.personality.ClassicPersonality
 import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
+import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.feed_empty_title
@@ -106,7 +105,6 @@ fun HomeRoot(
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HomeScreen(
     state: HomeState,
@@ -166,13 +164,11 @@ private fun HomeScreen(
                     )
                 }
             } else {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    HomeChartFeed(
-                        state = state,
-                        listState = listState,
-                        onAction = onAction
-                    )
-                }
+                HomeChartFeed(
+                    state = state,
+                    listState = listState,
+                    onAction = onAction
+                )
             }
         }
 
@@ -215,15 +211,15 @@ private fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BoxScope.HomeChartFeed(
+private fun HomeChartFeed(
     state: HomeState,
     listState: LazyStaggeredGridState,
     onAction: (HomeAction) -> Unit,
 ) {
     val colors = LocalPersonality.current.colors
-    val infoCells = rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp)
+    val gridPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp)
+    val infoCells = rememberWidthCappedStaggeredCells(contentPadding = gridPadding)
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -250,9 +246,9 @@ private fun BoxScope.HomeChartFeed(
             columns = infoCells,
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp),
-            verticalItemSpacing = 10.dp,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = gridPadding,
+            verticalItemSpacing = CardGridSpec.GridItemSpacing,
+            horizontalArrangement = CardGridSpec.GridArrangement,
         ) {
             when {
                 state.isLoading && state.repos.isEmpty() -> {

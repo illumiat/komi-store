@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -48,21 +48,20 @@ import zed.rainxch.apps.presentation.components.PendingUninstallSheet
 import zed.rainxch.apps.presentation.components.UpdatesBanner
 import zed.rainxch.apps.presentation.components.VariantPickerDialog
 import zed.rainxch.apps.presentation.import.components.ImportProposalBanner
+import zed.rainxch.apps.presentation.model.AppItem
 import zed.rainxch.apps.presentation.model.InstalledAppUi
 import zed.rainxch.core.presentation.components.ScrollbarContainer
-import zed.rainxch.core.presentation.components.buttons.KomiButton
-import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
 import zed.rainxch.core.presentation.components.buttons.KomiFab
 import zed.rainxch.core.presentation.components.inputs.KomiTextField
-import zed.rainxch.core.presentation.components.overlays.KomiSheet
-import zed.rainxch.core.presentation.components.overlays.KomiSheetPlacement
 import zed.rainxch.core.presentation.components.overlays.KomiToastState
 import zed.rainxch.core.presentation.components.overlays.rememberKomiToastState
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
+import zed.rainxch.core.presentation.components.refresh.drivesPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
+import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedGridCells
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
@@ -235,9 +234,13 @@ fun AppsScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            // A plain passthrough: its only wide-screen affordance was a TopCenter alignment,
+            // which stopped having any effect once the content column became full-width, so the
+            // alignment is gone rather than left reading as something it no longer does. The
+            // wrapper itself stays — dropping it would re-indent ~300 lines for no behavioural
+            // gain, and this file's diff is already large.
             Box(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.TopCenter,
             ) {
                 Column(
                     modifier = Modifier.fillMaxHeight(),
@@ -250,6 +253,7 @@ fun AppsScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .drivesPullToRefresh()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                     )
 
@@ -257,6 +261,7 @@ fun AppsScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .drivesPullToRefresh()
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -283,9 +288,17 @@ fun AppsScreen(
                             fontSize = 13.sp,
                             uppercase = false,
                             color = colors.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier
+                                .drivesPullToRefresh()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
+
+                    // Hoisted out of the `when` on purpose: a `remember` living inside one of its
+                    // branches is thrown away when the branch is left and re-entered — which this
+                    // one is whenever the search filters the list to empty or the loading flag
+                    // flips — and it would take the scroll position with it.
+                    val listState = rememberLazyGridState()
 
                     when {
                         state.isLoading -> {
@@ -311,10 +324,11 @@ fun AppsScreen(
                         }
 
                         else -> {
-                            val listState = rememberLazyGridState()
+                            // Not `remember`-ed in here on purpose: this branch is left and
+                            // re-entered whenever the filter empties the list or the loading flag
+                            // flips, and a state created inside it would be thrown away with it —
+                            // taking the scroll position along.
                             val isScrollbarEnabled = LocalScrollbarEnabled.current
-                            val appGridCells =
-                                rememberWidthCappedGridCells(contentPaddingHorizontal = 24.dp)
 
                             val onRowSelect: (InstalledAppUi) -> Unit =
                                 { app ->
@@ -333,25 +347,35 @@ fun AppsScreen(
                                 enabled = isScrollbarEnabled,
                                 modifier = Modifier.fillMaxSize(),
                             ) {
-                                // Declared inside ScrollbarContainer on purpose: on desktop it
-                                // insets its content, so measuring from out there would be
-                                // measuring a wider region than the grid actually gets.
+                                // This is a remembered cell spec, not a measurement:
+                                // `rememberWidthCappedGridCells` only remembers the card width and
+                                // the padding's start inset, and the column count is decided by the
+                                // width the grid is handed when it lays out. The one
+                                // `PaddingValues` below is handed to both the helper and the grid,
+                                // so the inset the count is taken at cannot drift from the one the
+                                // grid lays out with.
+                                val appGridPadding =
+                                    PaddingValues(
+                                        start = 12.dp,
+                                        end = 12.dp,
+                                        top = 8.dp,
+                                        bottom = 88.dp,
+                                    )
                                 val appGridCells =
-                                    rememberWidthCappedGridCells(contentPaddingHorizontal = 12.dp)
+                                    rememberWidthCappedGridCells(contentPadding = appGridPadding)
 
                                 LazyVerticalGrid(
                                     columns = appGridCells,
                                     state = listState,
                                     modifier = Modifier.fillMaxSize().arrowKeyScroll(listState),
 
-                                    contentPadding = PaddingValues(
-                                        start = 12.dp,
-                                        end = 12.dp,
-                                        top = 8.dp,
-                                        bottom = 88.dp,
-                                    ),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    contentPadding = appGridPadding,
+                                    // Both axes from the spec. The vertical gap takes no part in the
+                                    // column-count contract, but leaving it a literal would let the
+                                    // two drift the moment GridSpacing changes — the same failure
+                                    // this screen's horizontal gap was just moved out of.
+                                    verticalArrangement = Arrangement.spacedBy(CardGridSpec.GridItemSpacing),
+                                    horizontalArrangement = CardGridSpec.GridArrangement,
                                 ) {
                                     if (state.showImportProposalBanner) {
                                         item(key = "external-import-banner", span = { GridItemSpan(maxLineSpan) }) {
@@ -383,106 +407,14 @@ fun AppsScreen(
                                             )
                                         }
 
-                                        itemsIndexed(
+                                        items(
                                             state.pendingApps,
-                                            key = { _, appItem -> "pending-${appItem.installedApp.packageName}" },
-                                        ) { _, appItem ->
-                                            AppItemCard(
+                                            key = { appItem -> "pending-${appItem.installedApp.packageName}" },
+                                        ) { appItem ->
+                                            AppItemCardWithActions(
                                                 appItem = appItem,
-                                                onOpenClick = {
-                                                    onAction(
-                                                        AppsAction.OnOpenApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onUpdateClick = {
-                                                    onAction(
-                                                        AppsAction.OnUpdateApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onCancelClick = {
-                                                    onAction(
-                                                        AppsAction.OnCancelUpdate(
-                                                            appItem.installedApp.packageName
-                                                        )
-                                                    )
-                                                },
-                                                onUninstallClick = {
-                                                    onAction(
-                                                        AppsAction.OnUninstallApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onRepoClick = { onRowSelect(appItem.installedApp) },
-                                                onTogglePreReleases = { enabled ->
-                                                    onAction(
-                                                        AppsAction.OnTogglePreReleases(
-                                                            appItem.installedApp.packageName,
-                                                            enabled
-                                                        )
-                                                    )
-                                                },
-                                                onToggleUpdateCheck = { enabled ->
-                                                    onAction(
-                                                        AppsAction.OnToggleUpdateCheck(
-                                                            appItem.installedApp.packageName,
-                                                            enabled
-                                                        )
-                                                    )
-                                                },
-                                                onAdvancedSettingsClick = {
-                                                    onAction(
-                                                        AppsAction.OnOpenAdvancedSettings(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onPickVariantClick = {
-                                                    onAction(
-                                                        AppsAction.OnOpenVariantPicker(
-                                                            app = appItem.installedApp,
-                                                            resumeUpdateAfterPick = false,
-                                                        ),
-                                                    )
-                                                },
-                                                onInstallPendingClick = {
-                                                    onAction(
-                                                        AppsAction.OnInstallPendingApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onDiscardPendingClick = {
-                                                    onAction(
-                                                        AppsAction.OnDiscardPendingInstall(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onSkipVersionClick = {
-                                                    val tag =
-                                                        appItem.installedApp.latestVersion
-                                                            ?: appItem.installedApp.latestVersionName
-                                                    if (!tag.isNullOrBlank()) {
-                                                        onAction(
-                                                            AppsAction.OnSkipReleaseTag(
-                                                                appItem.installedApp.packageName,
-                                                                tag,
-                                                            ),
-                                                        )
-                                                    }
-                                                },
-                                                onUnskipVersionClick = {
-                                                    onAction(
-                                                        AppsAction.OnUnskipReleaseTag(
-                                                            appItem.installedApp.packageName
-                                                        )
-                                                    )
-                                                },
+                                                onAction = onAction,
+                                                onOpenRepo = onRowSelect,
                                             )
                                         }
                                     }
@@ -503,106 +435,14 @@ fun AppsScreen(
                                     }
 
                                     if (state.updateApps.isNotEmpty() && state.isUpdatesSectionExpanded) {
-                                        itemsIndexed(
+                                        items(
                                             state.updateApps,
-                                            key = { _, appItem -> "rich-${appItem.installedApp.packageName}" },
-                                        ) { _, appItem ->
-                                            AppItemCard(
+                                            key = { appItem -> "rich-${appItem.installedApp.packageName}" },
+                                        ) { appItem ->
+                                            AppItemCardWithActions(
                                                 appItem = appItem,
-                                                onOpenClick = {
-                                                    onAction(
-                                                        AppsAction.OnOpenApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onUpdateClick = {
-                                                    onAction(
-                                                        AppsAction.OnUpdateApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onCancelClick = {
-                                                    onAction(
-                                                        AppsAction.OnCancelUpdate(
-                                                            appItem.installedApp.packageName
-                                                        )
-                                                    )
-                                                },
-                                                onUninstallClick = {
-                                                    onAction(
-                                                        AppsAction.OnUninstallApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onRepoClick = { onRowSelect(appItem.installedApp) },
-                                                onTogglePreReleases = { enabled ->
-                                                    onAction(
-                                                        AppsAction.OnTogglePreReleases(
-                                                            appItem.installedApp.packageName,
-                                                            enabled
-                                                        )
-                                                    )
-                                                },
-                                                onToggleUpdateCheck = { enabled ->
-                                                    onAction(
-                                                        AppsAction.OnToggleUpdateCheck(
-                                                            appItem.installedApp.packageName,
-                                                            enabled
-                                                        )
-                                                    )
-                                                },
-                                                onAdvancedSettingsClick = {
-                                                    onAction(
-                                                        AppsAction.OnOpenAdvancedSettings(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onPickVariantClick = {
-                                                    onAction(
-                                                        AppsAction.OnOpenVariantPicker(
-                                                            app = appItem.installedApp,
-                                                            resumeUpdateAfterPick = false,
-                                                        ),
-                                                    )
-                                                },
-                                                onInstallPendingClick = {
-                                                    onAction(
-                                                        AppsAction.OnInstallPendingApp(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onDiscardPendingClick = {
-                                                    onAction(
-                                                        AppsAction.OnDiscardPendingInstall(
-                                                            appItem.installedApp
-                                                        )
-                                                    )
-                                                },
-                                                onSkipVersionClick = {
-                                                    val tag =
-                                                        appItem.installedApp.latestVersion
-                                                            ?: appItem.installedApp.latestVersionName
-                                                    if (!tag.isNullOrBlank()) {
-                                                        onAction(
-                                                            AppsAction.OnSkipReleaseTag(
-                                                                appItem.installedApp.packageName,
-                                                                tag,
-                                                            ),
-                                                        )
-                                                    }
-                                                },
-                                                onUnskipVersionClick = {
-                                                    onAction(
-                                                        AppsAction.OnUnskipReleaseTag(
-                                                            appItem.installedApp.packageName
-                                                        )
-                                                    )
-                                                },
+                                                onAction = onAction,
+                                                onOpenRepo = onRowSelect,
                                             )
                                         }
                                     }
@@ -621,10 +461,10 @@ fun AppsScreen(
                                         }
 
                                         if (state.isUpToDateSectionExpanded) {
-                                            itemsIndexed(
+                                            items(
                                                 state.idleApps,
-                                                key = { _, appItem -> "compact-${appItem.installedApp.packageName}" },
-                                                ) { _, appItem ->
+                                                key = { appItem -> "compact-${appItem.installedApp.packageName}" },
+                                                ) { appItem ->
                                                 CompactAppRow(
                                                     appItem = appItem,
                                                     onOpenClick = {
@@ -710,6 +550,116 @@ fun AppsScreen(
             }
         }
     }
+}
+
+/**
+ * [AppItemCard] with its thirteen callbacks wired to [onAction] and [onOpenRepo]. The pending
+ * section and the updates section render the same card and used to assemble these lambdas twice,
+ * verbatim.
+ */
+@Composable
+private fun AppItemCardWithActions(
+    appItem: AppItem,
+    onAction: (AppsAction) -> Unit,
+    onOpenRepo: (InstalledAppUi) -> Unit,
+) {
+    AppItemCard(
+        appItem = appItem,
+        onOpenClick = {
+            onAction(
+                AppsAction.OnOpenApp(
+                    appItem.installedApp
+                )
+            )
+        },
+        onUpdateClick = {
+            onAction(
+                AppsAction.OnUpdateApp(
+                    appItem.installedApp
+                )
+            )
+        },
+        onCancelClick = {
+            onAction(
+                AppsAction.OnCancelUpdate(
+                    appItem.installedApp.packageName
+                )
+            )
+        },
+        onUninstallClick = {
+            onAction(
+                AppsAction.OnUninstallApp(
+                    appItem.installedApp
+                )
+            )
+        },
+        onRepoClick = { onOpenRepo(appItem.installedApp) },
+        onTogglePreReleases = { enabled ->
+            onAction(
+                AppsAction.OnTogglePreReleases(
+                    appItem.installedApp.packageName,
+                    enabled
+                )
+            )
+        },
+        onToggleUpdateCheck = { enabled ->
+            onAction(
+                AppsAction.OnToggleUpdateCheck(
+                    appItem.installedApp.packageName,
+                    enabled
+                )
+            )
+        },
+        onAdvancedSettingsClick = {
+            onAction(
+                AppsAction.OnOpenAdvancedSettings(
+                    appItem.installedApp
+                )
+            )
+        },
+        onPickVariantClick = {
+            onAction(
+                AppsAction.OnOpenVariantPicker(
+                    app = appItem.installedApp,
+                    resumeUpdateAfterPick = false,
+                ),
+            )
+        },
+        onInstallPendingClick = {
+            onAction(
+                AppsAction.OnInstallPendingApp(
+                    appItem.installedApp
+                )
+            )
+        },
+        onDiscardPendingClick = {
+            onAction(
+                AppsAction.OnDiscardPendingInstall(
+                    appItem.installedApp
+                )
+            )
+        },
+        onSkipVersionClick = {
+            val tag =
+                appItem.installedApp.latestVersion
+                    ?: appItem.installedApp.latestVersionName
+            if (!tag.isNullOrBlank()) {
+                onAction(
+                    AppsAction.OnSkipReleaseTag(
+                        appItem.installedApp.packageName,
+                        tag,
+                    ),
+                )
+            }
+        },
+        onUnskipVersionClick = {
+            onAction(
+                AppsAction.OnUnskipReleaseTag(
+                    appItem.installedApp.packageName
+                )
+            )
+        },
+    )
 }
 
 @Preview

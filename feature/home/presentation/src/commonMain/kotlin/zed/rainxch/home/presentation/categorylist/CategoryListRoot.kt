@@ -1,6 +1,5 @@
 package zed.rainxch.home.presentation.categorylist
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +40,7 @@ import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.home.domain.model.HomeCategory
 import zed.rainxch.home.presentation.model.toDiscoveryUi
+import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 
 @Composable
@@ -119,14 +119,14 @@ private fun CategoryListScreen(
                     KomiCircularProgress()
                 }
             } else {
+                val gridPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                 LazyVerticalStaggeredGrid(
-                    columns =
-                        rememberWidthCappedStaggeredCells(contentPaddingHorizontal = 12.dp),
+                    columns = rememberWidthCappedStaggeredCells(contentPadding = gridPadding),
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-                    verticalItemSpacing = 10.dp,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = gridPadding,
+                    verticalItemSpacing = CardGridSpec.GridItemSpacing,
+                    horizontalArrangement = CardGridSpec.GridArrangement,
                 ) {
                     itemsIndexed(
                         items = state.cards,
