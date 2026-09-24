@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,7 +26,7 @@ import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalStatusColors
-import zed.rainxch.core.presentation.utils.formatIsoDate
+import zed.rainxch.core.presentation.utils.formatIsoDateOrRaw
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.repo_pages_security_advisories_header
 import zed.rainxch.githubstore.core.presentation.res.repo_pages_security_no_advisories
@@ -161,6 +162,9 @@ private fun SectionHeader(text: String) {
 @Composable
 private fun AdvisoryCard(advisory: SecurityAdvisory) {
     val colors = LocalPersonality.current.colors
+    val publishedDate = remember(advisory.publishedAt) {
+        advisory.publishedAt?.let { formatIsoDateOrRaw(it) }
+    }
     KomiSurface(
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -182,9 +186,9 @@ private fun AdvisoryCard(advisory: SecurityAdvisory) {
 
                 val meta = buildString {
                     advisory.cveId?.let { append(it) }
-                    advisory.publishedAt?.let {
+                    publishedDate?.let {
                         if (isNotEmpty()) append(" · ")
-                        append(formatIsoDate(it) ?: it.take(10))
+                        append(it)
                     }
                 }
                 if (meta.isNotEmpty()) {

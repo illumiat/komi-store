@@ -49,7 +49,7 @@ import zed.rainxch.core.presentation.components.markdown.rememberMarkdownTypogra
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
-import zed.rainxch.core.presentation.utils.formatIsoDate
+import zed.rainxch.core.presentation.utils.formatIsoDateOrRaw
 import zed.rainxch.githubstore.core.presentation.res.*
 
 fun LazyListScope.whatsNew(
@@ -105,8 +105,7 @@ fun LazyListScope.whatsNew(
                 uppercase = false,
             )
             KomiText(
-                text = formatIsoDate(release.publishedAt)
-                    ?: release.publishedAt.take(10),
+                text = formatIsoDateOrRaw(release.publishedAt),
                 role = KomiTextRole.Label,
                 fontSize = 12.sp,
                 color = colors.onSurfaceVariant,
