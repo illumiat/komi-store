@@ -295,8 +295,7 @@ class VersionMathTest {
     }
 
     @Test
-    fun timestamp_update_degrades_to_silent_when_either_side_is_unparseable() {
-        assertFalse(
+    fun timestamp_update_degrades_to_silent_when_either_side_is_unparseable() {        assertFalse(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",
                 matchedPublishedAt = "not-a-time",
@@ -485,5 +484,34 @@ class VersionMathTest {
             storedDigest = null,
             storedSize = null,
         ))
+    }
+
+    @Test
+    fun a_blank_stored_baseline_reads_as_no_baseline() {
+        // The mapper writes a missing publish time as "" rather than null
+        // (ReleaseNetwork: `publishedAt ?: createdAt ?: ""`). A blank baseline must be
+        // read as "not recorded": `isPublishedAtAfter(real, "")` cannot parse "" and is
+        // therefore always false, so treating blank as a real baseline would leave that
+        // row's timestamp signal dead for good — the release would never be reported
+        // again, whatever its publish time.
+        assertTrue(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-20T00:00:00Z",
+                previousLatestPublishedAt = "",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+            ),
+        )
+        // Blank on the matched side stays "present", exactly as before.
+        assertTrue(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "",
+                previousLatestPublishedAt = null,
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+            ),
+        )
     }
 }

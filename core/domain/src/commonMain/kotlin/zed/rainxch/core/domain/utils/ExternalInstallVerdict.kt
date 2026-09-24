@@ -49,6 +49,14 @@ private fun compareAndDecide(
     val latest = VersionMath.normalizeVersion(latestVersion)
     if (system.isEmpty() || latest.isEmpty()) return VersionVerdict.UNKNOWN
 
+    // Only decide on a pair that can actually be compared by number. Without this the
+    // comparison below degrades to string order whenever one side is not a version at
+    // all, and string order says nothing about which build is newer — "26.09.01" sorts
+    // below "nightly" (digits before letters), so a device whose installed build IS the
+    // latest one was reported as needing an update. Reporting UNKNOWN instead lets the
+    // caller fall through to the tag comparison, which is the field that can answer it.
+    if (!VersionMath.versionsReconcilable(system, latest)) return VersionVerdict.UNKNOWN
+
     val cmp = VersionMath.compareVersions(system, latest)
     return when {
         cmp >= 0 -> VersionVerdict.UP_TO_DATE
