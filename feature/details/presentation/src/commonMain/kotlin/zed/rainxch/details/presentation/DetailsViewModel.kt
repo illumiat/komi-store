@@ -237,8 +237,28 @@ class DetailsViewModel(
             }
 
             DetailsAction.OnConfirmDowngradeInstall -> {
+                val warning = _state.value.downgradeWarning ?: return
                 dismissDowngradeWarning()
-                install(ignoreDowngrade = true)
+                // Consent names one target. If a refresh swapped the selection while the
+                // dialog was open, that consent no longer applies to what would install:
+                // fall back to the gated path, which re-warns for the new target.
+                if (_state.value.selectedRelease?.tagName == warning.targetVersion) {
+                    install(ignoreDowngrade = true)
+                } else {
+                    install()
+                }
+            }
+
+            DetailsAction.OnConfirmDowngradeUninstall -> {
+                // Same guard as the install branch, and for a heavier reason: uninstalling
+                // erases the app's data. A dismissed dialog and a button press can land in the
+                // same frame (multi-touch, or Esc plus Enter on desktop), and without this the
+                // later action would uninstall on a consent the user has just withdrawn. The
+                // asymmetry decides the direction — dropping a tap costs a second tap, while
+                // acting on a withdrawn one is irreversible.
+                val warning = _state.value.downgradeWarning ?: return
+                dismissDowngradeWarning()
+                uninstallApp()
             }
 
             DetailsAction.OnDismissSigningKeyWarning -> {

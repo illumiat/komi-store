@@ -48,13 +48,6 @@ class InstalledAppsRepositoryImpl(
     private companion object {
 
         const val RELEASE_WINDOW = 50
-
-        /**
-         * How long a record that has just been written is left alone before a check may act on
-         * it. Long enough to cover the confirmation that follows an install, short enough that a
-         * release published in the meantime is only deferred, never lost.
-         */
-        const val INSTALL_SETTLE_WINDOW_MS = 10L * 60L * 1000L
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =
@@ -264,34 +257,11 @@ class InstalledAppsRepositoryImpl(
         return null
     }
 
-    override suspend fun checkForUpdates(packageName: String, force: Boolean): Boolean {
+    override suspend fun checkForUpdates(packageName: String): Boolean {
         val app = installedAppsDao.getAppByPackage(packageName) ?: return false
 
         if (!app.updateCheckEnabled) {
             return false
-        }
-
-        // A check that lands right after an install is reading a record another writer has only
-        // just finished with: the install confirmation re-runs this check seconds after the
-        // install itself rewrote the record, so the two writes describe different moments. Leave
-        // the record alone until the write has settled instead of acting on what it says
-        // mid-flight. Nothing is written while this window is open, and that is the point —
-        // forcing the availability flag to false here would erase a release the user is genuinely
-        // behind on. What the window finds is deferred to the next check, not denied.
-        //
-        // A check the user asked for is not deferred: it carries `force` and reads the live
-        // release, so someone looking right after an install is answered from the source rather
-        // than from the flag the install left behind.
-        val settledAt = app.lastUpdatedAt
-        if (!force &&
-            settledAt > 0L &&
-            System.currentTimeMillis() - settledAt < INSTALL_SETTLE_WINDOW_MS
-        ) {
-            Logger.d {
-                "Update check for ${app.appName} skipped: record settled " +
-                        "${System.currentTimeMillis() - settledAt}ms ago"
-            }
-            return app.isUpdateAvailable
         }
 
         try {
@@ -431,12 +401,12 @@ class InstalledAppsRepositoryImpl(
         return false
     }
 
-    override suspend fun checkAllForUpdates(force: Boolean) {
+    override suspend fun checkAllForUpdates() {
         val apps = installedAppsDao.getAllInstalledApps().first()
         apps.forEach { app ->
             if (app.updateCheckEnabled) {
                 try {
-                    checkForUpdates(app.packageName, force)
+                    checkForUpdates(app.packageName)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -466,13 +436,12 @@ class InstalledAppsRepositoryImpl(
         candidateCode: Long?,
         referenceCode: Long,
     ): Boolean =
-        if (candidateTag.isNullOrBlank()) {
-            false
-        } else if (candidateCode != null && candidateCode > 0L && referenceCode > 0L) {
-            candidateCode > referenceCode
-        } else {
-            referenceTag.isNotBlank() &&
-                VersionMath.isVersionNewer(candidateTag, referenceTag)
+        when {
+            candidateTag.isNullOrBlank() -> false
+            candidateCode != null && candidateCode > 0L && referenceCode > 0L -> candidateCode > referenceCode
+            else ->
+                referenceTag.isNotBlank() &&
+                    VersionMath.isVersionNewer(candidateTag, referenceTag)
         }
 
     override suspend fun updateAppVersion(
@@ -616,7 +585,7 @@ class InstalledAppsRepositoryImpl(
         installedAppsDao.updateUpdateCheckEnabled(packageName, enabled)
         if (enabled) {
             try {
-                checkForUpdates(packageName, force = false)
+                checkForUpdates(packageName)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -642,7 +611,7 @@ class InstalledAppsRepositoryImpl(
         )
 
         try {
-            checkForUpdates(packageName, force = false)
+            checkForUpdates(packageName)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -674,7 +643,7 @@ class InstalledAppsRepositoryImpl(
         )
 
         try {
-            checkForUpdates(packageName, force = false)
+            checkForUpdates(packageName)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

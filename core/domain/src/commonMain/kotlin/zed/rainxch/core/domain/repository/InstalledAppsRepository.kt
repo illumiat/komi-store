@@ -27,9 +27,9 @@ interface InstalledAppsRepository {
 
     suspend fun deleteInstalledApp(packageName: String)
 
-    suspend fun checkForUpdates(packageName: String, force: Boolean = false): Boolean
+    suspend fun checkForUpdates(packageName: String): Boolean
 
-    suspend fun checkAllForUpdates(force: Boolean = false)
+    suspend fun checkAllForUpdates()
 
     suspend fun updateAppVersion(
         packageName: String,

@@ -261,14 +261,14 @@ class AppsViewModel(
         checkAllForUpdates()
     }
 
-    private fun checkAllForUpdates(force: Boolean = false) {
+    private fun checkAllForUpdates() {
         viewModelScope.launch {
 
             lastAutoCheckTimestamp = System.currentTimeMillis()
             _state.update { it.copy(isCheckingForUpdates = true) }
             try {
                 syncInstalledAppsUseCase()
-                installedAppsRepository.checkAllForUpdates(force)
+                installedAppsRepository.checkAllForUpdates()
                 _state.update {
                     it.copy(lastCheckedTimestamp = System.currentTimeMillis())
                 }
@@ -287,7 +287,7 @@ class AppsViewModel(
             _state.update { it.copy(isRefreshing = true) }
             try {
                 syncInstalledAppsUseCase()
-                installedAppsRepository.checkAllForUpdates(force = true)
+                installedAppsRepository.checkAllForUpdates()
                 val now = System.currentTimeMillis()
                 lastAutoCheckTimestamp = now
                 _state.update { it.copy(lastCheckedTimestamp = now) }
@@ -378,7 +378,7 @@ class AppsViewModel(
             }
 
             AppsAction.OnCheckAllForUpdates -> {
-                checkAllForUpdates(force = true)
+                checkAllForUpdates()
             }
 
             AppsAction.OnRefresh -> {

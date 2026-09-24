@@ -158,7 +158,8 @@ private fun MangaButton(
         if (overrideColorsGiven) containerColor else mangaButtonContainer(variant, colors)
     val resolvedContentColor =
         if (overrideColorsGiven) contentColor else mangaButtonContent(variant, colors, ambientInk)
-    val borderColor = if (container == Color.Transparent) resolvedContentColor else colors.outline
+    val borderColor =
+        if (overrideColorsGiven || container == Color.Transparent) resolvedContentColor else colors.outline
     val stamped = !flat && container != Color.Transparent
     val sweep =
         emphasized && active &&
@@ -182,6 +183,10 @@ private fun MangaButton(
                 pressProgress = { pressProgress.value },
                 hoverProgress = { hoverProgress.value },
                 shadow = DpOffset(metrics.shadow, metrics.shadow),
+                // Replacing rather than multiplying, unlike the container, border and content
+                // below: this colour is always the palette's shadow, which every personality
+                // defines opaque, so the two spellings agree here. Multiplying only matters
+                // where the source can carry a caller's own alpha — the override pair.
                 shadowColor = colors.shadow.copy(alpha = alpha),
                 shape = shape,
             )
@@ -191,7 +196,10 @@ private fun MangaButton(
         modifier =
             modifier
                 .then(if (fullWidth) Modifier.fillMaxWidth() else Modifier)
-                .inkFocusRing(focused = { focused }, color = colors.primary)
+                .inkFocusRing(
+                    focused = { focused },
+                    color = if (overrideColorsGiven) resolvedContentColor else colors.primary,
+                )
                 .then(pressModifier)
                 .then(if (clipNeeded) Modifier.clip(shape) else Modifier)
                 .background(color = container.copy(alpha = container.alpha * alpha), shape = shape)
@@ -208,7 +216,7 @@ private fun MangaButton(
                     if (!flat) {
                         Modifier.border(
                             width = metrics.border,
-                            color = borderColor.copy(alpha = alpha),
+                            color = borderColor.copy(alpha = borderColor.alpha * alpha),
                             shape = shape,
                         )
                     } else {
@@ -226,7 +234,7 @@ private fun MangaButton(
     ) {
         KomiButtonContent(
             label = label,
-            contentColor = resolvedContentColor.copy(alpha = alpha),
+            contentColor = resolvedContentColor.copy(alpha = resolvedContentColor.alpha * alpha),
             iconSize = metrics.icon,
             gap = metrics.gap,
             fontSize = metrics.font,
@@ -264,10 +272,36 @@ private fun ClassicButton(
 
     val overrideColors =
         if (containerColor != Color.Unspecified && contentColor != Color.Unspecified) {
-            ButtonDefaults.buttonColors(
-                containerColor = containerColor,
-                contentColor = contentColor,
-            )
+            // Built with the variant's own factory so an override replaces only the enabled
+            // colours: the filled factory's defaults would otherwise fill every variant's
+            // disabled/other slots with the filled theme (a Text button turning into a grey
+            // filled pill when disabled, Destructive losing error/onError to the accent).
+            when (variant) {
+                KomiButtonVariant.Primary,
+                KomiButtonVariant.Destructive,
+                -> ButtonDefaults.buttonColors(
+                    containerColor = containerColor,
+                    contentColor = contentColor,
+                )
+
+                KomiButtonVariant.Tonal ->
+                    ButtonDefaults.filledTonalButtonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                    )
+
+                KomiButtonVariant.Outline ->
+                    ButtonDefaults.outlinedButtonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                    )
+
+                KomiButtonVariant.Text ->
+                    ButtonDefaults.textButtonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                    )
+            }
         } else {
             null
         }

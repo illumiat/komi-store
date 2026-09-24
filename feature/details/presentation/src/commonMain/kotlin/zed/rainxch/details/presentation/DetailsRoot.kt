@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -34,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -245,24 +247,50 @@ fun DetailsRoot(
             // row to keep cancel at the start and the two choices grouped at the end.
             confirmButton = {
                 val personality = LocalPersonality.current
-                Row(
+                // The three labels sit on the dialog surface, which is surfaceContainerHigh — not
+                // the background that the personality's own `isDark` flag is derived from. The two
+                // agree on every palette this app ships today, so reading the right one changes
+                // nothing visibly; it is read off the surface that actually paints behind the
+                // labels so a palette that later shades a dialog against its background cannot
+                // silently take the wrong side of the contrast pair.
+                val dialogSurfaceIsDark = personality.colors.surfaceContainerHigh.luminance() < 0.5f
+                // FlowRow, not Row: the three labels are long in several locales (Russian in
+                // particular), so on a 360dp screen — and worse at large accessibility font
+                // scales — a single line clips them. The two choices stay grouped in the inner
+                // Row; only the cancel-vs-choices break may wrap.
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
                     KomiButton(
                         onClick = {
                             viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
                         },
                         label = stringResource(Res.string.cancel),
+                        // Text with an explicit pair, like its two neighbours. Left on the variant
+                        // default this was the only one of the three that followed the accent, so
+                        // on a personality whose accent runs close to the error colour cancel
+                        // became both the only emphasised action and one that read as destructive
+                        // — against the promise of three equal choices. A neutral pair keeps it the
+                        // quietest of the three; branched on the dialog surface for the same reason
+                        // as the blue beside it, and clearing 3:1 on all six shipped surfaces
+                        // (worst case 3.49:1).
                         variant = KomiButtonVariant.Text,
                         size = KomiButtonSize.Sm,
+                        containerColor = Color.Transparent,
+                        contentColor =
+                            if (dialogSurfaceIsDark) {
+                                Color(0xFFBCBCBC)
+                            } else {
+                                Color(0xFF747474)
+                            },
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         KomiButton(
                             onClick = {
-                                viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
-                                viewModel.onAction(DetailsAction.UninstallApp)
+                                viewModel.onAction(DetailsAction.OnConfirmDowngradeUninstall)
                             },
                             label = stringResource(Res.string.uninstall_first),
                             // Text rather than Destructive: the dialog offers three equal choices,
@@ -285,13 +313,20 @@ fun DetailsRoot(
                             variant = KomiButtonVariant.Text,
                             size = KomiButtonSize.Sm,
                             containerColor = Color.Transparent,
-                            // A label sits on the dialog surface, so one fixed blue cannot serve
-                            // both surfaces: the light-mode blue reaches only 3.0:1 on the dark
-                            // ones. The pair keeps its meaning without following the accent,
-                            // which can itself be red and would make this read as the
-                            // destructive choice.
+                            // A pair, not one fixed blue, and branched on the surface the label
+                            // actually sits on rather than the accent. Measured against the six
+                            // dialog surfaces this app ships (Classic light/dark/black and Manga
+                            // light/dark/nord): the deep blue alone drops to 1.47:1 on the light
+                            // surfaces and the pale one to 5.07 on nord, while no single value can
+                            // clear 3:1 everywhere — the best any one colour manages is 2.53:1,
+                            // because nord (#434C5E) sits mid-range and pulls the requirement in
+                            // opposite directions from the light surfaces. The pair below clears
+                            // 3:1 on all six with 4.23:1 as the worst case.
+                            //
+                            // Fixed rather than accent-following, because the accent can itself be
+                            // red and would make this read as the destructive choice.
                             contentColor =
-                                if (personality.colors.isDark) {
+                                if (dialogSurfaceIsDark) {
                                     Color(0xFFB6C4FF)
                                 } else {
                                     Color(0xFF3B5BDB)
