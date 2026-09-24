@@ -42,9 +42,4 @@ object VersionHelper {
         // one at install, while a wrong guess demanded an uninstall.
         return false
     }
-
-    fun compareSemanticVersions(
-        a: String,
-        b: String,
-    ): Int = VersionMath.compareVersions(a, b)
 }

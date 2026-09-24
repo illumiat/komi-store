@@ -7,9 +7,11 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 
 class VersionHelperDowngradeTest {
 
+    private var nextReleaseId = 0L
+
     private fun release(tag: String, publishedAt: String): GithubRelease =
         GithubRelease(
-            id = tag.hashCode().toLong(),
+            id = nextReleaseId++,
             tagName = tag,
             name = tag,
             publishedAt = publishedAt,
@@ -21,7 +23,7 @@ class VersionHelperDowngradeTest {
         )
 
     // Newest first, as the repository sorts them.
-    private val majdata = listOf(
+    private val releasesNewestFirst = listOf(
         release("2.0.2", "2026-09-13T13:12:13Z"),
         release("2.0.1", "2026-08-24T03:05:31Z"),
         release("v2.0.0", "2026-08-04T08:17:55Z"),
@@ -34,7 +36,7 @@ class VersionHelperDowngradeTest {
             VersionHelper.isDowngradeVersion(
                 candidate = "2.0.2",
                 current = "nightly",
-                allReleases = majdata,
+                allReleases = releasesNewestFirst,
             ),
         )
     }
@@ -45,7 +47,7 @@ class VersionHelperDowngradeTest {
             VersionHelper.isDowngradeVersion(
                 candidate = "nightly",
                 current = "2.0.2",
-                allReleases = majdata,
+                allReleases = releasesNewestFirst,
             ),
         )
     }
@@ -73,7 +75,7 @@ class VersionHelperDowngradeTest {
             VersionHelper.isDowngradeVersion(
                 candidate = "Alpha4.7.4",
                 current = "2.0.2",
-                allReleases = majdata,
+                allReleases = releasesNewestFirst,
             ),
         )
     }
@@ -84,7 +86,7 @@ class VersionHelperDowngradeTest {
             VersionHelper.isDowngradeVersion(
                 candidate = "2.0.2",
                 current = "Alpha4.7.4",
-                allReleases = majdata,
+                allReleases = releasesNewestFirst,
             ),
         )
     }
@@ -95,7 +97,7 @@ class VersionHelperDowngradeTest {
             VersionHelper.isDowngradeVersion(
                 candidate = "1.9.4",
                 current = "2.0.2",
-                allReleases = majdata,
+                allReleases = releasesNewestFirst,
             ),
         )
     }
@@ -106,7 +108,7 @@ class VersionHelperDowngradeTest {
             VersionHelper.isDowngradeVersion(
                 candidate = "dev-5",
                 current = "R2024-01",
-                allReleases = majdata,
+                allReleases = releasesNewestFirst,
             ),
         )
     }

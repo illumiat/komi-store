@@ -55,13 +55,6 @@ class InstalledAppsRepositoryImpl(
     private companion object {
 
         const val RELEASE_WINDOW = 50
-
-        /**
-         * How long a record that has just been written is left alone before a check may act on
-         * it. Long enough to cover the confirmation that follows an install, short enough that a
-         * release published in the meantime is only deferred, never lost.
-         */
-        const val INSTALL_SETTLE_WINDOW_MS = 30L * 60L * 1000L
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =
@@ -329,24 +322,6 @@ class InstalledAppsRepositoryImpl(
             return false
         }
 
-        // A check that lands right after an install is reading a record another writer has only
-        // just finished with: the install confirmation re-runs this check seconds after the
-        // install itself rewrote the record, so the two writes describe different moments. Leave
-        // the record alone until the write has settled instead of acting on what it says
-        // mid-flight. Nothing is written while this window is open, and that is the point —
-        // forcing the availability flag to false here would erase a release the user is genuinely
-        // behind on. What the window finds is deferred to the next check, not denied.
-        val settledAt = app.lastUpdatedAt
-        if (settledAt > 0L &&
-            System.currentTimeMillis() - settledAt < INSTALL_SETTLE_WINDOW_MS
-        ) {
-            Logger.d {
-                "Update check for ${app.appName} skipped: record settled " +
-                        "${System.currentTimeMillis() - settledAt}ms ago"
-            }
-            return app.isUpdateAvailable
-        }
-
         try {
             val releases =
                 fetchReleaseWindow(
@@ -512,13 +487,12 @@ class InstalledAppsRepositoryImpl(
         candidateCode: Long?,
         referenceCode: Long,
     ): Boolean =
-        if (candidateTag.isNullOrBlank()) {
-            false
-        } else if (candidateCode != null && candidateCode > 0L && referenceCode > 0L) {
-            candidateCode > referenceCode
-        } else {
-            referenceTag.isNotBlank() &&
-                VersionMath.isVersionNewer(candidateTag, referenceTag)
+        when {
+            candidateTag.isNullOrBlank() -> false
+            candidateCode != null && candidateCode > 0L && referenceCode > 0L -> candidateCode > referenceCode
+            else ->
+                referenceTag.isNotBlank() &&
+                    VersionMath.isVersionNewer(candidateTag, referenceTag)
         }
 
     override suspend fun updateAppVersion(

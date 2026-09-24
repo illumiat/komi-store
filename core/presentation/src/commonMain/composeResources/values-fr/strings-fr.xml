@@ -312,7 +312,7 @@
     <string name="open_app">Ouvrir</string>
     <string name="downgrade_warning_title">Version plus ancienne sélectionnée</string>
     <string name="downgrade_warning_message">%1$s est inférieure à la %2$s déjà installée.\nAndroid peut refuser d'installer une version plus ancienne.\nS'il refuse, la %2$s installée reste inchangée.</string>
-    <string name="downgrade_warning_uninstall_note">Désinstaller %1$s efface ses données d'application.</string>
+    <string name="downgrade_warning_uninstall_note">Désinstaller %1$s efface les données de l'application.</string>
     <string name="uninstall_first">Désinstaller d'abord</string>
     <string name="install_version">Installer %1$s</string>
     <string name="failed_to_open_app">Impossible d'ouvrir %1$s</string>

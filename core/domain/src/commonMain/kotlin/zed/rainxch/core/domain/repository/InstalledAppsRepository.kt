@@ -39,6 +39,9 @@ interface InstalledAppsRepository {
         newVersionName: String,
         newVersionCode: Long,
         signingFingerprint: String?,
+        // Defaults to true, unlike InstalledApp.isPendingInstall (which defaults to false):
+        // omitting this argument leaves the app marked as awaiting a pending install.
+        // Pass false explicitly when recording an update that is already applied.
         isPendingInstall: Boolean = true,
     )
 
