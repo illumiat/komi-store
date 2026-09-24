@@ -154,26 +154,23 @@ fun AppNavigation(
                     SharedTransitionLayout(
                         modifier =
                             Modifier
-                                .padding(
-                                    bottom = if (showBottomBar) bottomBarHeight else 0.dp,
-                                )
-                                // Screens without the bottom bar must clear the navigation
-                                // bar themselves: the bar covers it when present, and
-                                // KomiScaffold no longer reserves it.
+                                .background(LocalPersonality.current.colors.background)
                                 .then(
+                                    // Navigation bar clearance is handled here rather than by
+                                    // individual screens: the bottom bar covers the inset when
+                                    // present, so the content is lifted by its measured height
+                                    // instead; otherwise this container reserves the inset itself,
+                                    // since KomiScaffold no longer does.
                                     if (showBottomBar) {
-                                        Modifier
+                                        Modifier.padding(bottom = bottomBarHeight)
                                     } else {
-                                        Modifier
-                                            .background(LocalPersonality.current.colors.background)
-                                            .navigationBarsPadding()
+                                        Modifier.navigationBarsPadding()
                                     },
                                 ),
                     ) {
                         NavHost(
                             navController = navController,
                             startDestination = GithubStoreGraph.ExploreScreen,
-                            modifier = Modifier.background(LocalPersonality.current.colors.background),
                             enterTransition = {
                                 val from = initialState.bottomNavIndex()
                                 val to = targetState.bottomNavIndex()
