@@ -61,6 +61,7 @@ import zed.rainxch.core.domain.utils.AssetFilter
 import zed.rainxch.core.domain.utils.AssetVariant
 import zed.rainxch.core.domain.helpers.BrowserHelper
 import zed.rainxch.core.domain.helpers.ShareManager
+import zed.rainxch.core.presentation.utils.TimeZoneChangeSignal
 import zed.rainxch.core.presentation.utils.formatFileSize
 import zed.rainxch.githubstore.core.presentation.res.*
 import java.io.File
@@ -203,7 +204,8 @@ class AppsViewModel(
                 combine(
                     appsRepository.getApps(),
                     tweaksRepository.getAppsSortRule(),
-                ) { apps, sortStored ->
+                    TimeZoneChangeSignal.revision,
+                ) { apps, sortStored, _ ->
                     apps to AppSortRule.fromName(sortStored)
                 }.collect { (apps, sortRule) ->
                     val appItems =

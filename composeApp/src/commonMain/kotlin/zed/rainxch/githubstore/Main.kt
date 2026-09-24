@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -18,6 +19,7 @@ import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
+import kotlinx.coroutines.channels.Channel
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.domain.model.appearance.AppPersonality
 import zed.rainxch.core.presentation.personality.classicPersonality
@@ -25,6 +27,7 @@ import zed.rainxch.core.presentation.personality.mangaPersonality
 import zed.rainxch.core.presentation.personality.toMangaAccent
 import zed.rainxch.core.presentation.personality.toMangaPaper
 import zed.rainxch.core.presentation.personality.utils.PersonalityTheme
+import zed.rainxch.core.presentation.utils.ObserveTimeZoneChanges
 import zed.rainxch.githubstore.app.components.RateLimitDialog
 import zed.rainxch.githubstore.app.components.SessionExpiredDialog
 import zed.rainxch.githubstore.app.navigation.AppNavigation
@@ -40,13 +43,29 @@ fun App(
     deepLinkUri: String? = null,
     onDeepLinkConsumed: () -> Unit = {},
     onResolvedDarkTheme: (Boolean) -> Unit = {},
+    onContentPainted: () -> Unit = {},
 ) {
     val mainViewModel: MainViewModel = koinViewModel()
     val whatsNewViewModel: WhatsNewViewModel = koinViewModel()
 
     val mainState by mainViewModel.state.collectAsStateWithLifecycle()
 
+    // Keeps TimeZoneChangeSignal.revision live for the whole session; the date
+    // producers that observe it re-map their local dates when the system zone
+    // changes. Registered above the appearance gate so it is active from launch.
+    ObserveTimeZoneChanges()
+
     val navController = rememberNavController()
+
+    // Deep links must survive the appearance gate: the handler below is not
+    // composed until it opens, and the platform hands over a single replaceable
+    // String?, so of two links arriving while the gate is closed only the
+    // latest would ever be observable. Queue them into an event stream here —
+    // above the gate — and let the handler drain it once composed.
+    val pendingDeepLinks = remember { Channel<String>(Channel.UNLIMITED) }
+    LaunchedEffect(deepLinkUri) {
+        deepLinkUri?.let { pendingDeepLinks.trySend(it) }
+    }
 
     setSingletonImageLoaderFactory { context ->
         ImageLoader
@@ -86,12 +105,19 @@ fun App(
         }
     }
 
+    // The splash condition used to read MainState's StateFlow directly, which flips one
+    // frame before this branch is composed — releasing the splash onto a frame that still
+    // draws the placeholder above. Reporting from inside the composition makes "the real UI
+    // is here" the same event the caller waits on. Runs once: the key is Unit and the gate
+    // never closes again.
+    LaunchedEffect(Unit) { onContentPainted() }
+
     val currentScreen = navController.currentBackStackEntryAsState().value.getCurrentScreen()
 
     HandleKeyboardEvents(navController)
 
     HandleDesktopToolbarDeeplinks(
-        deepLinkUri = deepLinkUri,
+        deepLinkUris = pendingDeepLinks,
         onDeepLinkConsumed = onDeepLinkConsumed,
         navController = navController,
     )

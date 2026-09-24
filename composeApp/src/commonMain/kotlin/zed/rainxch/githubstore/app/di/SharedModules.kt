@@ -14,6 +14,7 @@ val mainModule: Module =
                 rateLimitRepository = get(),
                 syncUseCase = get(),
                 userSessionRepository = get(),
+                localizationManager = get(),
             )
         }
     }

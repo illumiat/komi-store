@@ -18,6 +18,7 @@ import zed.rainxch.core.domain.model.repository.FavoriteRepo
 import zed.rainxch.core.domain.repository.FavouritesRepository
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.repository.UserSessionRepository
+import zed.rainxch.core.presentation.utils.TimeZoneChangeSignal
 import zed.rainxch.favourites.presentation.mappers.toFavouriteRepositoryUi
 import zed.rainxch.favourites.presentation.model.FavouritesSortRule
 import kotlin.time.Clock
@@ -68,7 +69,8 @@ class FavouritesViewModel(
                 favouritesRepository.getAllFavorites(),
                 userSessionRepository.getUser(),
                 tweaksRepository.getFavouritesSortRule(),
-            ) { favorites, user, sortStored ->
+                TimeZoneChangeSignal.revision,
+            ) { favorites, user, sortStored, _ ->
                 val sortRule = FavouritesSortRule.fromName(sortStored)
                 val currentLogin = user?.username
                 val sorted = favorites.sortedWith(favouritesComparator(sortRule))
