@@ -382,12 +382,16 @@ class InstalledAppsRepositoryImpl(
                             latestVersionCode = app.latestVersionCode,
                             publishedAt = app.latestReleasePublishedAt,
                             wasUpdateAvailable = app.isUpdateAvailable,
+                            latestAssetDigest = app.latestAssetDigest,
+                            latestAssetSize = app.latestAssetSize,
                         ),
                     matched =
                         UpdateVerdict.Matched(
                             tag = matchedRelease.tagName,
                             publishedAt = matchedRelease.publishedAt,
                             isPrerelease = matchedRelease.isPrerelease,
+                            assetDigest = primaryAsset.digest,
+                            assetSize = primaryAsset.size,
                         ),
                     skippedTag = app.skippedReleaseTag,
                 )
@@ -416,6 +420,11 @@ class InstalledAppsRepositoryImpl(
                 assetName = primaryAsset.name,
                 assetUrl = primaryAsset.downloadUrl,
                 assetSize = primaryAsset.size,
+                // The snapshot's new identity, in the same write that moves the tag:
+                // next scan compares the asset it finds against this. Written
+                // unconditionally because it belongs to whatever release was just
+                // matched, not to the previously stored tag.
+                assetDigest = primaryAsset.digest,
                 releaseNotes = matchedRelease.description ?: "",
                 timestamp = System.currentTimeMillis(),
                 latestVersionName = matchedRelease.tagName,

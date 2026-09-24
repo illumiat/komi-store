@@ -315,4 +315,78 @@ class VersionMathTest {
             ),
         )
     }
+
+    @Test
+    fun asset_identity_reports_a_swapped_asset_at_the_same_publish_time() {
+        // The case `published_at` cannot see: the Release is not re-created, only its
+        // asset is replaced — what `gh release upload --clobber` does, and what most
+        // CI asset-upload steps do. Measured on a release of this project's own fork:
+        // published_at stayed put while the asset changed.
+        assertTrue(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                previousLatestPublishedAt = "2026-09-24T11:46:11Z",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+                matchedAssetDigest = "sha256:bbbb",
+                matchedAssetSize = 70_543_755L,
+                previousAssetDigest = "sha256:aaaa",
+                previousAssetSize = 70_543_755L,
+            ),
+        )
+    }
+
+    @Test
+    fun asset_identity_stays_quiet_when_the_asset_is_the_same_one() {
+        // The guard against the false-positive class this project already had to fix:
+        // same release, same bytes, nothing to report — not even a note edit would
+        // show here, which is why the digest is read instead of the release's
+        // `updated_at`.
+        assertFalse(
+            VersionMath.shouldReportTimestampUpdate(
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                previousLatestPublishedAt = "2026-09-24T11:46:11Z",
+                previousWasUpdateAvailable = false,
+                previousLatestTag = "nightly",
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                previousAssetDigest = "sha256:aaaa",
+                previousAssetSize = 70_543_755L,
+            ),
+        )
+    }
+
+    @Test
+    fun asset_identity_falls_back_to_size_and_says_nothing_without_evidence() {
+        assertTrue(VersionMath.assetIdentityChanged(
+            matchedDigest = null,
+            matchedSize = 2_000L,
+            storedDigest = null,
+            storedSize = 1_000L,
+        ))
+        // Digest present on both sides wins over a size that happens to match.
+        assertTrue(VersionMath.assetIdentityChanged(
+            matchedDigest = "sha256:bbbb",
+            matchedSize = 1_000L,
+            storedDigest = "sha256:aaaa",
+            storedSize = 1_000L,
+        ))
+        // No digest on either side and no size on either side is not evidence.
+        assertFalse(VersionMath.assetIdentityChanged(
+            matchedDigest = null,
+            matchedSize = null,
+            storedDigest = null,
+            storedSize = null,
+        ))
+        // One side missing is deliberately not folded into the other signal: a host
+        // that started (or stopped) supplying digests must not read as a rebuild.
+        assertFalse(VersionMath.assetIdentityChanged(
+            matchedDigest = "sha256:aaaa",
+            matchedSize = null,
+            storedDigest = null,
+            storedSize = null,
+        ))
+    }
 }

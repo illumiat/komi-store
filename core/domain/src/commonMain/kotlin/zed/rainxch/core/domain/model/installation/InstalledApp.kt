@@ -15,6 +15,12 @@ data class InstalledApp(
     val latestAssetName: String?,
     val latestAssetUrl: String?,
     val latestAssetSize: Long?,
+    /**
+     * Digest of the asset the latest snapshot was taken from — the build's identity
+     * for a tag that names many builds (`nightly`), where `latestVersion` cannot
+     * tell one build from the next. Null when the host supplied none.
+     */
+    val latestAssetDigest: String? = null,
     val appName: String,
     val installSource: InstallSource,
     val installedAt: Long,
