@@ -16,12 +16,19 @@ object UpdateVerdict {
         val latestVersionCode: Long?,
         val publishedAt: String?,
         val wasUpdateAvailable: Boolean,
+        // The asset the baseline was taken from: its digest is the build's identity
+        // for a tag that names many builds, and its size is the fallback for hosts
+        // that supply no digest. See VersionMath.assetIdentityChanged.
+        val latestAssetDigest: String? = null,
+        val latestAssetSize: Long? = null,
     )
 
     data class Matched(
         val tag: String,
         val publishedAt: String?,
         val isPrerelease: Boolean,
+        val assetDigest: String? = null,
+        val assetSize: Long? = null,
     )
 
     fun decide(
@@ -111,6 +118,10 @@ object UpdateVerdict {
                     previousLatestPublishedAt = stored.publishedAt,
                     previousWasUpdateAvailable = stored.wasUpdateAvailable,
                     previousLatestTag = stored.latestTag,
+                    matchedAssetDigest = matched.assetDigest,
+                    matchedAssetSize = matched.assetSize,
+                    previousAssetDigest = stored.latestAssetDigest,
+                    previousAssetSize = stored.latestAssetSize,
                 )
             } else {
                 false

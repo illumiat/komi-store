@@ -205,19 +205,69 @@ object VersionMath {
         return candidateInstant > baselineInstant
     }
 
+    // Whether the release the tag points at is now a different build than the one
+    // the stored baseline was taken from.
+    //
+    // `published_at` alone answers this only for one of the two ways a reused tag
+    // gets a new build. Deleting and re-creating the Release moves `published_at`
+    // (that is the case this PR was written for), but replacing the asset in place —
+    // what `gh release upload --clobber` and most CI asset-upload steps do — leaves
+    // `published_at` frozen and moves only the release's `updated_at` and the
+    // asset's own fields. Measured on a release of this project's own fork:
+    // `published_at` stayed at 11:46:11Z while its asset was replaced at 12:06:04Z;
+    // upstream's own `v1.9.0` shows the same shape (published 18:05:43, updated
+    // 18:09:09), so publishing and then touching the assets is normal here.
+    //
+    // Both are one incident — the tag now names a different build — and the bytes
+    // are what actually changed in both, so the digest is what this asks for. It is
+    // deliberately not `updated_at`: that field also moves when only the release
+    // notes are edited, which would re-report an unchanged build — the same
+    // false-positive class this project has already had to fix.
+    //
+    // Size is the fallback for a host that supplies no digest (the field is
+    // nullable in both the API and the model, and desktop-tool builds ship none).
+    // It is weaker — a rebuild could coincidentally land on the same byte count —
+    // but it is already carried in the baseline. Neither side present is not
+    // evidence of anything, so it reports nothing rather than guessing.
+    fun assetIdentityChanged(
+        matchedDigest: String?,
+        matchedSize: Long?,
+        storedDigest: String?,
+        storedSize: Long?,
+    ): Boolean {
+        if (matchedDigest != null && storedDigest != null) return matchedDigest != storedDigest
+        if (matchedSize != null && storedSize != null) return matchedSize != storedSize
+        return false
+    }
+
     fun shouldReportTimestampUpdate(
         matchedTag: String?,
         matchedPublishedAt: String?,
         previousLatestPublishedAt: String?,
         previousWasUpdateAvailable: Boolean,
         previousLatestTag: String?,
+        matchedAssetDigest: String? = null,
+        matchedAssetSize: Long? = null,
+        previousAssetDigest: String? = null,
+        previousAssetSize: Long? = null,
     ): Boolean {
         // Presence, not parseability, decides the first-scan case: with no stored
         // baseline any non-null matched timestamp is the first observation. The
         // order comparison below is the part that needs absolute instants.
         if (previousLatestPublishedAt == null && matchedPublishedAt != null) return true
         val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
-        return newerByTimestamp ||
+        // The asset term covers the same-tag rebuilds that leave `published_at`
+        // alone (see assetIdentityChanged). It is an OR rather than a replacement:
+        // a re-created Release can also arrive with the same bytes, and then only
+        // the timestamp has moved.
+        val newerByAsset =
+            assetIdentityChanged(
+                matchedDigest = matchedAssetDigest,
+                matchedSize = matchedAssetSize,
+                storedDigest = previousAssetDigest,
+                storedSize = previousAssetSize,
+            )
+        return newerByTimestamp || newerByAsset ||
             (previousWasUpdateAvailable && isExactSameVersion(matchedTag, previousLatestTag))
     }
 

@@ -18,6 +18,10 @@ class UpdateVerdictTest {
         matchedTag: String = "1.1.0",
         matchedPublishedAt: String? = "2026-08-01T00:00:00Z",
         matchedIsPrerelease: Boolean = false,
+        storedAssetDigest: String? = null,
+        storedAssetSize: Long? = null,
+        matchedAssetDigest: String? = null,
+        matchedAssetSize: Long? = null,
     ): UpdateVerdict.Result =
         UpdateVerdict.decide(
             installed = UpdateVerdict.Installed(installedTag, installedVersionCode),
@@ -27,8 +31,17 @@ class UpdateVerdictTest {
                     latestVersionCode = storedLatestVersionCode,
                     publishedAt = storedPublishedAt,
                     wasUpdateAvailable = wasUpdateAvailable,
+                    latestAssetDigest = storedAssetDigest,
+                    latestAssetSize = storedAssetSize,
                 ),
-            matched = UpdateVerdict.Matched(matchedTag, matchedPublishedAt, matchedIsPrerelease),
+            matched =
+                UpdateVerdict.Matched(
+                    tag = matchedTag,
+                    publishedAt = matchedPublishedAt,
+                    isPrerelease = matchedIsPrerelease,
+                    assetDigest = matchedAssetDigest,
+                    assetSize = matchedAssetSize,
+                ),
             skippedTag = skippedTag,
         )
 
@@ -538,5 +551,77 @@ class UpdateVerdictTest {
                 storedLatestTag = "1.1.0",
             ),
         )
+    }
+
+    @Test
+    fun a_nightly_whose_asset_was_swapped_is_reported_again() {
+        // The same-tag rebuild that leaves `published_at` alone: same `nightly` tag, same
+        // publish time, and the package already installed from the previous build of it.
+        // Without the asset term nothing here moves, so it went unreported.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:bbbb",
+                matchedAssetSize = 70_543_755L,
+            )
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_nightly_that_was_not_rebuilt_anywhere_stays_quiet() {
+        // The guard on the same shape: nothing changed anywhere — tag, publish time and
+        // bytes all identical — so the scan must report nothing. This is the state a
+        // freshly installed nightly sits in, and re-reporting it was the bug.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_recreated_nightly_with_identical_bytes_still_reports_on_its_timestamp() {
+        // A re-created Release whose asset happens to be byte-identical (a re-run of the
+        // same build). The asset term says nothing, so the timestamp term has to carry it —
+        // the OR is not a replacement.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-25T02:00:00Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+            )
+        assertTrue(result.isUpdateAvailable)
     }
 }
