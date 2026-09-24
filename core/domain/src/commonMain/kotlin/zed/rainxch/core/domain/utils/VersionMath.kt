@@ -297,7 +297,15 @@ object VersionMath {
         // Presence, not parseability, decides the first-scan case: with no stored
         // baseline any non-null matched timestamp is the first observation. The
         // order comparison below is the part that needs absolute instants.
-        if (previousLatestPublishedAt == null && matchedPublishedAt != null) return true
+        //
+        // The baseline side is read with isNullOrBlank: the mapper writes a missing
+        // publish time as "" rather than null (ReleaseNetwork publishes
+        // `publishedAt ?: createdAt ?: ""`), and a blank baseline would otherwise pass
+        // for a real one — `isPublishedAtAfter(real, "")` cannot parse "" and so is
+        // always false, which would leave this row's timestamp signal dead for good.
+        // Blank on the *matched* side is deliberately still "present" (see
+        // "nightly_empty_matched_timestamp_counts_as_present").
+        if (previousLatestPublishedAt.isNullOrBlank() && matchedPublishedAt != null) return true
         val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
         // "The build behind this tag is not the one the baseline was taken from", asked
         // in two complementary ways: the object identities (authoritative where the host

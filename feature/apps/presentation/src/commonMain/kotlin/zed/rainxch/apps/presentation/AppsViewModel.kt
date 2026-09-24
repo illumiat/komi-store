@@ -1141,6 +1141,14 @@ class AppsViewModel(
                                 owner = app.repoOwner,
                                 repo = app.repoName,
                                 includePreReleases = app.includePreReleases,
+                                // Without this the lookup goes to GitHub for a repo that is
+                                // tracked on another host: it either finds nothing (so the
+                                // row cannot be updated at all) or finds a same-named repo
+                                // elsewhere, whose release then gets written over this
+                                // row's latest* fields while the identity columns still
+                                // describe the other host — and the next check reads that
+                                // mismatch as a new build.
+                                sourceHost = app.sourceHost,
                             )
                         } catch (e: CancellationException) {
                             throw e
