@@ -74,21 +74,28 @@ class UserSessionRepositoryImpl(
      * The entry is keyed by a fixed "profile:me" that outlives the token, and replacing
      * the token (logging in as another account) does not re-key it, so without this stamp
      * check a new account could be seeded from the previous account's cached profile.
-     * Stale is acceptable once the stamp matches.
      *
      * A stamp missing on either side means "owner unknown", not "somebody else": caches
      * written before this field existed must stay readable, otherwise upgrading would
      * blank the profile until the first successful fetch. Only two known, different
      * owners reject the cache.
+     *
+     * [allowStale] decides whether an expired entry may be served. A hot read must pass
+     * false: serving an expired row as a cache hit makes [getUser] return early and never
+     * refresh over the network for the whole TTL window. Only startup ([primeSession]) and
+     * the offline fallback in [getUser] pass true, where an old account beats a placeholder.
      */
-    private suspend fun ownedCachedProfile(token: GithubDeviceTokenSuccessDto): UserProfile? {
+    private suspend fun ownedCachedProfile(
+        token: GithubDeviceTokenSuccessDto,
+        allowStale: Boolean,
+    ): UserProfile? {
         val stored =
             cacheManager.get<String>(CACHE_OWNER_KEY)
-                ?: cacheManager.getStale<String>(CACHE_OWNER_KEY)
+                ?: if (allowStale) cacheManager.getStale<String>(CACHE_OWNER_KEY) else null
         val current = ownershipStamp(token)
         if (stored != null && current != null && stored != current) return null
         return cacheManager.get<UserProfile>(CACHE_KEY)
-            ?: cacheManager.getStale<UserProfile>(CACHE_KEY)
+            ?: if (allowStale) cacheManager.getStale<UserProfile>(CACHE_KEY) else null
     }
 
     // Identifies the token without being derivable from it: the moment the token was
@@ -110,7 +117,7 @@ class UserSessionRepositoryImpl(
         // Stale is acceptable here: showing yesterday's account beats showing a
         // placeholder, and the normal read replaces it moments later. Never the
         // network — startup must not wait on GitHub.
-        val profile = token?.let { ownedCachedProfile(it) }
+        val profile = token?.let { ownedCachedProfile(it, allowStale = true) }
         recordSession(token != null, profile)
     }
 
@@ -123,7 +130,9 @@ class UserSessionRepositoryImpl(
             return@flow
         }
 
-        val cached = ownedCachedProfile(token)
+        // Fresh-only: an expired row must not count as a cache hit, or getUser() would
+        // return here and never refresh over the network within the TTL window.
+        val cached = ownedCachedProfile(token, allowStale = false)
         if (cached != null) {
             logger.debug("Profile cache hit")
             if (isCurrentToken(token)) {
@@ -163,12 +172,12 @@ class UserSessionRepositoryImpl(
         } catch (e: Exception) {
             logger.error("Failed to fetch user profile: ${e.message}")
 
-            val stale = ownedCachedProfile(token)
-            if (stale != null) {
-                logger.debug("Using stale cached profile as fallback")
+            val fallback = ownedCachedProfile(token, allowStale = true)
+            if (fallback != null) {
+                logger.debug("Using cached profile as fallback")
                 if (isCurrentToken(token)) {
-                    recordSession(isLoggedIn = true, profile = stale)
-                    emit(stale)
+                    recordSession(isLoggedIn = true, profile = fallback)
+                    emit(fallback)
                 } else {
                     // Token gone mid-fallback: keep session signed-out, do not replay an
                     // old account's profile into the new signed-out first frame.
@@ -176,7 +185,14 @@ class UserSessionRepositoryImpl(
                 }
             } else {
                 if (isCurrentToken(token)) {
-                    recordSession(isLoggedIn = true, profile = null)
+                    // Do not downgrade a known account to (true, null): consumers read that
+                    // pair as "token present, account not read yet" and seed a placeholder,
+                    // so a single failed fetch would blank a signed-in user's first frame.
+                    // Keep the account we last recorded instead.
+                    val previous = _lastKnownSession?.takeIf { it.isLoggedIn }?.profile
+                    if (previous != null) {
+                        recordSession(isLoggedIn = true, profile = previous)
+                    }
                 }
                 emit(null)
             }

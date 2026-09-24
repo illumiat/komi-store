@@ -2,17 +2,18 @@ package zed.rainxch.githubstore
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import zed.rainxch.core.data.services.LocalizationManager
+import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.appearance.AccentId
 import zed.rainxch.core.domain.model.appearance.AppPersonality
 import zed.rainxch.core.domain.model.appearance.MangaPaperId
@@ -31,6 +32,7 @@ class MainViewModel(
     private val rateLimitRepository: RateLimitRepository,
     private val syncUseCase: SyncInstalledAppsUseCase,
     private val localizationManager: LocalizationManager,
+    private val logger: KomiStoreLogger,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MainState())
     val state = _state.asStateFlow()
@@ -43,33 +45,54 @@ class MainViewModel(
             try {
                 userSessionRepository.primeSession()
             } catch (e: CancellationException) {
-                // Not a failure: swallowing this would let the collector below run on a
-                // cancelled coroutine instead of ending with it.
+                // Not a failure: swallowing this would let the cancelled coroutine run on
+                // instead of ending with it.
                 throw e
             } catch (e: Exception) {
-                Logger.w(e) { "Session prime failed; continuing without it" }
+                logger.warn("Session prime failed; continuing without it: ${e.message}")
             }
             _state.update {
                 it.copy(
                     signedInAvatarUrl = userSessionRepository.lastKnownSession?.profile?.imageUrl,
                 )
             }
+        }
 
+        // Deliberately its own launch, not the one above: the login state must be observed
+        // even if the prime read never returns (a stalled store, a slow disk). Sharing a
+        // launch made the collector wait behind it, so a stuck prime meant a session that was
+        // never observed and rateLimitRepository.clear() that never fired on sign-in.
+        viewModelScope.launch(Dispatchers.IO) {
             userSessionRepository
                 .isUserLoggedIn()
                 .collect { isLoggedIn ->
+                    // The warm-up target belongs to whoever is signed in *now*: on a sign-out
+                    // it must go, or the next account's tab would warm the previous account's
+                    // avatar. The snapshot's own flag is checked as well, because between
+                    // accounts it still holds the previous account's profile until the new
+                    // one is read.
+                    var avatarUrl =
+                        if (isLoggedIn) {
+                            userSessionRepository.lastKnownSession
+                                ?.takeIf { it.isLoggedIn }
+                                ?.profile
+                                ?.imageUrl
+                        } else {
+                            null
+                        }
+
+                    if (isLoggedIn && avatarUrl == null) {
+                        // Signed in with no account read yet — a login in this process, or a
+                        // cold start with an empty profile cache. Nothing would warm, because
+                        // recordSession (which fills the profile) does not emit on the token
+                        // flow. getUser() records it, so read it once here.
+                        avatarUrl = userSessionRepository.getUser().first()?.imageUrl
+                    }
+
                     _state.update {
                         it.copy(
                             isLoggedIn = isLoggedIn,
-                            // The warm-up target belongs to whoever is signed in *now*: on a
-                            // sign-out it must go, or the next account's tab would warm the
-                            // previous account's avatar.
-                            signedInAvatarUrl =
-                                if (isLoggedIn) {
-                                    userSessionRepository.lastKnownSession?.profile?.imageUrl
-                                } else {
-                                    null
-                                },
+                            signedInAvatarUrl = avatarUrl,
                         )
                     }
 
@@ -96,7 +119,7 @@ class MainViewModel(
                 ) {
                     // Timed out before the language was read, so no locale is applied: the
                     // system default is the correct fallback and the gate opens on defaults.
-                    Logger.w { "Appearance preference load timed out, releasing gate on defaults" }
+                    logger.warn("Appearance preference load timed out, releasing gate on defaults")
                     _state.update { it.copy(isAppearanceLoaded = true) }
                 }
             }
@@ -127,7 +150,10 @@ class MainViewModel(
             } catch (e: Exception) {
                 // The stream failed before any language arrived, so no locale is applied here —
                 // the system default stays and only the gate is released.
-                Logger.w(e) { "Appearance preference stream failed, releasing gate on defaults" }
+                logger.error(
+                    "Appearance preference stream failed, releasing gate on defaults",
+                    e,
+                )
                 _state.update { it.copy(isAppearanceLoaded = true) }
                 firstEmitted.complete(Unit)
             }

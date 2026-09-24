@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.stringResource
+import zed.rainxch.core.presentation.ProfileAvatarSpec
 import zed.rainxch.core.presentation.components.GitHubStoreImage
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonSize
@@ -213,7 +214,7 @@ private fun HeroIdentityCard(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (state.userProfile == null) {
+            if (!state.isUserLoggedIn) {
                 SignedOutContent(onAction = onAction)
             } else {
                 SignedInContent(state = state, onAction = onAction)
@@ -288,7 +289,7 @@ private fun SignedInContent(
         GitHubStoreImage(
             imageModel = { profile.imageUrl },
             modifier = Modifier
-                .size(80.dp)
+                .size(ProfileAvatarSpec.Size)
                 .clip(RoundedCornerShape(shape.cornerSmall))
                 .background(colors.surfaceContainerHigh),
             showLoadingIndicator = false,

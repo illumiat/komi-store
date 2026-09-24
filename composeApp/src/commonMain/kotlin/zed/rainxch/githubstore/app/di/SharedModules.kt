@@ -15,6 +15,7 @@ val mainModule: Module =
                 syncUseCase = get(),
                 userSessionRepository = get(),
                 localizationManager = get(),
+                logger = get(),
             )
         }
     }

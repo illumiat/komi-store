@@ -12,10 +12,13 @@ interface UserSessionRepository {
     suspend fun isCurrentlyUserLoggedIn(): Boolean
 
     /**
-     * The most recent session observed in this process. Never null after the first read:
-     * once observed, the live state is always represented by a [SessionSnapshot], and a
-     * signed-out state is [SessionSnapshot.isLoggedIn] = false with a null profile rather
-     * than a null snapshot. Non-suspend, so a screen can seed its first frame from it.
+     * The most recent session observed in this process, or null until one has been observed.
+     * Once a session is observed the live state is always a [SessionSnapshot]: a signed-out
+     * state is [SessionSnapshot.isLoggedIn] = false with a null profile rather than a null
+     * snapshot. It stays null until the first successful observation, though — [primeSession]
+     * can fail, and [getUser] may never run in a session — so callers must treat null as
+     * "not known yet", not as "signed out". Non-suspend, so a screen can seed its first frame
+     * from it.
      */
     val lastKnownSession: SessionSnapshot?
 
