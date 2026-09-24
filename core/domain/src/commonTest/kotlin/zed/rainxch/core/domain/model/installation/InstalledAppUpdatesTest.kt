@@ -3,6 +3,7 @@ package zed.rainxch.core.domain.model.installation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import zed.rainxch.core.domain.utils.UpdateVerdict
 
@@ -325,6 +326,84 @@ class InstalledAppUpdatesTest {
             versionCode = 50L,
         )
         assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun withSkippedReleaseWritesTheSkipAndSuppressesTheFlagItNames() {
+        // Two zones on purpose: this is a declared cross-side owner. A skip naming the
+        // record's own snapshot has to bring the update flag down with it — confirmInstall
+        // has just recomputed that flag as "up" from the same snapshot, and left standing
+        // it would advertise the release the skip was written to stop offering.
+        val skipped = app().withSkippedRelease("2.0.0")
+        assertEquals("2.0.0", skipped.skippedReleaseTag)
+        assertFalse(skipped.isUpdateAvailable)
+        // everything else untouched
+        assertEquals("1.0.0", skipped.installedVersion)
+        assertEquals(100L, skipped.installedVersionCode)
+        assertEquals("2.0.0", skipped.latestVersion)
+        assertEquals(200L, skipped.latestVersionCode)
+        assertFalse(skipped.isPendingInstall)
+
+        // A skip naming a different release says nothing about this one.
+        val other = app().withSkippedRelease("3.0.0")
+        assertEquals("3.0.0", other.skippedReleaseTag)
+        assertTrue(other.isUpdateAvailable)
+
+        // A skip can only suppress, never raise.
+        val notAvailable = app(isUpdateAvailable = false).withSkippedRelease("3.0.0")
+        assertFalse(notAvailable.isUpdateAvailable)
+
+        // null is how a skip is released; it does not raise the flag either.
+        val released = app(isUpdateAvailable = false).withSkippedRelease("2.0.0").withSkippedRelease(null)
+        assertNull(released.skippedReleaseTag)
+        assertFalse(released.isUpdateAvailable)
+    }
+
+    @Test
+    fun confirmInstallThenWithSkippedReleaseKeepsBothWrites() {
+        // The repository's confirm path, in its real order: confirmInstall recomputes the
+        // flag from the snapshot the record still holds, then the skip overrides it.
+        val result =
+            app()
+                .confirmInstall(
+                    tag = "1.5.0",
+                    assetName = "app-1.5.0.apk",
+                    assetUrl = "https://dl/app-1.5.0.apk",
+                    versionName = "1.5.0",
+                    versionCode = 150L,
+                    signingFingerprint = "SHA",
+                    at = 3000L,
+                )
+                .withSkippedRelease("2.0.0")
+
+        assertEquals("1.5.0", result.installedVersion)
+        assertEquals(150L, result.installedVersionCode)
+        assertEquals("2.0.0", result.skippedReleaseTag)
+        // the snapshot the skip names is still the one the record compares against, and its
+        // code stays paired with it rather than following the build that landed
+        assertEquals("2.0.0", result.latestVersion)
+        assertEquals(200L, result.latestVersionCode)
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun confirmInstallAloneStillRaisesTheFlagForTheNewerSnapshot() {
+        // Without a skip the confirm path reports the release it did not reach: the
+        // suppression above is the skip's doing, not confirmInstall's.
+        val notSkipped =
+            app().confirmInstall(
+                tag = "1.5.0",
+                assetName = "app-1.5.0.apk",
+                assetUrl = "https://dl/app-1.5.0.apk",
+                versionName = "1.5.0",
+                versionCode = 150L,
+                signingFingerprint = "SHA",
+                at = 3000L,
+            )
+
+        assertTrue(notSkipped.isUpdateAvailable)
+        assertEquals(200L, notSkipped.latestVersionCode)
+        assertNull(notSkipped.skippedReleaseTag)
     }
 
     @Test

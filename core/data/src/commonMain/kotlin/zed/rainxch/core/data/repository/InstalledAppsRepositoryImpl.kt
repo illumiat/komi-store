@@ -572,6 +572,10 @@ class InstalledAppsRepositoryImpl(
                     isPending = isPendingInstall,
                     at = System.currentTimeMillis(),
                 )
+                // After confirmInstall, not before: the skip is the user's decision and
+                // outranks the flag confirmInstall recomputes from the record's own
+                // snapshot, so it applies last. Both writes still reach the database
+                // together, in one updateApp.
                 .withSkippedRelease(skippedReleaseTag)
                 .toEntity(),
         )

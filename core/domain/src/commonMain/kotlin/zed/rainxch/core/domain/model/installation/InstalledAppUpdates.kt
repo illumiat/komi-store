@@ -12,12 +12,18 @@ import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
 // check-zone fields latestAssetSize and latestReleasePublishedAt are owned by the
 // scan path (InstalledAppsRepositoryImpl.updateVersionInfo), not by this write
 // surface, so "its declared zone" below means each zone's integration fields, not
-// every field the zone owns. Three declared cross-side owners: the migrate zone
+// every field the zone owns. withSkippedRelease is the skip zone's only writer, and
+// the repository chains it after confirmInstall so the build that landed and the
+// skip decision that came with it reach the record in one write.
+// Four declared cross-side owners: the migrate zone
 // (one-time import normalizer owning both sides' version name/code, never tags,
 // flags, or assets), confirmInstall reconciling latestVersionCode to the installed
 // code — but only when the landed build actually reached the update target, and never
 // for a timestamp-tracked tag, whose snapshot is the only evidence the timestamp
-// branch has; otherwise the target is left intact — and observeExternalInstall
+// branch has; otherwise the target is left intact — withSkippedRelease bringing the
+// install zone's update flag down when the skip it writes names the release the
+// snapshot still points at (a skip is the user's decision and outranks the recomputed
+// flag), and observeExternalInstall
 // adopting the snapshot tag once the observed code proves the package is the snapshot
 // build (see the observe zone's own note).
 
@@ -252,3 +258,34 @@ fun InstalledApp.withLatestSnapshot(
     latestVersionName = versionName,
     latestVersionCode = versionCode,
 )
+
+// skip zone — the release the user asked to be left alone
+
+// A skip is keyed by tag, so the tag written here is the one a check must not offer
+// again, and null is how a skip is released. The repository chains this straight after
+// confirmInstall, which is what keeps the build that landed and the skip decision that
+// came with it in one write: a check that read the new installed tag without the
+// matching skip would offer back the release the install just superseded.
+//
+// It is also a declared cross-side owner of the install zone's flag, and that is the
+// point of it existing at all. confirmInstall recomputes the flag from the record's own
+// snapshot, which is right for an install and wrong for a skip: the snapshot still
+// names the release the update flag is drawn from, so a check that follows would keep
+// offering it. The skip is the user's decision and has to win, so when the tag written
+// here is the release the snapshot names, the flag comes down with it. A skip can only
+// suppress the flag, never raise it.
+//
+// The caller owns whether a skip is legitimate at all — a tag that names several builds
+// is not (the next build under that tag deserves to be shown), and updateAppVersion is
+// where that is judged. This stays a plain override so the rule lives in one place
+// rather than being half-enforced here.
+fun InstalledApp.withSkippedRelease(skippedReleaseTag: String?): InstalledApp =
+    copy(
+        skippedReleaseTag = skippedReleaseTag,
+        isUpdateAvailable =
+            if (VersionMath.isExactSameVersion(latestVersion, skippedReleaseTag)) {
+                false
+            } else {
+                isUpdateAvailable
+            },
+    )
