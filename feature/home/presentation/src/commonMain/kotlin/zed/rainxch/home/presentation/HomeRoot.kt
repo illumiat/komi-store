@@ -227,7 +227,7 @@ private fun HomeChartFeed(
     val cells =
         rememberWidthCappedStaggeredCells(
             contentPadding = gridPadding,
-            maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+            maxCardWidth = if (state.isGridLayout) CardGridSpec.ChartCompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
         )
 
     Column(
@@ -288,7 +288,7 @@ private fun HomeChartFeed(
                             onShareClick = { onAction(HomeAction.OnShareClick(card.rawRepository)) },
                             onLongPress = { onAction(HomeAction.OnRepoLongClick(card.id)) },
                             rank = if (state.selectedChart == ChartTab.Popular) index + 1 else 1,
-                            feed = if (state.isGridLayout) KomiRepoCardFeed.Plain else state.selectedChart.toFeed(),
+                            feed = state.selectedChart.toFeed(),
                             compact = state.isGridLayout,
                             modifier = Modifier.fillMaxWidth().animateItem(),
                         )

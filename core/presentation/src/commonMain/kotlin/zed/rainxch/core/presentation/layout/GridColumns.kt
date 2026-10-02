@@ -34,6 +34,7 @@ fun gridColumnCount(
 object CardGridSpec {
     val InfoMaxCardWidth: Dp = 550.dp
     val CompactMaxCardWidth: Dp = 260.dp
+    val ChartCompactMaxCardWidth: Dp = 420.dp
     val GridSpacing: Dp = 10.dp
 
     val GridArrangement: Arrangement.Horizontal = Arrangement.spacedBy(GridSpacing)
