@@ -218,7 +218,15 @@ private fun ClassicTopBar(
         }
     }
     val navigationIcon: @Composable () -> Unit = { leading?.invoke() }
-    val actionsContent: @Composable RowScope.() -> Unit = actions ?: {}
+    val actionsContent: @Composable RowScope.() -> Unit = {
+        actions?.let {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                content = it,
+            )
+        }
+    }
 
     if (centerTitle) {
         CenterAlignedTopAppBar(

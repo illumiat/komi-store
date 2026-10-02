@@ -1,10 +1,8 @@
 package zed.rainxch.feed.presentation
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,10 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -36,7 +37,10 @@ import zed.rainxch.core.domain.model.repository.DiscoveryPlatform
 import zed.rainxch.core.domain.model.repository.FeedCategory
 import zed.rainxch.core.presentation.components.bars.KomiTopBar
 import zed.rainxch.core.presentation.components.buttons.KomiButton
+import zed.rainxch.core.presentation.components.buttons.KomiButtonSize
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
+import zed.rainxch.core.presentation.components.buttons.KomiIconButtonSize
+import zed.rainxch.core.presentation.components.buttons.RepoLayoutToggle
 import zed.rainxch.core.presentation.components.cards.DiscoveryRepoCard
 import zed.rainxch.core.presentation.components.cards.KomiRepoCardFeed
 import zed.rainxch.core.presentation.components.dividers.KomiHorizontalDivider
@@ -44,6 +48,7 @@ import zed.rainxch.core.presentation.components.overlays.KomiToastState
 import zed.rainxch.core.presentation.components.overlays.rememberKomiToastState
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
+import zed.rainxch.core.presentation.components.refresh.drivesPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
@@ -51,10 +56,11 @@ import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.personality.usesDecor
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
-import zed.rainxch.core.presentation.utils.constrainedContentWidth
+import zed.rainxch.core.presentation.utils.toIcon
 import zed.rainxch.core.presentation.utils.toLabel
+import zed.rainxch.core.presentation.layout.CardGridSpec
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.feed.presentation.components.FeedCategoryStrip
-import zed.rainxch.feed.presentation.components.FeedPlatformBar
 import zed.rainxch.feed.presentation.components.FeedPlatformPicker
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.feed_empty_reset
@@ -67,6 +73,7 @@ import zed.rainxch.githubstore.core.presentation.res.feed_masthead_subtitle
 import zed.rainxch.githubstore.core.presentation.res.feed_masthead_title
 import zed.rainxch.githubstore.core.presentation.res.feed_masthead_title_accent
 import zed.rainxch.githubstore.core.presentation.res.feed_offline
+import zed.rainxch.githubstore.core.presentation.res.feed_platform_all
 import zed.rainxch.githubstore.core.presentation.res.home_retry
 
 @Composable
@@ -78,7 +85,7 @@ fun FeedRoot(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val toastState = rememberKomiToastState()
-    val listState = rememberLazyListState()
+    val listState = rememberLazyStaggeredGridState()
     val coroutineScope = rememberCoroutineScope()
 
     ObserveAsEvents(viewModel.events) { event ->
@@ -103,18 +110,17 @@ fun FeedRoot(
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FeedScreen(
     state: FeedState,
     toastState: KomiToastState,
-    listState: LazyListState,
+    listState: LazyStaggeredGridState,
     onAction: (FeedAction) -> Unit,
 ) {
     val reachedEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
-            val lastIndex = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val lastIndex = info.visibleItemsInfo.maxOfOrNull { it.index } ?: -1
             lastIndex >= info.totalItemsCount - 4
         }
     }
@@ -131,6 +137,24 @@ private fun FeedScreen(
                 title = stringResource(Res.string.feed_masthead_title),
                 titleAccent = stringResource(Res.string.feed_masthead_title_accent),
                 subtitle = if (LocalPersonality.current.usesDecor) stringResource(Res.string.feed_masthead_subtitle) else null,
+                actions = {
+                    RepoLayoutToggle(
+                        isGridLayout = state.isGridLayout,
+                        onToggle = { onAction(FeedAction.OnToggleGridLayout) },
+                        size = KomiIconButtonSize.Sm,
+                    )
+
+                    val platform = state.selectedPlatform
+                    KomiButton(
+                        onClick = { onAction(FeedAction.OnPlatformPickerOpen) },
+                        label = if (platform == DiscoveryPlatform.All) stringResource(Res.string.feed_platform_all) else platform.toLabel(),
+                        variant = KomiButtonVariant.Primary,
+                        size = KomiButtonSize.Sm,
+                        leadingIcon = if (platform == DiscoveryPlatform.All) null else platform.toIcon(),
+                        trailingIcon = Icons.Rounded.KeyboardArrowDown,
+                        modifier = Modifier.padding(end = 12.dp),
+                    )
+                },
             )
         },
         toastState = toastState,
@@ -150,17 +174,12 @@ private fun FeedScreen(
                 )
             }
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            ) {
-                FeedContent(
-                    listState = listState,
-                    state = state,
-                    onAction = onAction,
-                )
-            }
+            FeedContent(
+                listState = listState,
+                state = state,
+                onAction = onAction,
+                modifier = Modifier.padding(innerPadding),
+            )
         }
     }
 
@@ -174,111 +193,124 @@ private fun FeedScreen(
 }
 
 @Composable
-private fun BoxScope.FeedContent(
-    listState: LazyListState,
+private fun FeedContent(
+    listState: LazyStaggeredGridState,
     state: FeedState,
     onAction: (FeedAction) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val isManga = LocalPersonality.current is MangaPersonality
+    val gridPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp)
+    val cells =
+        rememberWidthCappedStaggeredCells(
+            contentPadding = gridPadding,
+            maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+        )
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier
-            .constrainedContentWidth()
-            .fillMaxSize()
-            .align(Alignment.TopCenter),
-        contentPadding = PaddingValues(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+    Column(
+        modifier = modifier
+            .fillMaxSize(),
     ) {
         if (!isDesktop()) {
-            stickyHeader(key = "feed_controls", contentType = "controls") {
-                Column(modifier = Modifier.fillMaxWidth().background(colors.background)) {
-                    FeedPlatformBar(
-                        platform = state.selectedPlatform,
-                        onOpenPicker = { onAction(FeedAction.OnPlatformPickerOpen) },
-                    )
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(colors.background)
+                        .padding(top = 6.dp)
+                        .drivesPullToRefresh(),
+            ) {
+                FeedCategoryStrip(
+                    categories = state.categories,
+                    selected = state.selectedCategory,
+                    onSelect = { onAction(FeedAction.OnCategorySelected(it)) },
+                )
 
-                    FeedCategoryStrip(
-                        categories = state.categories,
-                        selected = state.selectedCategory,
-                        onSelect = { onAction(FeedAction.OnCategorySelected(it)) },
-                    )
-
-                    if (isManga) {
-                        KomiHorizontalDivider(thickness = 3.dp, color = colors.outline)
-                    }
+                if (isManga) {
+                    KomiHorizontalDivider(thickness = 3.dp, color = colors.outline)
                 }
             }
         }
 
-        when {
-            state.isLoading && state.repos.isEmpty() -> {
-                item(key = "feed_loading") { FeedLoading() }
-            }
-
-            state.errorMessage != null && state.repos.isEmpty() -> {
-                item(key = "feed_error") {
-                    FeedError(
-                        message = state.errorMessage,
-                        onRetry = { onAction(FeedAction.OnRetry) },
-                    )
+        LazyVerticalStaggeredGrid(
+            columns = cells,
+            state = listState,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = gridPadding,
+            verticalItemSpacing = CardGridSpec.GridItemSpacing,
+            horizontalArrangement = CardGridSpec.GridArrangement,
+        ) {
+            when {
+                state.isLoading && state.repos.isEmpty() -> {
+                    item(key = "feed_loading", span = StaggeredGridItemSpan.FullLine) { FeedLoading() }
                 }
-            }
 
-            else -> {
-                if (state.isOffline) {
-                    item(key = "feed_offline") {
-                        KomiText(
-                            text = stringResource(Res.string.feed_offline),
-                            role = KomiTextRole.Label,
-                            color = colors.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 2.dp),
+                state.errorMessage != null && state.repos.isEmpty() -> {
+                    item(key = "feed_error", span = StaggeredGridItemSpan.FullLine) {
+                        FeedError(
+                            message = state.errorMessage,
+                            onRetry = { onAction(FeedAction.OnRetry) },
                         )
                     }
                 }
 
-                if (state.repos.isEmpty()) {
-                    item(key = "feed_empty") {
-                        FeedEmpty(
-                            category = state.selectedCategory,
-                            platform = state.selectedPlatform,
-                            onReset = { onAction(FeedAction.OnResetFilters) },
-                        )
-                    }
-                } else {
-                    items(state.repos, key = { "feed_${it.repository.id}" }) { card ->
-                        DiscoveryRepoCard(
-                            discoveryRepositoryUi = card,
-                            onClick = { onAction(FeedAction.OnRepoClick(card.repository)) },
-                            onShareClick = { onAction(FeedAction.OnShareClick(card.repository)) },
-                            onHideClick = { onAction(FeedAction.OnHideRepository(card.repository)) },
-                            onToggleSeen = {
-                                if (card.isSeen) {
-                                    onAction(FeedAction.OnMarkAsUnseen(card.repository.id))
-                                } else {
-                                    onAction(FeedAction.OnMarkAsSeen(card.repository))
-                                }
-                            },
-                            feed = KomiRepoCardFeed.Release,
-                            modifier = Modifier.fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .animateItem(),
-                        )
-                    }
-
-                    if (state.isLoadingMore) {
-                        item(key = "feed_loading_more") {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                KomiCircularProgress(modifier = Modifier.size(28.dp))
-                            }
+                else -> {
+                    if (state.isOffline) {
+                        item(key = "feed_offline", span = StaggeredGridItemSpan.FullLine) {
+                            KomiText(
+                                text = stringResource(Res.string.feed_offline),
+                                role = KomiTextRole.Label,
+                                color = colors.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                            )
                         }
-                    } else if (!state.hasMore) {
-                        item(key = "feed_end_cap") { FeedEndCap() }
+                    }
+
+                    if (state.repos.isEmpty()) {
+                        item(key = "feed_empty", span = StaggeredGridItemSpan.FullLine) {
+                            FeedEmpty(
+                                category = state.selectedCategory,
+                                platform = state.selectedPlatform,
+                                onReset = { onAction(FeedAction.OnResetFilters) },
+                            )
+                        }
+                    } else {
+                        items(
+                            state.repos,
+                            key = { card -> "feed_${card.repository.id}" },
+                        ) { card ->
+                            DiscoveryRepoCard(
+                                discoveryRepositoryUi = card,
+                                onClick = { onAction(FeedAction.OnRepoClick(card.repository)) },
+                                onShareClick = { onAction(FeedAction.OnShareClick(card.repository)) },
+                                onHideClick = { onAction(FeedAction.OnHideRepository(card.repository)) },
+                                onToggleSeen = {
+                                    if (card.isSeen) {
+                                        onAction(FeedAction.OnMarkAsUnseen(card.repository.id))
+                                    } else {
+                                        onAction(FeedAction.OnMarkAsSeen(card.repository))
+                                    }
+                                },
+                                feed = if (state.isGridLayout) KomiRepoCardFeed.Plain else KomiRepoCardFeed.Release,
+                                compact = state.isGridLayout,
+                                modifier = Modifier.fillMaxWidth().animateItem(),
+                            )
+                        }
+
+                        if (state.isLoadingMore) {
+                            item(key = "feed_loading_more", span = StaggeredGridItemSpan.FullLine) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    KomiCircularProgress(modifier = Modifier.size(28.dp))
+                                }
+                            }
+                        } else if (!state.hasMore) {
+                            item(key = "feed_end_cap", span = StaggeredGridItemSpan.FullLine) { FeedEndCap() }
+                        }
                     }
                 }
             }

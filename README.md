@@ -7,21 +7,21 @@
 </div>
 
 <p align="center">
- <a href="https://github.com/kurikomi-labs/komi-store/releases/latest">
-  <img src="https://api.github-store.org/v1/badge/kurikomi-labs/komi-store/downloads/5/2?label=Downloads%20:" alt="Downloads"/>
+ <a href="https://github.com/komi-store/komi-store/releases/latest">
+  <img src="https://api.github-store.org/v1/badge/komi-store/komi-store/downloads/5/2?label=Downloads%20:" alt="Downloads"/>
 </a>
-<a href="https://github.com/kurikomi-labs/komi-store/stargazers">
-  <img src="https://m3-markdown-badges.vercel.app/stars/3/2/OpenHub-Store/GitHub-Store" alt="Stars"/>
+<a href="https://github.com/komi-store/komi-store/stargazers">
+  <img src="https://m3-markdown-badges.vercel.app/stars/3/2/komi-store/komi-store" alt="Stars"/>
 </a>
-<a href="https://github.com/kurikomi-labs/komi-store/releases/latest">
-  <img src="https://api.github-store.org/v1/badge/kurikomi-labs/komi-store/release/9/1?label=Latest%20version%20:" alt="Latest release"/>
+<a href="https://github.com/komi-store/komi-store/releases/latest">
+  <img src="https://api.github-store.org/v1/badge/komi-store/komi-store/release/9/1?label=Latest%20version%20:" alt="Latest release"/>
 </a>
 </p>
 
 <table align="center">
   <tr>
     <td>
-      <a href="https://trendshift.io/repositories/22313" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22313" alt="kurikomi-labs%2Fkomi-store | Trendshift" width="250" height="55" /></a>
+      <a href="https://trendshift.io/repositories/22313" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22313" alt="komi-store%2Fkomi-store | Trendshift" width="250" height="55" /></a>
     </td>
     <td>
       <a href="https://hellogithub.com/en/repository/kurikomi-labs/komi-store" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=a95f4a4830bc4a69b56f96ac7efaacf8&claim_uid=sOz1lfiG4ARQYIK&theme=dark" alt="Featured｜HelloGitHub" width="250" height="54" /></a>
@@ -61,7 +61,7 @@ Komi Store is a cross-platform app store for GitHub releases, designed to simpli
 ### Download
 
 <p>
-  <a href="https://github.com/kurikomi-labs/komi-store/releases">
+  <a href="https://github.com/komi-store/komi-store/releases">
     <img src="https://i.ibb.co/q0mdc4Z/get-it-on-github.png" height="80" alt="Get it on GitHub" />
   </a>
   <a href="https://f-droid.org/en/packages/zed.rainxch.githubstore/">
@@ -75,8 +75,8 @@ Komi Store is a cross-platform app store for GitHub releases, designed to simpli
 **Scoop**
 
 ```powershell
-scoop bucket add scoop-bucket https://github.com/OpenHub-Store/scoop-bucket
-scoop install scoop-bucket/github-store
+scoop bucket add komi-store https://github.com/komi-store/komi-store-scoop-bucket
+scoop install komi-store/komi-store
 ```
 
 **WinGet**
@@ -91,8 +91,8 @@ winget install zed.rainxch.githubstore
 **Homebrew**
 
 ```bash
-brew tap OpenHub-Store/tap
-brew install --cask github-store
+brew tap komi-store/komi-store
+brew install --cask komi-store
 ```
 ---
 
@@ -111,10 +111,71 @@ brew install --cask github-store
 
 ---
 
+### Team
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <a href="https://github.com/rainxchzed">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://wsrv.nl/?url=github.com%2Frainxchzed.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=0d1117&maxage=7d" />
+          <img src="https://wsrv.nl/?url=github.com%2Frainxchzed.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=ffffff&maxage=7d" width="110" alt="rainxchzed" />
+        </picture>
+      </a>
+      <br />
+      <a href="https://github.com/rainxchzed"><b>rainxchzed</b></a>
+      <br />
+      <img src="https://img.shields.io/badge/Creator-3D4654?style=flat-square" alt="Creator" />
+    </td>
+    <td align="center">
+      <a href="https://github.com/illumiat">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://wsrv.nl/?url=github.com%2Fillumiat.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=0d1117&maxage=7d" />
+          <img src="https://wsrv.nl/?url=github.com%2Fillumiat.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=ffffff&maxage=7d" width="110" alt="illumiat" />
+        </picture>
+      </a>
+      <br />
+      <a href="https://github.com/illumiat"><b>illumiat</b></a>
+      <br />
+      <img src="https://img.shields.io/badge/Maintainer-3D4654?style=flat-square" alt="Maintainer" />
+    </td>
+    <td align="center">
+      <a href="https://github.com/KelvinCrag">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://wsrv.nl/?url=github.com%2FKelvinCrag.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=0d1117&maxage=7d" />
+          <img src="https://wsrv.nl/?url=github.com%2FKelvinCrag.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=ffffff&maxage=7d" width="110" alt="KelvinCrag" />
+        </picture>
+      </a>
+      <br />
+      <a href="https://github.com/KelvinCrag"><b>KelvinCrag</b></a>
+      <br />
+      <img src="https://img.shields.io/badge/Maintainer-3D4654?style=flat-square" alt="Maintainer" />
+    </td>
+    <td align="center">
+      <a href="https://github.com/YumeYuka">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://wsrv.nl/?url=github.com%2FYumeYuka.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=0d1117&maxage=7d" />
+          <img src="https://wsrv.nl/?url=github.com%2FYumeYuka.png%3Fsize%3D400&precrop=true&cx=32&cy=32&cw=336&ch=336&w=220&h=220&fit=cover&mask=circle&mbg=ffffff&maxage=7d" width="110" alt="YumeYuka" />
+        </picture>
+      </a>
+      <br />
+      <a href="https://github.com/YumeYuka"><b>YumeYuka</b></a>
+      <br />
+      <img src="https://img.shields.io/badge/Maintainer-3D4654?style=flat-square" alt="Maintainer" />
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <sub>Maintainers are listed in alphabetical order.</sub>
+</p>
+
+---
+
 ### Join Community
 
 <p align="center">
-  <a href="https://discord.github-store.org"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+  <a href="https://discord.komistore.app"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
   <a href="https://t.me/komistoreapp"><img src="https://img.shields.io/badge/Telegram%20Channel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Channel" /></a>
   <a href="https://t.me/komistore_discussion"><img src="https://img.shields.io/badge/Telegram%20Group-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Group" /></a>
 </p>

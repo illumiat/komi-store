@@ -26,4 +26,5 @@ data class HomeState(
     ),
     val isPlatformPopupVisible: Boolean = false,
     val actionSheetCard: HomeRepoCardUi? = null,
+    val isGridLayout: Boolean = false,
 )

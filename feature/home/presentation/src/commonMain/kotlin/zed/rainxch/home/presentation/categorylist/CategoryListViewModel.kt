@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
+import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.failed_to_load
 import zed.rainxch.home.domain.model.HomeCategory
@@ -22,6 +23,7 @@ import zed.rainxch.home.presentation.model.toHomeRepoCardUi
 class CategoryListViewModel(
     private val category: HomeCategory,
     private val homeRepository: HomeRepository,
+    private val tweaksRepository: TweaksRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CategoryListState(category = category))
@@ -34,6 +36,11 @@ class CategoryListViewModel(
 
     init {
         loadPage(initial = true)
+        viewModelScope.launch {
+            tweaksRepository.getRepoGridLayout().collect { grid ->
+                _state.update { it.copy(isGridLayout = grid) }
+            }
+        }
     }
 
     fun onAction(action: CategoryListAction) {
@@ -55,6 +62,11 @@ class CategoryListViewModel(
                 _events.send(CategoryListEvent.NavigateToDetails(action.repoId))
             }
             CategoryListAction.OnNavigateBack -> Unit
+            CategoryListAction.OnToggleGridLayout -> {
+                val grid = !_state.value.isGridLayout
+                _state.update { it.copy(isGridLayout = grid) }
+                viewModelScope.launch { tweaksRepository.setRepoGridLayout(grid) }
+            }
         }
     }
 

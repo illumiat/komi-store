@@ -107,6 +107,7 @@ class SearchViewModel(
                     observeSeenRepos()
                     observeHiddenRepos()
                     observeHideSeenEnabled()
+                    observeRepoGridLayout()
                     observeCustomForgeHosts()
                     observeClipboardSetting()
                     observeSearchHistory()
@@ -170,6 +171,14 @@ class SearchViewModel(
                                 }.toImmutableList(),
                     )
                 }
+            }
+        }
+    }
+
+    private fun observeRepoGridLayout() {
+        viewModelScope.launch {
+            tweaksRepository.getRepoGridLayout().collect { grid ->
+                _state.update { it.copy(isGridLayout = grid) }
             }
         }
     }
@@ -710,6 +719,12 @@ class SearchViewModel(
                 viewModelScope.launch {
                     _events.send(SearchEvent.NavigateToRepo(action.owner, action.repo))
                 }
+            }
+
+            SearchAction.OnToggleGridLayout -> {
+                val grid = !_state.value.isGridLayout
+                _state.update { it.copy(isGridLayout = grid) }
+                viewModelScope.launch { tweaksRepository.setRepoGridLayout(grid) }
             }
 
             SearchAction.OnFabClick -> {
