@@ -112,17 +112,11 @@ private fun scrollbarStyle(): androidx.compose.foundation.ScrollbarStyle =
 
 private class GridScrollbarAdapterBase(
     private val totalItemsCount: () -> Int,
-
     private val firstVisibleIndex: () -> Int?,
-
     private val firstVisibleOffsetY: () -> Int,
-
     private val estimateContentSize: () -> Float,
-
     private val scrollToItem: suspend (Int) -> Unit,
-
     private val scrollByPixels: (Float) -> Unit,
-
     private val measureResult: () -> Any,
 ) : ScrollbarAdapter {
     private var cachedMeasureResult: Any? = null
