@@ -131,7 +131,7 @@ private fun CategoryListScreen(
                     columns =
                         rememberWidthCappedStaggeredCells(
                             contentPadding = gridPadding,
-                            maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+                            maxCardWidth = if (state.isGridLayout) CardGridSpec.ChartCompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
                         ),
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -148,7 +148,7 @@ private fun CategoryListScreen(
                             onClick = { onAction(CategoryListAction.OnRepoClick(card.id)) },
                             onShareClick = { },
                             rank = index + 1,
-                            feed = if (state.category == HomeCategory.MOST_POPULAR && !state.isGridLayout) {
+                            feed = if (state.category == HomeCategory.MOST_POPULAR) {
                                 KomiRepoCardFeed.Popular
                             } else {
                                 KomiRepoCardFeed.Plain
