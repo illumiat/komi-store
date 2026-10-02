@@ -15,19 +15,8 @@ data class InstalledApp(
     val latestAssetName: String?,
     val latestAssetUrl: String?,
     val latestAssetSize: Long?,
-    /**
-     * Identity of the release and asset the latest snapshot was taken from. For a tag
-     * that names many builds (`nightly`) this — not `latestVersion` — is what tells one
-     * build from the next, and it is what a check compares to decide whether the release
-     * the tag points at has been replaced. Null on rows written before identities were
-     * stored, which the check reads as "not recorded" and falls back to the publish time.
-     */
     val latestReleaseId: Long? = null,
     val latestAssetId: Long? = null,
-    /**
-     * Digest of the asset the latest snapshot was taken from — the content fallback for
-     * a host that supplies no asset id. Null when the host supplied none.
-     */
     val latestAssetDigest: String? = null,
     val appName: String,
     val installSource: InstallSource,

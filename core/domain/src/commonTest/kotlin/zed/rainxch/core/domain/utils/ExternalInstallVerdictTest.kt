@@ -6,7 +6,6 @@ import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
 
 class ExternalInstallVerdictTest {
-
     private fun app(
         latestVersion: String? = "nightly",
         latestVersionName: String? = "nightly",
@@ -45,12 +44,6 @@ class ExternalInstallVerdictTest {
 
     @Test
     fun a_nightly_is_not_called_outdated_by_its_own_tag() {
-        // The scan path stores the *tag* in latestVersionName, so for a nightly app the
-        // column holds "nightly" while the installed build's versionName is a plain
-        // number. Comparing the two used to fall back to string order, where digits sort
-        // below letters — so a device whose installed build IS the latest one came back
-        // as UPDATE_AVAILABLE. Neither field can answer the question on its own, so the
-        // verdict must be UNKNOWN and let the caller decide.
         assertEquals(
             VersionVerdict.UNKNOWN,
             resolveExternalInstallVerdict(
@@ -83,7 +76,6 @@ class ExternalInstallVerdictTest {
 
     @Test
     fun codes_still_take_priority_when_both_sides_have_one() {
-        // The versionCode branch answers first and is untouched by the guard above.
         assertEquals(
             VersionVerdict.UPDATE_AVAILABLE,
             resolveExternalInstallVerdict(

@@ -257,15 +257,6 @@ class InstalledAppsRepositoryImpl(
         return null
     }
 
-    // Transient-failure bookkeeping: regular repositories clear the stored
-    // snapshot (self-heal); a timestamp-tracked (opaque-marker or hash-tail) flag
-    // survives, since clearing it drops latestReleasePublishedAt and the
-    // next scan would re-report the same release from a null baseline. "Timestamp
-    // tracked" is judged on either side of the pair, and includes the pairs
-    // UpdateVerdict routes to its timestamp branch because they cannot be compared
-    // numerically at all (see VersionMath.shouldRetainSnapshotBaseline) — judging on
-    // the stored tag alone missed those. Both paths still record lastCheckedAt so
-    // retry pacing and the "last checked" UI keep working.
     private suspend fun recordTransientFailure(
         installedTag: String?,
         storedLatestTag: String?,
@@ -279,32 +270,15 @@ class InstalledAppsRepositoryImpl(
         }
     }
 
-    // The check fetched releases successfully but none matched (asset filter, variant,
-    // no installable asset). That is a deterministic state, not a transient failure:
-    // keeping the flag would freeze a badge that will not clear by itself, so it is
-    // lowered — but the latestReleasePublishedAt baseline is kept, because clearing it
-    // would drop the timestamp branch back to a null baseline and re-announce the same
-    // release on the next scan.
     private suspend fun recordUnmatchedRelease(packageName: String) {
         installedAppsDao.clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
     }
 
-    // Sole legitimate installed-tag rewrite: the verdict already proved the
-    // package really is that build (versionCode matches), only the stored tag
-    // drifted from the release tag. Column-level DAO write on purpose — the
-    // `app` snapshot is stale after updateVersionInfo above, so a whole-row
-    // write would revert the latest*/isUpdateAvailable fields just computed.
     private suspend fun adoptMatchedTag(
         app: InstalledAppEntity,
         matchedTag: String,
         isUpdateAvailable: Boolean,
     ) {
-        // Preserve the verdict already computed by UpdateVerdict.decide. When the
-        // matched tag is an opaque (nightly) marker re-published with a newer
-        // publishedAt, `usedTimestampLogic` evaluates before `codesAlreadyMatch`
-        // and the verdict can legitimately be `true` even though the versionCode
-        // already matches. Hard-coding `false` here would wipe that correct
-        // "update available" result, so we forward the verdict's own value.
         installedAppsDao.updateInstalledVersion(
             packageName = app.packageName,
             installedVersion = matchedTag,
@@ -423,10 +397,6 @@ class InstalledAppsRepositoryImpl(
                 assetName = primaryAsset.name,
                 assetUrl = primaryAsset.downloadUrl,
                 assetSize = primaryAsset.size,
-                // The identity of whatever release was just matched, in the same write that
-                // moves the tag: next scan compares the release and asset it finds against
-                // these. Written unconditionally because they describe the matched release,
-                // not the previously stored tag.
                 releaseId = matchedRelease.id,
                 assetId = primaryAsset.id,
                 assetDigest = primaryAsset.digest,

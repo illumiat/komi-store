@@ -272,11 +272,6 @@ class GithubStoreApp : Application() {
                 return
             }
             repo.updateApp(
-                // The guard above proved the package is the snapshot build (system code ==
-                // stored installed code == snapshot code), so adopting the tag is valid.
-                // The flag is forwarded, not cleared: the same code under a
-                // timestamp-tracked tag can be a new build, so a stored true is a real
-                // verdict and hard-coding false would wipe it (see normalizeInstalledTag).
                 existing.normalizeInstalledTag(
                     tag = latestTag,
                     isUpdateAvailable = existing.isUpdateAvailable,
@@ -296,12 +291,6 @@ class GithubStoreApp : Application() {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName)
             if (systemInfo != null) {
-                // Adopt the target tag only when the system code proves the install reached
-                // it. A cancelled dialog (or a silent failure) leaves systemInfo describing
-                // the old package; stamping the target tag then makes the next sameTag
-                // comparison read equal and silently drops the still-pending update. Same
-                // criterion as SyncInstalledAppsUseCase.resolvePending and
-                // resolvePendingFromSystem.
                 val targetCode = existing.latestVersionCode ?: 0L
                 val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
                 val resolvedTag =
@@ -318,10 +307,6 @@ class GithubStoreApp : Application() {
                         versionCode = systemInfo.versionCode,
                     ),
                 )
-                // resolvePendingFromSystem flips the flag only; the parked file metadata
-                // would otherwise linger and the UI, which reads pendingInstallFilePath as
-                // "ready to install", keeps offering the stale APK. Sibling resolvers
-                // (SyncInstalledAppsUseCase.resolvePending, PackageEventReceiver) clear it too.
                 repo.setPendingInstallFilePath(packageName, path = null)
                 Logger.i {
                     "Resolved self-update pending install: ${systemInfo.versionName} (code=${systemInfo.versionCode}, tag=$resolvedTag)"

@@ -175,14 +175,6 @@ class PackageEventReceiver() :
                                     versionName = systemInfo.versionName,
                                     versionCode = systemInfo.versionCode,
                                 )
-                            // Monotonic: the package was replaced but did not reach the
-                            // target, and the code-only comparison inside
-                            // resolvePendingFromSystem can read false while the snapshot
-                            // still names a build the user has not got — latestVersionCode
-                            // null after a tag drift, or a reused nightly that keeps its
-                            // code. Never lower the flag here (leave the real verdict to
-                            // the next checkForUpdates) so a visible update is not silently
-                            // dropped.
                             repo.updateApp(
                                 if (resolved.isUpdateAvailable || app.isUpdateAvailable) {
                                     resolved
@@ -288,20 +280,6 @@ class PackageEventReceiver() :
         getBackstopScope().launch {
             try {
                 repo.checkForUpdates(packageName)
-                // Replay the observation-based verdict over the snapshot the check just
-                // refreshed. checkForUpdates derives its flag from the *stored* installed
-                // tag, which an external install leaves stale (updateInstalledVersion above
-                // writes the tag back unchanged) and from a latestVersionCode it may just
-                // have cleared on a tag drift; under those inputs its
-                // isVersionNewer(staleTag, matchedTag) fallback re-raises the flag this
-                // handler had correctly cleared, and adoptMatchedTag's gate never opens
-                // again. The replayed verdict is grounded in the system package — code
-                // first, version name second — so a drifting tag cannot mislead it, and it
-                // keeps latestVersionCode (hence the tag-adoption gate) alive. Replaying is
-                // also less fragile than threading systemInfo.versionCode into
-                // checkForUpdates, which would have spread the contract across the
-                // repository interface and every other caller for a fix that belongs to
-                // this one observation.
                 val refreshed = repo.getAppByPackage(packageName)
                 if (refreshed != null) {
                     repo.updateInstalledVersion(

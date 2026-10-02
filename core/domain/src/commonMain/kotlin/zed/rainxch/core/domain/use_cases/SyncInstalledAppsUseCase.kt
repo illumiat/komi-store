@@ -189,13 +189,6 @@ class SyncInstalledAppsUseCase(
     private suspend fun resolvePending(app: InstalledApp, systemInfo: SystemPackageInfo?) {
         try {
             if (systemInfo != null) {
-                // Adopt the target tag only when the system code proves the install reached
-                // it. A cancelled dialog (or a silent failure) leaves systemInfo describing
-                // the old package; stamping the target tag would leave installedVersionCode
-                // on the old code while installedVersion claims the target, and the next
-                // sameTag comparison would then read equal and silently drop the
-                // still-pending update. Same criterion as GithubStoreApp and
-                // resolvePendingFromSystem.
                 val targetCode = app.latestVersionCode ?: 0L
                 val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
                 val resolvedTag =
@@ -266,11 +259,6 @@ class SyncInstalledAppsUseCase(
 
     private suspend fun syncVersion(app: InstalledApp, systemInfo: SystemPackageInfo?) {
         try {
-            // installedVersion is the GitHub release tag and is owned by install
-            // events. This sync never writes it directly: it refreshes only the
-            // versionName/versionCode observed from the system, and leaves the tag
-            // to observeExternalInstall, which adopts the snapshot tag on its own
-            // evidence — the observed code is the build that snapshot names.
             if (systemInfo != null && systemInfo.versionCode != app.installedVersionCode) {
                 val wasDowngrade = systemInfo.versionCode < app.installedVersionCode
 

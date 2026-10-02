@@ -6,7 +6,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class VersionMathTest {
-
     @Test
     fun normalize_preserves_opaque_marker_tags() {
         assertEquals("nightly-a1b2c3d", VersionMath.normalizeVersion("nightly-a1b2c3d"))
@@ -46,7 +45,6 @@ class VersionMathTest {
                 "26.08.11f15e4",
             ),
         )
-        // short hash tails (4-5 hex chars) must also opt out of numeric compare
         assertFalse(
             VersionMath.versionsReconcilable(
                 "1.2.3fabc",
@@ -66,24 +64,12 @@ class VersionMathTest {
 
     @Test
     fun marker_with_a_dotted_digit_suffix_stays_numerically_comparable() {
-        // A known pre-release marker followed by a hyphen and *dotted digits*
-        // ("beta-1.2.3", "rc-1.0.10", "nightly-2026.08.01") is an ordinary version
-        // carrying a pre-release prefix, not an opaque marker: the number after the
-        // prefix is what orders it, and dropping it made two builds incomparable.
-        // Reading the tag as opaque returned it verbatim, which pushed the pair into
-        // a string compare where "beta-1.10.0" sorted *below* "beta-1.9.0".
-        //
-        // Classification is not cosmetic here — it decides which comparison runs, so
-        // this test pins both halves: the classification itself, and the numeric
-        // ordering that depends on it.
         assertFalse(VersionMath.isOpaqueMarker("beta-1.2.3"))
         assertFalse(VersionMath.isTimestampTrackedTag("beta-1.2.3"))
         assertFalse(VersionMath.isOpaqueMarker("rc-1.0.10"))
         assertFalse(VersionMath.isTimestampTrackedTag("rc-1.0.10"))
         assertFalse(VersionMath.isOpaqueMarker("nightly-2026.08.01"))
         assertFalse(VersionMath.isTimestampTrackedTag("nightly-2026.08.01"))
-        // The payoff: the dotted digit suffix falls through to DOTTED_DIGIT_PATTERN,
-        // so these compare as numbers rather than as strings.
         assertTrue(VersionMath.isVersionNewer("beta-1.10.0", "beta-1.9.0"))
         assertTrue(VersionMath.isVersionNewer("rc-1.0.10", "rc-1.0.9"))
         assertFalse(VersionMath.isVersionNewer("beta-1.9.0", "beta-1.10.0"))
@@ -93,7 +79,6 @@ class VersionMathTest {
     fun timestamp_tracked_covers_opaque_and_hash_tails() {
         assertTrue(VersionMath.isTimestampTrackedTag("nightly"))
         assertTrue(VersionMath.isTimestampTrackedTag("rolling"))
-        // InstallerX-style hash tail is not an opaque marker but is timestamp-tracked
         assertFalse(VersionMath.isOpaqueMarker("26.08.11f15e4"))
         assertTrue(VersionMath.isTimestampTrackedTag("26.08.11f15e4"))
         assertTrue(VersionMath.isTimestampTrackedTag("1.2.3fabc"))
@@ -213,10 +198,6 @@ class VersionMathTest {
         )
     }
 
-    // --- absolute-time parsing (B-7). GitHub sends "…Z", Forgejo/Codeberg send
-    // "…+HH:MM"; the three spellings below are the same instant but would order
-    // differently under string comparison.
-
     @Test
     fun published_at_parses_z_and_numeric_offsets_to_the_same_instant() {
         val utc = VersionMath.parsePublishedAtToInstant("2026-09-17T15:27:32Z")
@@ -233,7 +214,6 @@ class VersionMathTest {
         assertEquals(null, VersionMath.parsePublishedAtToInstant(null))
         assertEquals(null, VersionMath.parsePublishedAtToInstant(""))
         assertEquals(null, VersionMath.parsePublishedAtToInstant("   "))
-        // local time without an offset is not a valid Instant per RFC 3339 here
         assertEquals(null, VersionMath.parsePublishedAtToInstant("2026-09-17T15:27:32"))
         assertEquals(null, VersionMath.parsePublishedAtToInstant("refs/tags/nightly"))
         assertEquals(null, VersionMath.parsePublishedAtToInstant("not-a-time"))
@@ -241,29 +221,24 @@ class VersionMathTest {
 
     @Test
     fun is_published_at_after_orders_absolute_time_not_lexicographic() {
-        // 17:27:32+02:00 == 15:27:32Z: equal instants are not "after".
         assertFalse(
             VersionMath.isPublishedAtAfter(
                 "2026-09-17T17:27:32+02:00",
                 "2026-09-17T15:27:32Z",
             ),
         )
-        // "+02:00" sorts after "16:00:00Z" as a string, but 17:27+02:00 (15:27Z)
-        // is EARLIER than 16:00Z — string order would have claimed newer.
         assertFalse(
             VersionMath.isPublishedAtAfter(
                 "2026-09-17T17:27:32+02:00",
                 "2026-09-17T16:00:00Z",
             ),
         )
-        // A genuinely later offset form still reports newer.
         assertTrue(
             VersionMath.isPublishedAtAfter(
                 "2026-09-17T18:27:32+02:00",
                 "2026-09-17T15:27:32Z",
             ),
         )
-        // Unparseable side is never "after".
         assertFalse(VersionMath.isPublishedAtAfter("not-a-time", "2026-09-17T15:27:32Z"))
         assertFalse(VersionMath.isPublishedAtAfter("2026-09-17T15:27:32Z", "not-a-time"))
     }
@@ -317,13 +292,6 @@ class VersionMathTest {
 
     @Test
     fun release_identity_sees_a_rebuild_that_the_timestamp_cannot() {
-        // The identity check is not a second proxy for the timestamp; it is the thing the
-        // timestamp was a proxy for. Two ways it is strictly stronger:
-        //
-        // 1. Publish times carry second resolution, so a deleted-and-re-created Release
-        //    inside the same second compares equal and the timestamp term says nothing.
-        // 2. A host that omits `published_at` on the rebuild leaves the timestamp term
-        //    with nothing to compare at all.
         assertTrue(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",
@@ -341,9 +309,6 @@ class VersionMathTest {
 
     @Test
     fun release_identity_catches_an_asset_replaced_without_any_digest() {
-        // The in-place replacement again, but on a host that reports neither digest nor a
-        // usable timestamp: the asset id is on its own enough, because re-uploading an
-        // asset creates a new one.
         assertTrue(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",
@@ -361,8 +326,6 @@ class VersionMathTest {
 
     @Test
     fun release_identity_stays_quiet_when_nothing_was_replaced() {
-        // Same release, same asset, same bytes: the state a freshly installed nightly sits
-        // in. Every identity signal agrees, so nothing is reported.
         assertFalse(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",
@@ -396,8 +359,6 @@ class VersionMathTest {
             storedReleaseId = null,
             storedAssetId = 901L,
         ))
-        // One side missing is not evidence: a row written before identities were stored,
-        // or a host that omits them, must not read as a replacement.
         assertFalse(VersionMath.releaseObjectChanged(
             matchedReleaseId = 900L,
             matchedAssetId = 901L,
@@ -414,10 +375,6 @@ class VersionMathTest {
 
     @Test
     fun asset_identity_reports_a_swapped_asset_at_the_same_publish_time() {
-        // The case `published_at` cannot see: the Release is not re-created, only its
-        // asset is replaced — what `gh release upload --clobber` does, and what most
-        // CI asset-upload steps do. Measured on a release of this project's own fork:
-        // published_at stayed put while the asset changed.
         assertTrue(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",
@@ -435,10 +392,6 @@ class VersionMathTest {
 
     @Test
     fun asset_identity_stays_quiet_when_the_asset_is_the_same_one() {
-        // The guard against the false-positive class this project already had to fix:
-        // same release, same bytes, nothing to report — not even a note edit would
-        // show here, which is why the digest is read instead of the release's
-        // `updated_at`.
         assertFalse(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",
@@ -462,22 +415,18 @@ class VersionMathTest {
             storedDigest = null,
             storedSize = 1_000L,
         ))
-        // Digest present on both sides wins over a size that happens to match.
         assertTrue(VersionMath.assetIdentityChanged(
             matchedDigest = "sha256:bbbb",
             matchedSize = 1_000L,
             storedDigest = "sha256:aaaa",
             storedSize = 1_000L,
         ))
-        // No digest on either side and no size on either side is not evidence.
         assertFalse(VersionMath.assetIdentityChanged(
             matchedDigest = null,
             matchedSize = null,
             storedDigest = null,
             storedSize = null,
         ))
-        // One side missing is deliberately not folded into the other signal: a host
-        // that started (or stopped) supplying digests must not read as a rebuild.
         assertFalse(VersionMath.assetIdentityChanged(
             matchedDigest = "sha256:aaaa",
             matchedSize = null,
@@ -488,12 +437,6 @@ class VersionMathTest {
 
     @Test
     fun a_blank_stored_baseline_reads_as_no_baseline() {
-        // The mapper writes a missing publish time as "" rather than null
-        // (ReleaseNetwork: `publishedAt ?: createdAt ?: ""`). A blank baseline must be
-        // read as "not recorded": `isPublishedAtAfter(real, "")` cannot parse "" and is
-        // therefore always false, so treating blank as a real baseline would leave that
-        // row's timestamp signal dead for good — the release would never be reported
-        // again, whatever its publish time.
         assertTrue(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",
@@ -503,7 +446,6 @@ class VersionMathTest {
                 previousLatestTag = "nightly",
             ),
         )
-        // Blank on the matched side stays "present", exactly as before.
         assertTrue(
             VersionMath.shouldReportTimestampUpdate(
                 matchedTag = "nightly",

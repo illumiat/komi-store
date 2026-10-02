@@ -18,10 +18,6 @@ object VersionMath {
             return deflavoured
         }
         if (isMarkerWithOpaqueSuffix(deflavoured)) return deflavoured
-        // Must stay ahead of the numeric-prefix truncation below: a tag like
-        // 26.08.11f15e4 returned verbatim is what lets versionsReconcilable
-        // see the hex tail. Dropping it to "26.08.11" here would silently
-        // route hash builds into the numeric comparison this guards against.
         if (hasHexTailAfterNumericPrefix(deflavoured)) return deflavoured
         val match = DOTTED_DIGIT_PATTERN.find(deflavoured)
         return match?.value ?: deflavoured
@@ -135,12 +131,6 @@ object VersionMath {
         if (rest.isEmpty()) return true
         if (rest.first() != '-' && rest.first() != '.') return false
         val suffix = rest.substring(1)
-        // A marker followed only by dotted digits ("beta-1.2.3", "rc-1.0.10") is a
-        // normal version with a pre-release prefix, not an opaque marker. Falling
-        // through lets DOTTED_DIGIT_PATTERN recover "1.2.3" so the pair compares
-        // numerically; treating it as opaque sent it to a string compare where
-        // "1.10.0" sorted below "1.9.0". Only a non-numeric token (a hash, a word)
-        // makes the tag opaque.
         if (suffix.all { it.isDigit() || it == '.' }) return false
         return suffix.isNotEmpty() && !suffix.all { it.isDigit() }
     }
@@ -148,28 +138,12 @@ object VersionMath {
     fun isOpaqueMarker(version: String?): Boolean =
         isMarkerWithOpaqueSuffix(normalizeVersion(version))
 
-    // Tags whose update state is tracked by release timestamp rather than a
-    // version number: opaque markers (nightly/rolling) and unparseable hash
-    // tails (InstallerX). Both rely on a stored publishedAt baseline, so a
-    // transient failure must not clear that baseline.
     fun isTimestampTrackedTag(version: String?): Boolean {
         if (version.isNullOrBlank()) return false
         if (isOpaqueMarker(version)) return true
         return hasHexTailAfterNumericPrefix(normalizeVersion(version))
     }
 
-    // Whether the stored snapshot baseline (latestReleasePublishedAt and the latest*
-    // fields that pair with it) must survive a failed check instead of being cleared.
-    //
-    // A timestamp-tracked tag has no version ordering to fall back on: once the
-    // publishedAt baseline is dropped the next check sees a null previous timestamp and
-    // re-announces the same, unchanged release. That holds whenever *either* side is
-    // timestamp-tracked — a reused `nightly` (the stored latest) or an installed
-    // commit-hash build — and also when the two sides cannot be compared at all, which
-    // is precisely the `!reconcilable` leg UpdateVerdict routes to the timestamp branch
-    // (installed "1.0.0-abc1234" vs matched "1.1.0-beta.2" is such a pair). For plain,
-    // comparable pairs the baseline is safe to drop: the next check recomputes the same
-    // verdict from the version numbers.
     fun shouldRetainSnapshotBaseline(
         installedTag: String?,
         storedLatestTag: String?,
@@ -178,53 +152,18 @@ object VersionMath {
             isTimestampTrackedTag(installedTag) ||
             !versionsReconcilable(installedTag, storedLatestTag)
 
-    // Release publish times arrive in two RFC 3339 shapes: GitHub returns UTC
-    // ("2025-05-22T22:48:54Z") while Forgejo/Codeberg return a numeric offset
-    // ("2026-09-17T17:27:32+02:00"). Both name the same instant as their UTC
-    // spelling but compare differently as plain strings, so every "which is
-    // newer" question must be answered on the parsed Instant, never on
-    // lexicographic order.
-    //
-    // Degradation: null, blank, or unparseable input yields null. Callers read
-    // a null as "no usable publish time" and therefore report nothing rather
-    // than guessing — a build is only announced as newer when both sides carry
-    // a real, comparable timestamp.
     internal fun parsePublishedAtToInstant(raw: String?): Instant? {
         val trimmed = raw?.trim().orEmpty()
         if (trimmed.isEmpty()) return null
         return runCatching { Instant.parse(trimmed) }.getOrNull()
     }
 
-    // True only when both timestamps parse and `candidate` is strictly later.
-    // A missing or unparseable side is not evidence of a newer build (see the
-    // degradation note above), so it returns false instead of falling back to
-    // string order.
     internal fun isPublishedAtAfter(candidate: String?, baseline: String?): Boolean {
         val candidateInstant = parsePublishedAtToInstant(candidate) ?: return false
         val baselineInstant = parsePublishedAtToInstant(baseline) ?: return false
         return candidateInstant > baselineInstant
     }
 
-    // Whether the tag now resolves to a different release or asset *object*.
-    //
-    // This is the primary answer to "is the build behind this tag still the one the
-    // baseline was taken from?", because these two ids are identities, not proxies.
-    // Neither moves when the release is merely edited, and both move whenever the
-    // thing they identify is replaced:
-    //
-    // - A deleted-and-re-created Release is a new object, so `release.id` changes.
-    //   This is what #934 was written for, and it is stricter than comparing
-    //   `published_at`, which is only a proxy for it: publish times carry
-    //   second resolution, so a re-creation within the same second would compare
-    //   equal and be missed.
-    // - Uploading an asset creates a new asset, so `asset.id` changes. Replacing an
-    //   asset in place (what `gh release upload --clobber` does) leaves the Release
-    //   and its `published_at` untouched, so this is the only identity that moves.
-    //
-    // Both ids are non-null from GitHub and already carried on the domain models.
-    // Either side missing — a forge that omits them, or a row written before this
-    // migration — is not evidence, so the caller keeps the older proxy signals as
-    // fallbacks rather than reading a null as "changed".
     fun releaseObjectChanged(
         matchedReleaseId: Long?,
         matchedAssetId: Long?,
@@ -240,34 +179,6 @@ object VersionMath {
         return false
     }
 
-    // Whether the release the tag points at is now a different build than the one
-    // the stored baseline was taken from.
-    //
-    // `published_at` alone answers this only for one of the two ways a reused tag
-    // gets a new build. Deleting and re-creating the Release moves `published_at`
-    // (that is the case this PR was written for), but replacing the asset in place —
-    // what `gh release upload --clobber` and most CI asset-upload steps do — leaves
-    // `published_at` frozen and moves only the release's `updated_at` and the
-    // asset's own fields. Measured on a release of this project's own fork:
-    // `published_at` stayed at 11:46:11Z while its asset was replaced at 12:06:04Z;
-    // upstream's own `v1.9.0` shows the same shape (published 18:05:43, updated
-    // 18:09:09), so publishing and then touching the assets is normal here.
-    //
-    // Both are one incident — the tag now names a different build — and the bytes
-    // are what actually changed in both, so the digest is what this asks for. It is
-    // deliberately not `updated_at`: that field also moves when only the release
-    // notes are edited, which would re-report an unchanged build — the same
-    // false-positive class this project has already had to fix.
-    //
-    // Size is the fallback for a host that supplies no digest (the field is
-    // nullable in both the API and the model, and desktop-tool builds ship none).
-    // It is weaker — a rebuild could coincidentally land on the same byte count —
-    // but it is already carried in the baseline. Neither side present is not
-    // evidence of anything, so it reports nothing rather than guessing.
-    //
-    // This is the content-level companion to releaseObjectChanged: the object ids
-    // say "the same release and asset are still there", the digest says "and they
-    // still hold the same bytes". Either alone is enough to report.
     fun assetIdentityChanged(
         matchedDigest: String?,
         matchedSize: Long?,
@@ -295,27 +206,10 @@ object VersionMath {
         previousAssetId: Long? = null,
         installedTag: String? = null,
     ): Boolean {
-        // Presence, not parseability, decides the first-scan case: with no stored
-        // baseline any non-null matched timestamp is the first observation. The
-        // order comparison below is the part that needs absolute instants.
-        //
-        // The baseline side is read with isNullOrBlank: the mapper writes a missing
-        // publish time as "" rather than null (ReleaseNetwork publishes
-        // `publishedAt ?: createdAt ?: ""`), and a blank baseline would otherwise pass
-        // for a real one — `isPublishedAtAfter(real, "")` cannot parse "" and so is
-        // always false, which would leave this row's timestamp signal dead for good.
-        // Blank on the *matched* side is deliberately still "present" (see
-        // "nightly_empty_matched_timestamp_counts_as_present").
         if (previousLatestPublishedAt.isNullOrBlank() && matchedPublishedAt != null) {
             return !isExactSameVersion(matchedTag, installedTag)
         }
         val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
-        // "The build behind this tag is not the one the baseline was taken from", asked
-        // in two complementary ways: the object identities (authoritative where the host
-        // supplies them) and the asset contents (the fallback for hosts that do not).
-        // These are OR-ed with the timestamp rather than replacing it: a re-created
-        // Release can also arrive with byte-identical assets, or with an id missing from
-        // one side, and then only the timestamp has moved.
         val newerByObject =
             releaseObjectChanged(
                 matchedReleaseId = matchedReleaseId,
@@ -424,12 +318,6 @@ object VersionMath {
 
     private val DOTTED_DIGIT_PATTERN = Regex("""\d+(?:\.\d+)*(?:-[\w.]+)?""")
 
-    // A hash tail is a commit short-sha: a run of >=4 hex characters of which at least
-    // two are letters. A digit-prefixed tag whose *version* part carries letters
-    // ("1.2.3b1234", "2.0.5a2024", "2026.09.23a1") has only one a-f among digits — a
-    // build/revision suffix, not a commit hash — and must keep falling through to the
-    // numeric comparison. The letter count is taken from the captured tail alone, not
-    // from the whole string, so letters before the tail cannot satisfy it.
     private val HEX_TAIL_AFTER_NUMERIC_PREFIX =
         Regex("""^\d+(?:\.\d+)*(?:\.)?([0-9a-f]{4,})$""", RegexOption.IGNORE_CASE)
 

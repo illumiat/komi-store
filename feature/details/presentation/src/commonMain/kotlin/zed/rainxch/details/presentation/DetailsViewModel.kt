@@ -2482,17 +2482,6 @@ class DetailsViewModel(
                     return@launch
                 }
 
-                // Open on the channel the user is actually on. A device running a
-                // nightly must land on the pre-release channel: defaulting to stable
-                // shows v2.0.0 next to an "update to nightly" button, and the primary
-                // asset then belongs to the stable release.
-                //
-                // The installed release is matched exactly first. isSameVersion compares
-                // numerically, and normalizeVersion maps "rc1" -> "1", so it treats rc1
-                // and v1 as equal — with both present, newest-first would match the wrong
-                // release and push a stable user onto the pre-release channel (or the
-                // reverse). isSameVersion is kept only as the spelling-variant fallback
-                // ("1.0.0" vs "1.0"), where the digits really do name the same build.
                 val installedVersionTag = installedApp?.installedVersion
                 val installedRelease =
                     allReleases.firstOrNull {
@@ -2672,8 +2661,6 @@ class DetailsViewModel(
                             ?: list.firstOrNull { it.tagName == prev.tagName }
                     }
                 }
-                // Keep the user on their channel across refreshes: fall back within the
-                // previously selected category instead of always sliding back to stable.
                 val selectedRelease = freshReleases?.let { list ->
                     carried
                         ?: list.firstInCategory(previousCategory)
