@@ -38,8 +38,6 @@ composeApp/release/baselineProfiles/
 
 composeApp/kotzilla.json
 
-.debug-device/
-
 roadmap/
 .brain/
 # macOS

@@ -162,7 +162,7 @@ fun SmartInstallButton(
         state.isPendingInstallReady -> stringResource(Res.string.install_ready)
         showUpdateAffordance -> stringResource(
             Res.string.update_to_version,
-            normSelected ?: displaySelected ?: "",
+            normSelected.orEmpty(),
         )
         isInstalled &&
             normInstalled != null &&
