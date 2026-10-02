@@ -223,6 +223,20 @@ fun InstalledApp.withMigratedVersionInfo(
 // observe zone — system observations; the installed tag is adopted only where the
 // observed code proves the package is the snapshot build (see below)
 
+fun InstalledApp.tagForObservedBuild(
+    versionName: String?,
+    versionCode: Long,
+): String {
+    val snapshotTag = latestVersion?.takeIf { it.isNotBlank() } ?: return installedVersion
+    val codeProvesSnapshot =
+        latestVersionCode != null && latestVersionCode > 0L && versionCode == latestVersionCode
+    val nameProvesSnapshot =
+        versionName != null &&
+            VersionMath.versionsReconcilable(versionName, snapshotTag) &&
+            VersionMath.isSameVersion(versionName, snapshotTag)
+    return if (codeProvesSnapshot || nameProvesSnapshot) snapshotTag else installedVersion
+}
+
 fun InstalledApp.observeExternalInstall(
     versionName: String?,
     versionCode: Long,
@@ -234,14 +248,7 @@ fun InstalledApp.observeExternalInstall(
     // for "the package really is that build". A package above the snapshot is some
     // later build the snapshot tag does not name, and one with no positive snapshot
     // code has nothing to be measured against, so in both the tag is left alone.
-    val snapshotTag = latestVersion
-    val isSnapshotBuild =
-        latestVersionCode != null &&
-            latestVersionCode > 0L &&
-            versionCode == latestVersionCode &&
-            !snapshotTag.isNullOrBlank()
-    val adoptedTag =
-        if (isSnapshotBuild && snapshotTag != null) snapshotTag else installedVersion
+    val adoptedTag = tagForObservedBuild(versionName, versionCode)
     return copy(
         installedVersion = adoptedTag,
         installedVersionName = versionName,

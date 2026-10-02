@@ -429,6 +429,46 @@ class InstalledAppUpdatesTest {
     }
 
     @Test
+    fun observeExternalInstallAdoptsSnapshotTagByNameWhenTheCodeWasCleared() {
+        val result = app(latestVersionCode = null).observeExternalInstall(
+            versionName = "2.0.0",
+            versionCode = 200L,
+        )
+        assertEquals("2.0.0", result.installedVersion)
+    }
+
+    @Test
+    fun observeExternalInstallKeepsTagForABuildTheSnapshotDoesNotName() {
+        val result = app(latestVersionCode = null).observeExternalInstall(
+            versionName = "2.1.0-dev",
+            versionCode = 210L,
+        )
+        assertEquals("1.0.0", result.installedVersion)
+    }
+
+    @Test
+    fun scanAfterAdoptedExternalUpdateIsQuiet() {
+        val observed = app(latestVersionCode = null).observeExternalInstall(
+            versionName = "2.0.0",
+            versionCode = 200L,
+        )
+        val verdict =
+            UpdateVerdict.decide(
+                installed = UpdateVerdict.Installed(observed.installedVersion, observed.installedVersionCode),
+                stored =
+                    UpdateVerdict.Stored(
+                        latestTag = observed.latestVersion,
+                        latestVersionCode = observed.latestVersionCode,
+                        publishedAt = "2026-09-01T00:00:00Z",
+                        wasUpdateAvailable = observed.isUpdateAvailable,
+                    ),
+                matched = UpdateVerdict.Matched(tag = "2.0.0", publishedAt = "2026-09-01T00:00:00Z", isPrerelease = false),
+                skippedTag = null,
+            )
+        assertFalse(verdict.isUpdateAvailable)
+    }
+
+    @Test
     fun observeExternalInstallDetectsDowngradeAsUpdateAvailable() {
         val result = app(latestVersionCode = 200L).observeExternalInstall(
             versionName = "0.9.0",

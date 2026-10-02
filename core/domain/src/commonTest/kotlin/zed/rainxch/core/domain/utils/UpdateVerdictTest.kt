@@ -80,10 +80,23 @@ class UpdateVerdictTest {
 
 
     @Test
-    fun nightly_tag_uses_timestamp_logic() {
+    fun nightly_first_scan_after_install_is_quiet() {
         val result =
             decide(
                 installedTag = "nightly",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-08-01T00:00:00Z",
+                storedPublishedAt = null,
+                matchedIsPrerelease = true,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun first_scan_still_reports_a_different_build() {
+        val result =
+            decide(
+                installedTag = "26.09.01",
                 matchedTag = "nightly",
                 matchedPublishedAt = "2026-08-01T00:00:00Z",
                 storedPublishedAt = null,
@@ -162,7 +175,7 @@ class UpdateVerdictTest {
         // the timestamp branch reports the update.
         val result =
             decide(
-                installedTag = "nightly",
+                installedTag = "26.09.01",
                 matchedTag = "nightly",
                 matchedPublishedAt = "",
                 storedPublishedAt = null,
@@ -234,7 +247,7 @@ class UpdateVerdictTest {
                 installedTag = "26.08.11f15e4",
                 matchedTag = "26.08.11f15e4",
                 matchedPublishedAt = "2026-08-26T07:15:10Z",
-                storedPublishedAt = null,
+                storedPublishedAt = "2026-08-20T00:00:00Z",
                 matchedIsPrerelease = false,
             )
         assertTrue(result.isUpdateAvailable)
@@ -525,22 +538,27 @@ class UpdateVerdictTest {
     }
 
     @Test
-    fun adopt_gate_opens_on_the_irreconcilable_self_healing_route() {
-        // The row the strict gate locks up: the installed tag is a version name
-        // ("26.09.01") the matched opaque tag cannot be, and codesAlreadyMatch is shut
-        // because a drifting tag cleared the stored code. The irreconcilable route keeps the
-        // rewrite alive; the old codesAlreadyMatch-only gate left it a dead path and the
-        // stale tag in place for good.
-        val codesAlreadyMatch = false
-        assertFalse(codesAlreadyMatch)
+    fun adopt_gate_needs_code_proof() {
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(false, "26.09.01", "nightly"))
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(false, "2.0.2", "nightly"))
+        assertTrue(UpdateVerdict.shouldAdoptMatchedTag(true, "26.09.01", "nightly"))
+    }
 
-        assertTrue(
-            UpdateVerdict.shouldAdoptMatchedTag(
-                codesAlreadyMatch = codesAlreadyMatch,
-                installedTag = "26.09.01",
+    @Test
+    fun stable_install_keeps_its_tag_when_a_newer_nightly_is_matched() {
+        val result =
+            decide(
+                installedTag = "2.0.2",
+                installedVersionCode = 202L,
+                storedLatestTag = "2.0.2",
+                storedLatestVersionCode = 202L,
+                storedPublishedAt = "2026-08-01T00:00:00Z",
                 matchedTag = "nightly",
-            ),
-        )
+                matchedPublishedAt = "2026-09-01T00:00:00Z",
+                matchedIsPrerelease = true,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(result.codesAlreadyMatch, "2.0.2", "nightly"))
     }
 
     @Test

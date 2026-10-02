@@ -15,6 +15,7 @@ import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
 import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
 import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.model.installation.snapshotStillNamesNewerBuild
+import zed.rainxch.core.domain.model.installation.tagForObservedBuild
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
@@ -271,7 +272,7 @@ class PackageEventReceiver() :
 
         repo.updateInstalledVersion(
             packageName = packageName,
-            installedVersion = app.installedVersion,
+            installedVersion = app.tagForObservedBuild(systemInfo.versionName, systemInfo.versionCode),
             installedVersionName = systemInfo.versionName,
             installedVersionCode = systemInfo.versionCode,
             isUpdateAvailable = newIsUpdateAvailable,
@@ -305,7 +306,7 @@ class PackageEventReceiver() :
                 if (refreshed != null) {
                     repo.updateInstalledVersion(
                         packageName = packageName,
-                        installedVersion = refreshed.installedVersion,
+                        installedVersion = refreshed.tagForObservedBuild(systemInfo.versionName, systemInfo.versionCode),
                         installedVersionName = systemInfo.versionName,
                         installedVersionCode = systemInfo.versionCode,
                         isUpdateAvailable =

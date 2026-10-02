@@ -150,6 +150,7 @@ object UpdateVerdict {
                     matchedAssetId = matched.assetId,
                     previousReleaseId = stored.latestReleaseId,
                     previousAssetId = stored.latestAssetId,
+                    installedTag = installed.tag,
                 )
             } else {
                 false
@@ -197,9 +198,7 @@ object UpdateVerdict {
         codesAlreadyMatch: Boolean,
         installedTag: String?,
         matchedTag: String,
-    ): Boolean =
-        installedTag != matchedTag &&
-            (codesAlreadyMatch || !VersionMath.versionsReconcilable(installedTag, matchedTag))
+    ): Boolean = installedTag != matchedTag && codesAlreadyMatch
 
     data class Result(
         val isUpdateAvailable: Boolean,

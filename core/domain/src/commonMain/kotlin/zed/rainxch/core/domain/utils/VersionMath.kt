@@ -293,6 +293,7 @@ object VersionMath {
         matchedAssetId: Long? = null,
         previousReleaseId: Long? = null,
         previousAssetId: Long? = null,
+        installedTag: String? = null,
     ): Boolean {
         // Presence, not parseability, decides the first-scan case: with no stored
         // baseline any non-null matched timestamp is the first observation. The
@@ -305,7 +306,9 @@ object VersionMath {
         // always false, which would leave this row's timestamp signal dead for good.
         // Blank on the *matched* side is deliberately still "present" (see
         // "nightly_empty_matched_timestamp_counts_as_present").
-        if (previousLatestPublishedAt.isNullOrBlank() && matchedPublishedAt != null) return true
+        if (previousLatestPublishedAt.isNullOrBlank() && matchedPublishedAt != null) {
+            return !isExactSameVersion(matchedTag, installedTag)
+        }
         val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
         // "The build behind this tag is not the one the baseline was taken from", asked
         // in two complementary ways: the object identities (authoritative where the host

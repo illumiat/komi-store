@@ -43,6 +43,8 @@ import zed.rainxch.apps.presentation.model.VariantPickerError
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.InstallerType
+import zed.rainxch.core.domain.model.installation.markPending
+import zed.rainxch.core.domain.model.installation.withLatestSnapshot
 import zed.rainxch.core.domain.model.error.RateLimitException
 import zed.rainxch.core.domain.network.Downloader
 import zed.rainxch.core.domain.repository.ExternalImportRepository
@@ -1274,14 +1276,15 @@ class AppsViewModel(
                     val currentApp = installedAppsRepository.getAppByPackage(app.packageName)
                     if (currentApp != null) {
                         installedAppsRepository.updateApp(
-                            currentApp.copy(
-                                isPendingInstall = true,
-                                latestVersion = latestVersion,
-                                latestAssetName = latestAssetName,
-                                latestAssetUrl = latestAssetUrl,
-                                latestVersionName = apkInfo?.versionName ?: latestVersion,
-                                latestVersionCode = apkInfo?.versionCode ?: 0L,
-                            ),
+                            currentApp
+                                .markPending()
+                                .withLatestSnapshot(
+                                    version = latestVersion,
+                                    assetName = latestAssetName,
+                                    assetUrl = latestAssetUrl,
+                                    versionName = apkInfo?.versionName ?: latestVersion,
+                                    versionCode = apkInfo?.versionCode ?: 0L,
+                                ),
                         )
                     } else {
                         markPendingUpdate(app.toDomain())
