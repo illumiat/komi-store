@@ -99,6 +99,7 @@ class HomeViewModel(
                 observeHiddenRepos()
                 observeBrowseFilter()
                 observeHideSeenEnabled()
+                observeRepoGridLayout()
                 loadChart(ChartTab.Trending, isRefresh = false)
                 hasLoadedInitialData = true
             }
@@ -119,6 +120,12 @@ class HomeViewModel(
             HomeAction.OnRefresh -> loadChart(selectedChart, isRefresh = true)
 
             HomeAction.OnLoadMore -> loadMore()
+
+            HomeAction.OnToggleGridLayout -> {
+                val grid = !_state.value.isGridLayout
+                _state.update { it.copy(isGridLayout = grid) }
+                viewModelScope.launch { tweaksRepository.setRepoGridLayout(grid) }
+            }
 
             is HomeAction.OnChartSelected -> selectChart(action.chart)
 
@@ -394,6 +401,14 @@ class HomeViewModel(
             hiddenReposRepository.getAllHiddenRepoIds().collect { ids ->
                 hiddenIds = ids
                 rebuild()
+            }
+        }
+    }
+
+    private fun observeRepoGridLayout() {
+        viewModelScope.launch {
+            tweaksRepository.getRepoGridLayout().collect { grid ->
+                _state.update { it.copy(isGridLayout = grid) }
             }
         }
     }

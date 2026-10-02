@@ -1397,6 +1397,8 @@
     <string name="repo_pages_pr_state_merged">মার্জ করা হয়েছে</string>
     <string name="repo_pages_pr_draft">খসড়া</string>
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
+    <string name="feed_layout_description_grid">গ্রিড লেআউটে যান</string>
+    <string name="feed_layout_description_list">তালিকা লেআউটে যান</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>

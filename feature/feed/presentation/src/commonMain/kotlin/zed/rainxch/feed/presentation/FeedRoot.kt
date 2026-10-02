@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -35,7 +37,10 @@ import zed.rainxch.core.domain.model.repository.DiscoveryPlatform
 import zed.rainxch.core.domain.model.repository.FeedCategory
 import zed.rainxch.core.presentation.components.bars.KomiTopBar
 import zed.rainxch.core.presentation.components.buttons.KomiButton
+import zed.rainxch.core.presentation.components.buttons.KomiButtonSize
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
+import zed.rainxch.core.presentation.components.buttons.KomiIconButtonSize
+import zed.rainxch.core.presentation.components.buttons.RepoLayoutToggle
 import zed.rainxch.core.presentation.components.cards.DiscoveryRepoCard
 import zed.rainxch.core.presentation.components.cards.KomiRepoCardFeed
 import zed.rainxch.core.presentation.components.dividers.KomiHorizontalDivider
@@ -51,11 +56,11 @@ import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.personality.usesDecor
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
+import zed.rainxch.core.presentation.utils.toIcon
 import zed.rainxch.core.presentation.utils.toLabel
 import zed.rainxch.core.presentation.layout.CardGridSpec
 import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.feed.presentation.components.FeedCategoryStrip
-import zed.rainxch.feed.presentation.components.FeedPlatformBar
 import zed.rainxch.feed.presentation.components.FeedPlatformPicker
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.feed_empty_reset
@@ -68,6 +73,7 @@ import zed.rainxch.githubstore.core.presentation.res.feed_masthead_subtitle
 import zed.rainxch.githubstore.core.presentation.res.feed_masthead_title
 import zed.rainxch.githubstore.core.presentation.res.feed_masthead_title_accent
 import zed.rainxch.githubstore.core.presentation.res.feed_offline
+import zed.rainxch.githubstore.core.presentation.res.feed_platform_all
 import zed.rainxch.githubstore.core.presentation.res.home_retry
 
 @Composable
@@ -131,6 +137,24 @@ private fun FeedScreen(
                 title = stringResource(Res.string.feed_masthead_title),
                 titleAccent = stringResource(Res.string.feed_masthead_title_accent),
                 subtitle = if (LocalPersonality.current.usesDecor) stringResource(Res.string.feed_masthead_subtitle) else null,
+                actions = {
+                    RepoLayoutToggle(
+                        isGridLayout = state.isGridLayout,
+                        onToggle = { onAction(FeedAction.OnToggleGridLayout) },
+                        size = KomiIconButtonSize.Sm,
+                    )
+
+                    val platform = state.selectedPlatform
+                    KomiButton(
+                        onClick = { onAction(FeedAction.OnPlatformPickerOpen) },
+                        label = if (platform == DiscoveryPlatform.All) stringResource(Res.string.feed_platform_all) else platform.toLabel(),
+                        variant = KomiButtonVariant.Primary,
+                        size = KomiButtonSize.Sm,
+                        leadingIcon = if (platform == DiscoveryPlatform.All) null else platform.toIcon(),
+                        trailingIcon = Icons.Rounded.KeyboardArrowDown,
+                        modifier = Modifier.padding(end = 12.dp),
+                    )
+                },
             )
         },
         toastState = toastState,
@@ -154,8 +178,6 @@ private fun FeedScreen(
                 listState = listState,
                 state = state,
                 onAction = onAction,
-                // The wrapper Box used to carry nothing but this padding; it now rides on the
-                // composable itself.
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -180,7 +202,11 @@ private fun FeedContent(
     val colors = LocalPersonality.current.colors
     val isManga = LocalPersonality.current is MangaPersonality
     val gridPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp)
-    val infoCells = rememberWidthCappedStaggeredCells(contentPadding = gridPadding)
+    val cells =
+        rememberWidthCappedStaggeredCells(
+            contentPadding = gridPadding,
+            maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+        )
 
     Column(
         modifier = modifier
@@ -192,13 +218,9 @@ private fun FeedContent(
                     Modifier
                         .fillMaxWidth()
                         .background(colors.background)
+                        .padding(top = 6.dp)
                         .drivesPullToRefresh(),
             ) {
-                FeedPlatformBar(
-                    platform = state.selectedPlatform,
-                    onOpenPicker = { onAction(FeedAction.OnPlatformPickerOpen) },
-                )
-
                 FeedCategoryStrip(
                     categories = state.categories,
                     selected = state.selectedCategory,
@@ -212,7 +234,7 @@ private fun FeedContent(
         }
 
         LazyVerticalStaggeredGrid(
-            columns = infoCells,
+            columns = cells,
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = gridPadding,
@@ -271,7 +293,8 @@ private fun FeedContent(
                                         onAction(FeedAction.OnMarkAsSeen(card.repository))
                                     }
                                 },
-                                feed = KomiRepoCardFeed.Release,
+                                feed = if (state.isGridLayout) KomiRepoCardFeed.Plain else KomiRepoCardFeed.Release,
+                                compact = state.isGridLayout,
                                 modifier = Modifier.fillMaxWidth().animateItem(),
                             )
                         }

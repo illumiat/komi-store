@@ -70,6 +70,8 @@ import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.presentation.components.ScrollbarContainer
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
+import zed.rainxch.core.presentation.components.buttons.KomiIconButtonSize
+import zed.rainxch.core.presentation.components.buttons.RepoLayoutToggle
 import zed.rainxch.core.presentation.components.buttons.KomiFab
 import zed.rainxch.core.presentation.components.cards.DiscoveryRepoCard
 import zed.rainxch.core.presentation.components.icon.KomiIcon
@@ -386,10 +388,19 @@ fun SearchScreen(
                     )
                 }
 
-                PlatformPicker(
-                    state = state,
-                    onAction = onAction
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        PlatformPicker(
+                            state = state,
+                            onAction = onAction
+                        )
+                    }
+                    RepoLayoutToggle(
+                        isGridLayout = state.isGridLayout,
+                        onToggle = { onAction(SearchAction.OnToggleGridLayout) },
+                        size = KomiIconButtonSize.Sm,
+                    )
+                }
 
                 ActiveFiltersStrip(
                     state = state,
@@ -566,6 +577,7 @@ fun SearchScreen(
                                     rememberWidthCappedStaggeredCells(
                                         contentPadding =
                                             PaddingValues(start = gridEdgeInset, end = gridEdgeInset),
+                                        maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
                                     ),
                                 state = listState,
                                 verticalItemSpacing = CardGridSpec.GridItemSpacing,
@@ -618,6 +630,7 @@ fun SearchScreen(
                                                 )
                                             }
                                         },
+                                        compact = state.isGridLayout,
                                         modifier = Modifier.animateItem(),
                                     )
                                 }

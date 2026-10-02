@@ -331,6 +331,9 @@ class TweaksRepositoryImpl(
     override fun getShowAllPlatforms(): Flow<Boolean> = gatedGetFlow(K_SHOW_ALL_PLATFORMS, false)
     override suspend fun setShowAllPlatforms(enabled: Boolean) { migrationDeferred.await(); ksafe.safePut(K_SHOW_ALL_PLATFORMS, enabled) }
 
+    override fun getRepoGridLayout(): Flow<Boolean> = gatedGetFlow(K_REPO_GRID_LAYOUT, false)
+    override suspend fun setRepoGridLayout(enabled: Boolean) { migrationDeferred.await(); ksafe.safePut(K_REPO_GRID_LAYOUT, enabled) }
+
     override fun getBatteryOptimizationPromptDismissed(): Flow<Boolean> = gatedGetFlow(K_BATTERY_OPT_PROMPT_DISMISSED, false)
     override suspend fun setBatteryOptimizationPromptDismissed(dismissed: Boolean) { migrationDeferred.await(); ksafe.safePut(K_BATTERY_OPT_PROMPT_DISMISSED, dismissed) }
 
@@ -501,6 +504,7 @@ class TweaksRepositoryImpl(
         private const val K_APK_INSPECT_COACHMARK_SHOWN = "apk_inspect_coachmark_shown"
         private const val K_CHANNEL_CHIP_COACHMARK_SHOWN = "channel_chip_coachmark_shown"
         private const val K_SHOW_ALL_PLATFORMS = "show_all_platforms"
+        private const val K_REPO_GRID_LAYOUT = "repo_grid_layout"
         private const val K_BATTERY_OPT_PROMPT_DISMISSED = "battery_opt_prompt_dismissed"
         private const val K_LAST_SEEN_WHATS_NEW_VERSION_CODE = "last_seen_whats_new_version_code"
         private const val K_MANGA_PAPER = "manga_paper"

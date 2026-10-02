@@ -38,6 +38,7 @@ import zed.rainxch.core.domain.isAndroid
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
 import zed.rainxch.core.presentation.components.buttons.KomiIconButton
+import zed.rainxch.core.presentation.components.buttons.RepoLayoutToggle
 import zed.rainxch.core.presentation.components.cards.DiscoveryRepoCard
 import zed.rainxch.core.presentation.components.cards.KomiRepoCardFeed
 import zed.rainxch.core.presentation.components.dividers.KomiHorizontalDivider
@@ -134,6 +135,10 @@ private fun HomeScreen(
                 title = stringResource(Res.string.home_masthead_title),
                 titleAccent = stringResource(Res.string.home_masthead_subtitle),
                 actions = {
+                    RepoLayoutToggle(
+                        isGridLayout = state.isGridLayout,
+                        onToggle = { onAction(HomeAction.OnToggleGridLayout) },
+                    )
                     if (!isDesktop()) {
                         KomiIconButton(
                             icon = Icons.Rounded.Tune,
@@ -219,7 +224,11 @@ private fun HomeChartFeed(
 ) {
     val colors = LocalPersonality.current.colors
     val gridPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp)
-    val infoCells = rememberWidthCappedStaggeredCells(contentPadding = gridPadding)
+    val cells =
+        rememberWidthCappedStaggeredCells(
+            contentPadding = gridPadding,
+            maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+        )
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -243,7 +252,7 @@ private fun HomeChartFeed(
         }
 
         LazyVerticalStaggeredGrid(
-            columns = infoCells,
+            columns = cells,
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = gridPadding,
@@ -279,7 +288,8 @@ private fun HomeChartFeed(
                             onShareClick = { onAction(HomeAction.OnShareClick(card.rawRepository)) },
                             onLongPress = { onAction(HomeAction.OnRepoLongClick(card.id)) },
                             rank = if (state.selectedChart == ChartTab.Popular) index + 1 else 1,
-                            feed = state.selectedChart.toFeed(),
+                            feed = if (state.isGridLayout) KomiRepoCardFeed.Plain else state.selectedChart.toFeed(),
+                            compact = state.isGridLayout,
                             modifier = Modifier.fillMaxWidth().animateItem(),
                         )
                     }

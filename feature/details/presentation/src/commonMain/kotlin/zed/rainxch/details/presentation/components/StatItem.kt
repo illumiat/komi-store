@@ -5,10 +5,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import zed.rainxch.core.presentation.components.text.KomiText
@@ -47,6 +49,7 @@ fun StatItem(
             fontWeight = FontWeight.SemiBold,
             color = colors.onSurfaceVariant,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             uppercase = false,
         )
         KomiText(
@@ -55,6 +58,8 @@ fun StatItem(
             fontSize = 22.sp,
             fontWeight = FontWeight.Black,
             color = colors.onSurface,
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 22.sp),
             uppercase = false,
         )
     }
@@ -82,6 +87,7 @@ fun TextStatItem(
             fontWeight = FontWeight.SemiBold,
             color = colors.onSurfaceVariant,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             uppercase = false,
         )
         KomiText(
@@ -91,6 +97,7 @@ fun TextStatItem(
             fontWeight = FontWeight.Black,
             color = colors.onSurface,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             uppercase = false,
         )
     }

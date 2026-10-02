@@ -90,6 +90,7 @@ class FeedViewModel(
                 observeSeenRepos()
                 observeHiddenRepos()
                 observeHideSeenEnabled()
+                observeFeedLayout()
                 observeBrowseFilter()
                 reload(isRefresh = false)
                 hasLoadedInitialData = true
@@ -130,6 +131,12 @@ class FeedViewModel(
 
             is FeedAction.OnCategorySelected -> {
                 browseFilterStore.setCategory(action.category)
+            }
+
+            FeedAction.OnToggleGridLayout -> {
+                val grid = !_state.value.isGridLayout
+                _state.update { it.copy(isGridLayout = grid) }
+                viewModelScope.launch { tweaksRepository.setRepoGridLayout(grid) }
             }
 
             is FeedAction.OnShareClick -> viewModelScope.launch {
@@ -360,6 +367,14 @@ class FeedViewModel(
             hiddenReposRepository.getAllHiddenRepoIds().collect { ids ->
                 hiddenIds = ids
                 rebuild()
+            }
+        }
+    }
+
+    private fun observeFeedLayout() {
+        viewModelScope.launch {
+            tweaksRepository.getRepoGridLayout().collect { grid ->
+                _state.update { it.copy(isGridLayout = grid) }
             }
         }
     }

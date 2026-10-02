@@ -33,6 +33,7 @@ import zed.rainxch.core.presentation.components.bars.KomiTopBar
 import zed.rainxch.core.presentation.components.bars.KomiTopBarSize
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
 import zed.rainxch.core.presentation.components.buttons.KomiIconButton
+import zed.rainxch.core.presentation.components.buttons.RepoLayoutToggle
 import zed.rainxch.core.presentation.components.cards.DiscoveryRepoCard
 import zed.rainxch.core.presentation.components.cards.KomiRepoCardFeed
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
@@ -106,6 +107,12 @@ private fun CategoryListScreen(
                         variant = KomiButtonVariant.Tonal,
                     )
                 },
+                actions = {
+                    RepoLayoutToggle(
+                        isGridLayout = state.isGridLayout,
+                        onToggle = { onAction(CategoryListAction.OnToggleGridLayout) },
+                    )
+                },
             )
         },
     ) { innerPadding ->
@@ -121,7 +128,11 @@ private fun CategoryListScreen(
             } else {
                 val gridPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                 LazyVerticalStaggeredGrid(
-                    columns = rememberWidthCappedStaggeredCells(contentPadding = gridPadding),
+                    columns =
+                        rememberWidthCappedStaggeredCells(
+                            contentPadding = gridPadding,
+                            maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+                        ),
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = gridPadding,
@@ -137,11 +148,12 @@ private fun CategoryListScreen(
                             onClick = { onAction(CategoryListAction.OnRepoClick(card.id)) },
                             onShareClick = { },
                             rank = index + 1,
-                            feed = if (state.category == HomeCategory.MOST_POPULAR) {
+                            feed = if (state.category == HomeCategory.MOST_POPULAR && !state.isGridLayout) {
                                 KomiRepoCardFeed.Popular
                             } else {
                                 KomiRepoCardFeed.Plain
                             },
+                            compact = state.isGridLayout,
                         )
                     }
 

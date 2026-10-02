@@ -21,4 +21,5 @@ data class FeedState(
     val hasMore: Boolean = false,
     val isOffline: Boolean = false,
     val errorMessage: String? = null,
+    val isGridLayout: Boolean = false,
 )
