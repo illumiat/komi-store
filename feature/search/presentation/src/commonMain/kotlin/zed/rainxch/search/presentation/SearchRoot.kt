@@ -296,9 +296,6 @@ fun SearchScreen(
     LaunchedEffect(listState.layoutInfo.totalItemsCount, listState.layoutInfo.viewportEndOffset) {
         val layoutInfo = listState.layoutInfo
         val visibleItems = layoutInfo.visibleItemsInfo
-        // `lastOrNull()` is not the furthest-down-the-list item in a staggered grid: the visible
-        // items are gathered lane by lane, so the end of the list is the highest index, not the end
-        // of the collection. Same everywhere this window is read on these screens.
         val lastVisible = visibleItems.maxByOrNull { it.index }
 
         if (lastVisible != null &&
@@ -348,10 +345,6 @@ fun SearchScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             contentAlignment = Alignment.TopCenter,
         ) {
-            // One source for the pane's horizontal inset: the Column below writes it into its own
-            // padding, so the results grid inside adds none of its own — yet the helper is handed
-            // the same value, so the column count is decided across the pane rather than across
-            // the 24dp narrower region the grid is given.
             val gridEdgeInset = 12.dp
             Column(
                 modifier =
@@ -564,15 +557,6 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             LazyVerticalStaggeredGrid(
-                                // The 12dp edge inset sits on the parent Column above (it is the
-                                // `gridEdgeInset` written into that Column's padding), so the grid
-                                // is handed a region already 24dp narrower than the pane. Handing
-                                // that same 12dp to the helper puts the width back before the column
-                                // count is decided, so this screen splits the same region as the
-                                // other four card grids. Without it the count is decided on a basis
-                                // 24dp narrower, and the two disagree in the band just inside every
-                                // column boundary. The padding is not applied twice: only the count
-                                // uses it, the cell widths still come from the grid's own width.
                                 columns =
                                     rememberWidthCappedStaggeredCells(
                                         contentPadding =
@@ -635,10 +619,6 @@ fun SearchScreen(
                                     )
                                 }
 
-                                // The condition wraps the item rather than living inside it: an
-                                // item that emits nothing is still a full line, and a full line
-                                // still collects verticalItemSpacing on both sides — a gap that
-                                // vanishes the moment this flips.
                                 if (state.isLoadingMore) {
                                     item(span = StaggeredGridItemSpan.FullLine) {
                                         Box(

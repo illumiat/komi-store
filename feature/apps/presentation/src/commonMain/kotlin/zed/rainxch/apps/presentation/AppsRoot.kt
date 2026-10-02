@@ -234,11 +234,6 @@ fun AppsScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            // A plain passthrough: its only wide-screen affordance was a TopCenter alignment,
-            // which stopped having any effect once the content column became full-width, so the
-            // alignment is gone rather than left reading as something it no longer does. The
-            // wrapper itself stays — dropping it would re-indent ~300 lines for no behavioural
-            // gain, and this file's diff is already large.
             Box(
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -294,10 +289,6 @@ fun AppsScreen(
                         )
                     }
 
-                    // Hoisted out of the `when` on purpose: a `remember` living inside one of its
-                    // branches is thrown away when the branch is left and re-entered — which this
-                    // one is whenever the search filters the list to empty or the loading flag
-                    // flips — and it would take the scroll position with it.
                     val listState = rememberLazyGridState()
 
                     when {
@@ -324,10 +315,6 @@ fun AppsScreen(
                         }
 
                         else -> {
-                            // Not `remember`-ed in here on purpose: this branch is left and
-                            // re-entered whenever the filter empties the list or the loading flag
-                            // flips, and a state created inside it would be thrown away with it —
-                            // taking the scroll position along.
                             val isScrollbarEnabled = LocalScrollbarEnabled.current
 
                             val onRowSelect: (InstalledAppUi) -> Unit =
@@ -347,13 +334,6 @@ fun AppsScreen(
                                 enabled = isScrollbarEnabled,
                                 modifier = Modifier.fillMaxSize(),
                             ) {
-                                // This is a remembered cell spec, not a measurement:
-                                // `rememberWidthCappedGridCells` only remembers the card width and
-                                // the padding's start inset, and the column count is decided by the
-                                // width the grid is handed when it lays out. The one
-                                // `PaddingValues` below is handed to both the helper and the grid,
-                                // so the inset the count is taken at cannot drift from the one the
-                                // grid lays out with.
                                 val appGridPadding =
                                     PaddingValues(
                                         start = 12.dp,
@@ -370,10 +350,6 @@ fun AppsScreen(
                                     modifier = Modifier.fillMaxSize().arrowKeyScroll(listState),
 
                                     contentPadding = appGridPadding,
-                                    // Both axes from the spec. The vertical gap takes no part in the
-                                    // column-count contract, but leaving it a literal would let the
-                                    // two drift the moment GridSpacing changes — the same failure
-                                    // this screen's horizontal gap was just moved out of.
                                     verticalArrangement = Arrangement.spacedBy(CardGridSpec.GridItemSpacing),
                                     horizontalArrangement = CardGridSpec.GridArrangement,
                                 ) {
@@ -552,11 +528,6 @@ fun AppsScreen(
     }
 }
 
-/**
- * [AppItemCard] with its thirteen callbacks wired to [onAction] and [onOpenRepo]. The pending
- * section and the updates section render the same card and used to assemble these lambdas twice,
- * verbatim.
- */
 @Composable
 private fun AppItemCardWithActions(
     appItem: AppItem,
