@@ -1,6 +1,7 @@
 package zed.rainxch.profile.presentation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -142,11 +143,11 @@ fun ProfileScreen(
         ) {
             LazyColumn(
                 state = listState,
+                contentPadding = PaddingValues(16.dp),
                 modifier =
                     Modifier
                         .constrainedContentWidth()
                         .fillMaxHeight()
-                        .padding(16.dp)
                         .arrowKeyScroll(listState, autoFocus = true),
             ) {
                 profileSections(

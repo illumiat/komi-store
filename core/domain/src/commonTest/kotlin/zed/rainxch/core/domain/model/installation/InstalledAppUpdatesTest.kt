@@ -16,6 +16,7 @@ class InstalledAppUpdatesTest {
         isUpdateAvailable: Boolean = true,
         isPendingInstall: Boolean = false,
         pendingFilePath: String? = "/data/parked.apk",
+        skippedReleaseTag: String? = null,
     ): InstalledApp = InstalledApp(
         packageName = "com.example.app",
         repoId = 1L,
@@ -50,6 +51,7 @@ class InstalledAppUpdatesTest {
         pendingInstallFilePath = pendingFilePath,
         pendingInstallVersion = if (pendingFilePath != null) "2.0.0" else null,
         pendingInstallAssetName = if (pendingFilePath != null) "app-2.0.0.apk" else null,
+        skippedReleaseTag = skippedReleaseTag,
     )
 
     @Test
@@ -103,6 +105,29 @@ class InstalledAppUpdatesTest {
         )
         assertTrue(result.isUpdateAvailable)
         assertEquals(300L, result.latestVersionCode)
+    }
+
+    @Test
+    fun confirmInstallKeepsASkippedLatestHiddenAfterARollback() {
+        val result =
+            app(
+                installedVersion = "2.0.0",
+                installedVersionCode = 200L,
+                latestVersion = "2.0.0",
+                latestVersionCode = 200L,
+                skippedReleaseTag = "2.0.0",
+            ).confirmInstall(
+                tag = "1.9.0",
+                assetName = "a",
+                assetUrl = "u",
+                versionName = "1.9.0",
+                versionCode = 190L,
+                signingFingerprint = null,
+                at = 1L,
+            )
+        assertFalse(result.isUpdateAvailable)
+        assertEquals(200L, result.latestVersionCode)
+        assertEquals("2.0.0", result.skippedReleaseTag)
     }
 
     @Test

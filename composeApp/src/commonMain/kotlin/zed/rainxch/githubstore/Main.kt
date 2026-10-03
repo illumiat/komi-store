@@ -1,9 +1,13 @@
 package zed.rainxch.githubstore
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -14,6 +18,7 @@ import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
+import kotlinx.coroutines.channels.Channel
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.domain.model.appearance.AppPersonality
 import zed.rainxch.core.presentation.ProfileAvatarSpec
@@ -22,6 +27,7 @@ import zed.rainxch.core.presentation.personality.mangaPersonality
 import zed.rainxch.core.presentation.personality.toMangaAccent
 import zed.rainxch.core.presentation.personality.toMangaPaper
 import zed.rainxch.core.presentation.personality.utils.PersonalityTheme
+import zed.rainxch.core.presentation.utils.ObserveTimeZoneChanges
 import zed.rainxch.githubstore.app.components.RateLimitDialog
 import zed.rainxch.githubstore.app.components.SessionExpiredDialog
 import zed.rainxch.githubstore.app.navigation.AppNavigation
@@ -37,13 +43,21 @@ fun App(
     deepLinkUri: String? = null,
     onDeepLinkConsumed: () -> Unit = {},
     onResolvedDarkTheme: (Boolean) -> Unit = {},
+    onContentPainted: () -> Unit = {},
 ) {
     val mainViewModel: MainViewModel = koinViewModel()
     val whatsNewViewModel: WhatsNewViewModel = koinViewModel()
 
     val mainState by mainViewModel.state.collectAsStateWithLifecycle()
 
+    ObserveTimeZoneChanges()
+
     val navController = rememberNavController()
+
+    val pendingDeepLinks = remember { Channel<String>(Channel.UNLIMITED) }
+    LaunchedEffect(deepLinkUri) {
+        deepLinkUri?.let { pendingDeepLinks.trySend(it) }
+    }
 
     setSingletonImageLoaderFactory { context ->
         ImageLoader
@@ -51,6 +65,13 @@ fun App(
             .components { add(SvgDecoder.Factory()) }
             .build()
     }
+
+    if (!mainState.isAppearanceLoaded) {
+        Box(modifier = Modifier.fillMaxSize())
+        return
+    }
+
+    LaunchedEffect(Unit) { onContentPainted() }
 
     val imageContext = LocalPlatformContext.current
     val avatarSizePx = with(LocalDensity.current) { ProfileAvatarSpec.Size.roundToPx() }
@@ -73,7 +94,7 @@ fun App(
     HandleKeyboardEvents(navController)
 
     HandleDesktopToolbarDeeplinks(
-        deepLinkUri = deepLinkUri,
+        deepLinkUris = pendingDeepLinks,
         onDeepLinkConsumed = onDeepLinkConsumed,
         navController = navController,
     )

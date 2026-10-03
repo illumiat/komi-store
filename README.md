@@ -106,7 +106,7 @@ brew install --cask komi-store
 - **App management**
 - **Collections**
 - **Tweaks**
-- **Localization** (Available in 13 languages)
+- **Localization** (Available in 14 languages)
 - **Network & performance**
 
 ---

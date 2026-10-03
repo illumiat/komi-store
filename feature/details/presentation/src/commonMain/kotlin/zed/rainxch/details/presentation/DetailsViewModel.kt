@@ -236,6 +236,39 @@ class DetailsViewModel(
                 dismissDowngradeWarning()
             }
 
+            DetailsAction.OnConfirmDowngradeInstall -> {
+                val warning = _state.value.downgradeWarning ?: return
+                dismissDowngradeWarning()
+                val installedApp = _state.value.installedApp
+                viewModelScope.launch {
+                    val consentStillApplies =
+                        _state.value.selectedRelease?.tagName == warning.targetVersion
+                    if (consentStillApplies &&
+                        installedApp != null &&
+                        VersionMath.isExactSameVersion(
+                            installedApp.latestVersion,
+                            warning.currentVersion,
+                        )
+                    ) {
+                        installedAppsRepository.setSkippedReleaseTag(
+                            installedApp.packageName,
+                            installedApp.latestVersion,
+                        )
+                    }
+                    if (_state.value.selectedRelease?.tagName == warning.targetVersion) {
+                        install(ignoreDowngrade = true)
+                    } else {
+                        install()
+                    }
+                }
+            }
+
+            DetailsAction.OnConfirmDowngradeUninstall -> {
+                _state.value.downgradeWarning ?: return
+                dismissDowngradeWarning()
+                uninstallApp()
+            }
+
             DetailsAction.OnDismissSigningKeyWarning -> {
                 _state.update {
                     it.copy(
@@ -1454,13 +1487,14 @@ class DetailsViewModel(
         }
     }
 
-    private fun install() {
+    private fun install(ignoreDowngrade: Boolean = false) {
         val primary = _state.value.primaryAsset
         val release = _state.value.selectedRelease
         val installedApp = _state.value.installedApp
 
         if (primary != null && release != null) {
-            if (installedApp != null &&
+            if (!ignoreDowngrade &&
+                installedApp != null &&
                 !installedApp.isPendingInstall &&
                 VersionHelper.normalizeVersion(release.tagName) !=
                 VersionHelper.normalizeVersion(

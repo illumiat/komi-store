@@ -343,11 +343,13 @@ fun AppNavigation(
                                             onNavigateBack = {
                                                 navController.navigateUp()
                                             },
-                                            onNavigateToDetails = { repoId, sourceHost ->
+                                            onNavigateToDetails = { repoId, owner, repo, sourceHost ->
                                                 if (isExpanded) {
                                                     listDetailState.select(
                                                         AdaptiveDetailArgs(
                                                             repositoryId = repoId,
+                                                            owner = owner,
+                                                            repo = repo,
                                                             sourceHost = sourceHost,
                                                         ),
                                                     )
@@ -355,6 +357,8 @@ fun AppNavigation(
                                                     navController.navigate(
                                                         GithubStoreGraph.DetailsScreen(
                                                             repositoryId = repoId,
+                                                            owner = owner,
+                                                            repo = repo,
                                                             sourceHost = sourceHost,
                                                         ),
                                                     )

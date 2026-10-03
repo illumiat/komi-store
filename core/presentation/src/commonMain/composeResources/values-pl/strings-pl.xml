@@ -308,8 +308,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Odinstaluj</string>
     <string name="open_app">Otwórz</string>
-    <string name="downgrade_requires_uninstall">Obniżenie wersji wymaga odinstalowania</string>
-    <string name="downgrade_warning_message">Instalacja wersji %1$s wymaga odinstalowania bieżącej wersji (%2$s). Dane aplikacji zostaną utracone.</string>
+    <string name="downgrade_warning_title">Wybrano starszą wersję</string>
+    <string name="downgrade_warning_message">%1$s jest niższa niż zainstalowana %2$s.\nAndroid może odmówić instalacji niższej wersji.\nJeśli odmówi, zainstalowana %2$s pozostaje bez zmian.</string>
+    <string name="downgrade_warning_uninstall_note">Odinstalowanie %1$s usuwa dane aplikacji.</string>
     <string name="uninstall_first">Najpierw odinstaluj</string>
     <string name="install_version">Zainstaluj %1$s</string>
     <string name="failed_to_open_app">Nie udało się otworzyć %1$s</string>

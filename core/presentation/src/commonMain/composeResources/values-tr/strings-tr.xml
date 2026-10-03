@@ -336,8 +336,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Kaldır</string>
     <string name="open_app">Aç</string>
-    <string name="downgrade_requires_uninstall">Sürüm düşürme kaldırma gerektirir</string>
-    <string name="downgrade_warning_message">%1$s sürümünü yüklemek için önce mevcut sürümü (%2$s) kaldırmanız gerekir. Uygulama verileri kaybolacaktır.</string>
+    <string name="downgrade_warning_title">Daha eski sürüm seçildi</string>
+    <string name="downgrade_warning_message">%1$s, yüklü olan %2$s sürümünden daha düşük.\nAndroid daha düşük bir sürümü yüklemeyi reddedebilir.\nReddederse, yüklü %2$s olduğu gibi kalır.</string>
+    <string name="downgrade_warning_uninstall_note">%1$s kaldırılırsa uygulama verileri silinir.</string>
     <string name="uninstall_first">Önce kaldır</string>
     <string name="install_version">%1$s yükle</string>
     <string name="failed_to_open_app">%1$s açılamadı</string>

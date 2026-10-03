@@ -265,7 +265,7 @@ We use Kotlin's official style (`kotlin.code.style=official`). CI lints every PR
 
 ## Translations
 
-Komi Store ships in 13 languages. String resources live in:
+Komi Store ships in 14 languages. String resources live in:
 
 ```text
 core/presentation/src/commonMain/composeResources/
@@ -282,6 +282,7 @@ core/presentation/src/commonMain/composeResources/
   values-ru/strings-ru.xml       # Russian
   values-tr/strings-tr.xml       # Turkish
   values-zh-rCN/strings-zh-rCN.xml  # Chinese (Simplified)
+  values-zh-rTW/strings-zh-rTW.xml  # Chinese (Traditional)
 ```
 
 To add a translation:

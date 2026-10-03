@@ -79,6 +79,8 @@ fun KomiButton(
     fullWidth: Boolean = false,
     leadingIcon: ImageVector? = null,
     trailingIcon: ImageVector? = null,
+    containerColor: Color = Color.Unspecified,
+    contentColor: Color = Color.Unspecified,
 ) {
     when (val personality = LocalPersonality.current) {
         is MangaPersonality -> {
@@ -95,6 +97,8 @@ fun KomiButton(
                 fullWidth = fullWidth,
                 leadingIcon = leadingIcon,
                 trailingIcon = trailingIcon,
+                containerColor = containerColor,
+                contentColor = contentColor,
             )
         }
 
@@ -111,6 +115,8 @@ fun KomiButton(
                 fullWidth = fullWidth,
                 leadingIcon = leadingIcon,
                 trailingIcon = trailingIcon,
+                containerColor = containerColor,
+                contentColor = contentColor,
             )
         }
     }
@@ -130,6 +136,8 @@ private fun MangaButton(
     fullWidth: Boolean,
     leadingIcon: ImageVector?,
     trailingIcon: ImageVector?,
+    containerColor: Color,
+    contentColor: Color,
 ) {
     val colors = personality.colors
     val metrics = buttonMetrics(size)
@@ -140,9 +148,14 @@ private fun MangaButton(
 
     val flat = variant == KomiButtonVariant.Text
     val ambientInk = LocalContentColor.current
-    val container = mangaButtonContainer(variant, colors)
-    val contentColor = mangaButtonContent(variant, colors, ambientInk)
-    val borderColor = if (container == Color.Transparent) contentColor else colors.outline
+    val overrideColorsGiven =
+        containerColor != Color.Unspecified && contentColor != Color.Unspecified
+    val container =
+        if (overrideColorsGiven) containerColor else mangaButtonContainer(variant, colors)
+    val resolvedContentColor =
+        if (overrideColorsGiven) contentColor else mangaButtonContent(variant, colors, ambientInk)
+    val borderColor =
+        if (overrideColorsGiven || container == Color.Transparent) resolvedContentColor else colors.outline
     val stamped = !flat && container != Color.Transparent
     val sweep =
         emphasized && active &&
@@ -175,14 +188,17 @@ private fun MangaButton(
         modifier =
             modifier
                 .then(if (fullWidth) Modifier.fillMaxWidth() else Modifier)
-                .inkFocusRing(focused = { focused }, color = colors.primary)
+                .inkFocusRing(
+                    focused = { focused },
+                    color = if (overrideColorsGiven) resolvedContentColor else colors.primary,
+                )
                 .then(pressModifier)
                 .then(if (clipNeeded) Modifier.clip(shape) else Modifier)
                 .background(color = container.copy(alpha = container.alpha * alpha), shape = shape)
                 .then(
                     if (sweep) {
                         Modifier.speedLines(
-                            color = contentColor,
+                            color = resolvedContentColor,
                             opacity = 0.16f,
                         )
                     } else {
@@ -192,7 +208,7 @@ private fun MangaButton(
                     if (!flat) {
                         Modifier.border(
                             width = metrics.border,
-                            color = borderColor.copy(alpha = alpha),
+                            color = borderColor.copy(alpha = borderColor.alpha * alpha),
                             shape = shape,
                         )
                     } else {
@@ -210,7 +226,7 @@ private fun MangaButton(
     ) {
         KomiButtonContent(
             label = label,
-            contentColor = contentColor.copy(alpha = alpha),
+            contentColor = resolvedContentColor.copy(alpha = resolvedContentColor.alpha * alpha),
             iconSize = metrics.icon,
             gap = metrics.gap,
             fontSize = metrics.font,
@@ -234,6 +250,8 @@ private fun ClassicButton(
     fullWidth: Boolean,
     leadingIcon: ImageVector?,
     trailingIcon: ImageVector?,
+    containerColor: Color,
+    contentColor: Color,
 ) {
     val colors = personality.colors
     val metrics = buttonMetrics(size)
@@ -243,6 +261,38 @@ private fun ClassicButton(
         modifier
             .heightIn(min = metrics.height)
             .then(if (fullWidth) Modifier.fillMaxWidth() else Modifier)
+
+    val overrideColors =
+        if (containerColor != Color.Unspecified && contentColor != Color.Unspecified) {
+            when (variant) {
+                KomiButtonVariant.Primary,
+                KomiButtonVariant.Destructive,
+                -> ButtonDefaults.buttonColors(
+                    containerColor = containerColor,
+                    contentColor = contentColor,
+                )
+
+                KomiButtonVariant.Tonal ->
+                    ButtonDefaults.filledTonalButtonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                    )
+
+                KomiButtonVariant.Outline ->
+                    ButtonDefaults.outlinedButtonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                    )
+
+                KomiButtonVariant.Text ->
+                    ButtonDefaults.textButtonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                    )
+            }
+        } else {
+            null
+        }
 
     val content: @Composable RowScope.() -> Unit = {
         KomiButtonContent(
@@ -264,6 +314,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors = overrideColors ?: ButtonDefaults.buttonColors(),
                 content = content,
             )
         }
@@ -274,6 +325,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors = overrideColors ?: ButtonDefaults.filledTonalButtonColors(),
                 content = content,
             )
         }
@@ -284,6 +336,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors = overrideColors ?: ButtonDefaults.outlinedButtonColors(),
                 content = content,
             )
         }
@@ -294,6 +347,7 @@ private fun ClassicButton(
                 modifier = buttonModifier,
                 enabled = active,
                 contentPadding = contentPadding,
+                colors = overrideColors ?: ButtonDefaults.textButtonColors(),
                 content = content,
             )
         }
@@ -305,10 +359,11 @@ private fun ClassicButton(
                 enabled = active,
                 contentPadding = contentPadding,
                 colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = colors.error,
-                        contentColor = colors.onError,
-                    ),
+                    overrideColors
+                        ?: ButtonDefaults.buttonColors(
+                            containerColor = colors.error,
+                            contentColor = colors.onError,
+                        ),
                 content = content,
             )
         }

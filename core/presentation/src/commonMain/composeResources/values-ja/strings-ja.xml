@@ -310,8 +310,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">アンインストール</string>
     <string name="open_app">開く</string>
-    <string name="downgrade_requires_uninstall">ダウングレードにはアンインストールが必要</string>
-    <string name="downgrade_warning_message">バージョン%1$sのインストールには、現在のバージョン（%2$s）のアンインストールが必要です。アプリデータは失われます。</string>
+    <string name="downgrade_warning_title">古いバージョンを選択しました</string>
+    <string name="downgrade_warning_message">%1$s は、すでにインストールされている %2$s より低いバージョンです。\nAndroid はより低いバージョンのインストールを拒否することがあります。\n拒否された場合、インストール済みの %2$s はそのまま残ります。</string>
+    <string name="downgrade_warning_uninstall_note">%1$s をアンインストールすると、アプリのデータが削除されます。</string>
     <string name="uninstall_first">先にアンインストール</string>
     <string name="install_version">%1$sをインストール</string>
     <string name="failed_to_open_app">%1$sを開けませんでした</string>

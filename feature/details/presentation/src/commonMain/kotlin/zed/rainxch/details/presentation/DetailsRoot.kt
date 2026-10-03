@@ -4,6 +4,8 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -32,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -72,6 +76,7 @@ import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
+import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
@@ -209,43 +214,87 @@ fun DetailsRoot(
             },
             title = {
                 KomiText(
-                    text = stringResource(Res.string.downgrade_requires_uninstall),
+                    text = stringResource(Res.string.downgrade_warning_title),
                     role = KomiTextRole.Title,
                     fontWeight = FontWeight.SemiBold,
                     uppercase = false,
                 )
             },
             text = {
-                KomiText(
-                    text =
-                        stringResource(
-                            Res.string.downgrade_warning_message,
-                            warning.targetVersion,
-                            warning.currentVersion,
-                        ),
-                    role = KomiTextRole.Body,
-                )
+                val personality = LocalPersonality.current
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    KomiText(
+                        text =
+                            stringResource(
+                                Res.string.downgrade_warning_message,
+                                warning.targetVersion,
+                                warning.currentVersion,
+                            ),
+                        role = KomiTextRole.Body,
+                    )
+                    KomiText(
+                        text =
+                            stringResource(
+                                Res.string.downgrade_warning_uninstall_note,
+                                warning.currentVersion,
+                            ),
+                        role = KomiTextRole.Body,
+                        color = personality.colors.error,
+                    )
+                }
             },
             confirmButton = {
-                KomiButton(
-                    onClick = {
-                        viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
-                        viewModel.onAction(DetailsAction.UninstallApp)
-                    },
-                    label = stringResource(Res.string.uninstall_first),
-                    variant = KomiButtonVariant.Text,
-                    size = KomiButtonSize.Sm,
-                )
-            },
-            dismissButton = {
-                KomiButton(
-                    onClick = {
-                        viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
-                    },
-                    label = stringResource(Res.string.cancel),
-                    variant = KomiButtonVariant.Text,
-                    size = KomiButtonSize.Sm,
-                )
+                val personality = LocalPersonality.current
+                val dialogSurfaceIsDark = personality.colors.surfaceContainerHigh.luminance() < 0.5f
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    KomiButton(
+                        onClick = {
+                            viewModel.onAction(DetailsAction.OnDismissDowngradeWarning)
+                        },
+                        label = stringResource(Res.string.cancel),
+                        variant = KomiButtonVariant.Text,
+                        size = KomiButtonSize.Sm,
+                        containerColor = Color.Transparent,
+                        contentColor =
+                            if (dialogSurfaceIsDark) {
+                                Color(0xFFBCBCBC)
+                            } else {
+                                Color(0xFF747474)
+                            },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        KomiButton(
+                            onClick = {
+                                viewModel.onAction(DetailsAction.OnConfirmDowngradeUninstall)
+                            },
+                            label = stringResource(Res.string.uninstall_first),
+                            variant = KomiButtonVariant.Text,
+                            size = KomiButtonSize.Sm,
+                            containerColor = Color.Transparent,
+                            contentColor = personality.colors.error,
+                        )
+                        KomiButton(
+                            onClick = {
+                                viewModel.onAction(DetailsAction.OnConfirmDowngradeInstall)
+                            },
+                            label = stringResource(Res.string.install_anyway),
+                            variant = KomiButtonVariant.Text,
+                            size = KomiButtonSize.Sm,
+                            containerColor = Color.Transparent,
+                            contentColor =
+                                if (dialogSurfaceIsDark) {
+                                    Color(0xFFB6C4FF)
+                                } else {
+                                    Color(0xFF3B5BDB)
+                                },
+                        )
+                    }
+                }
             },
         )
     }

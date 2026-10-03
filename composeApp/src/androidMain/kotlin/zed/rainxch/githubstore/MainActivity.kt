@@ -19,11 +19,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.android.ext.android.inject
+import org.koin.androidx.viewmodel.ext.android.getViewModel
 import zed.rainxch.core.data.services.LocalizationManager
 import zed.rainxch.core.data.utils.AndroidShareManager
 import zed.rainxch.core.domain.helpers.ShareManager
@@ -31,37 +29,32 @@ import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
 import zed.rainxch.githubstore.app.deeplink.DeepLinkParser
 import zed.rainxch.githubstore.utils.updateSystemBars
-import kotlin.time.Duration.Companion.milliseconds
-
-private const val LANGUAGE_PREF_READ_TIMEOUT_MS = 2000L
 
 class MainActivity : ComponentActivity() {
     private var deepLinkUri by mutableStateOf<String?>(null)
+
     private val shareManager: ShareManager by inject()
-    private val tweaksRepository: TweaksRepository by inject()
     private val localizationManager: LocalizationManager by inject()
+    private val tweaksRepository: TweaksRepository by inject()
     private val syncInstalledAppsUseCase: SyncInstalledAppsUseCase by inject()
     private val appScope: CoroutineScope by inject()
 
+    private val contentPainted =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splash = installSplashScreen()
         enableEdgeToEdge()
 
         (shareManager as? AndroidShareManager)?.registerActivityResultLauncher(this)
 
-        runBlocking {
-            val tag =
-                try {
-                    withTimeoutOrNull(LANGUAGE_PREF_READ_TIMEOUT_MS.milliseconds) {
-                        tweaksRepository.getAppLanguage().first()
-                    }
-                } catch (_: Exception) {
-                    null
-                }
-            localizationManager.setActiveLanguageTag(tag)
-        }
-
         super.onCreate(savedInstanceState)
+
+        // Cancels draw requests until the real UI past the gate has composed, so no placeholder
+        // frame is rendered.
+        getViewModel<MainViewModel>()
+        splash.setKeepOnScreenCondition { !contentPainted.get() }
 
         handleIncomingIntent(intent)
 
@@ -96,6 +89,7 @@ class MainActivity : ComponentActivity() {
                 onResolvedDarkTheme = { isDarkTheme ->
                     this@MainActivity.updateSystemBars(isDarkTheme)
                 },
+                onContentPainted = { contentPainted.set(true) },
             )
         }
     }

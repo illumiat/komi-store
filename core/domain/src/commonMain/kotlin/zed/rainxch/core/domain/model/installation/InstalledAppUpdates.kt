@@ -27,6 +27,7 @@ fun InstalledApp.confirmInstall(
     val landedCodeBelowTarget =
         latestVersionCode != null && latestVersionCode > 0L && versionCode < latestVersionCode
     val isUpdateStillAvailable = targetVersionStillNewer || landedCodeBelowTarget
+    val latestIsSkipped = VersionMath.isExactSameVersion(latestVersion, skippedReleaseTag)
 
     val parkedFile = if (isPending) pendingInstallFilePath else null
     val parkedVersion = if (isPending) pendingInstallVersion else null
@@ -40,6 +41,7 @@ fun InstalledApp.confirmInstall(
         installedVersionCode = versionCode,
         isUpdateAvailable =
             when {
+                latestIsSkipped -> false
                 !timestampTrackedTag -> isUpdateStillAvailable
                 landedCodeBelowTarget -> true
                 else -> false

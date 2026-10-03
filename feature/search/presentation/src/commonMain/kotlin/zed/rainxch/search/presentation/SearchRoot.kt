@@ -124,7 +124,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 fun SearchRoot(
     onNavigateBack: () -> Unit,
-    onNavigateToDetails: (repoId: Long, sourceHost: String?) -> Unit,
+    onNavigateToDetails: (repoId: Long, owner: String, repo: String, sourceHost: String?) -> Unit,
     onNavigateToDetailsFromLink: (owner: String, repo: String) -> Unit,
     onNavigateToDeveloperProfile: (username: String) -> Unit,
     viewModel: SearchViewModel = koinViewModel(),
@@ -153,7 +153,12 @@ fun SearchRoot(
         onAction = { action ->
             when (action) {
                 is SearchAction.OnRepositoryClick -> {
-                    onNavigateToDetails(action.repository.id, action.repository.sourceHost)
+                    onNavigateToDetails(
+                        action.repository.id,
+                        action.repository.owner.login,
+                        action.repository.name,
+                        action.repository.sourceHost,
+                    )
                 }
 
                 SearchAction.OnNavigateBackClick -> {

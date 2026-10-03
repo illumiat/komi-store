@@ -5,7 +5,7 @@ import zed.rainxch.apps.presentation.model.AppItem
 import zed.rainxch.apps.presentation.model.InstalledAppUi
 import zed.rainxch.apps.presentation.model.UpdateState
 import zed.rainxch.core.presentation.utils.formatEpochDate
-import zed.rainxch.core.presentation.utils.formatIsoDate
+import zed.rainxch.core.presentation.utils.formatIsoDateOrRaw
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.apps_version_dated
 import zed.rainxch.githubstore.core.presentation.res.apps_version_update
@@ -55,7 +55,10 @@ private suspend fun buildVersionLabel(
     lastUpdatedAt: Long,
 ): String {
     val displayDate = if (latestVersion != null) {
-        formatIsoDate(latestReleasePublishedAt)
+        // Release publish times can arrive as a bare date. Formatting one through the local
+        // timezone is what shifted it a day back west of UTC, so this goes through the raw-aware
+        // helper like the details and security screens do.
+        latestReleasePublishedAt?.let { formatIsoDateOrRaw(it) }
     } else {
         formatEpochDate(lastUpdatedAt)
     }

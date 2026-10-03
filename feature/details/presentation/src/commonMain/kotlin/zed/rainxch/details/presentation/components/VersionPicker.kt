@@ -40,6 +40,7 @@ import zed.rainxch.core.presentation.components.overlays.KomiSheetPlacement
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
+import zed.rainxch.core.presentation.utils.formatIsoDateOrRaw
 import zed.rainxch.details.presentation.DetailsAction
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.latest_badge
@@ -251,7 +252,7 @@ private fun VersionListItem(
                 }
             }
             KomiText(
-                text = release.publishedAt.take(10),
+                text = formatIsoDateOrRaw(release.publishedAt),
                 role = KomiTextRole.Label,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,

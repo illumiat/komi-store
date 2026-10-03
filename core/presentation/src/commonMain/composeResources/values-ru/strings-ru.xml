@@ -310,8 +310,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Удалить</string>
     <string name="open_app">Открыть</string>
-    <string name="downgrade_requires_uninstall">Для понижения версии требуется удаление</string>
-    <string name="downgrade_warning_message">Для установки версии %1$s необходимо сначала удалить текущую версию (%2$s). Данные приложения будут потеряны.</string>
+    <string name="downgrade_warning_title">Выбрана более старая версия</string>
+    <string name="downgrade_warning_message">%1$s ниже уже установленной версии %2$s.\nAndroid может отказаться устанавливать более низкую версию.\nЕсли он откажется, установленная %2$s останется без изменений.</string>
+    <string name="downgrade_warning_uninstall_note">Удаление %1$s стирает данные приложения.</string>
     <string name="uninstall_first">Сначала удалить</string>
     <string name="install_version">Установить %1$s</string>
     <string name="failed_to_open_app">Не удалось открыть %1$s</string>
