@@ -21,13 +21,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.context.GlobalContext
 import zed.rainxch.core.data.network.ProxyManager
+import zed.rainxch.core.data.services.LocalizationManager
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.repository.ProxyRepository
+import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.system.DesktopOs
 import zed.rainxch.githubstore.app.desktop.KeyboardNavigation
 import zed.rainxch.githubstore.app.desktop.KeyboardNavigationEvent
@@ -53,6 +58,7 @@ import zed.rainxch.githubstore.desktop.WindowStateStore
 import zed.rainxch.githubstore.desktop.applyMacosWindowAppearance
 import zed.rainxch.githubstore.desktop.applyWindowsImmersiveDarkMode
 import zed.rainxch.githubstore.desktop.installMacosSystemAppearance
+import zed.rainxch.githubstore.utils.STARTUP_PREFERENCE_TIMEOUT_MS
 import java.awt.Desktop
 import java.net.URI
 import java.security.Security
@@ -80,9 +86,21 @@ fun main(args: Array<String>) {
 
     initKoin()
 
-    // The startup language is read and the JVM locale applied by MainViewModel when App()
-    // composes inside the window below, so desktop no longer performs its own blocking read
-    // here — a single source, on a single timeout budget.
+    // title/MenuBar compose outside App() and never recompose, so apply the stored language first.
+    runBlocking {
+        val koin = GlobalContext.get()
+        val tweaksRepo = koin.get<TweaksRepository>()
+        val localization = koin.get<LocalizationManager>()
+        val tag =
+            try {
+                withTimeoutOrNull(STARTUP_PREFERENCE_TIMEOUT_MS.milliseconds) {
+                    tweaksRepo.getAppLanguage().first()
+                }
+            } catch (_: Exception) {
+                null
+            }
+        localization.setActiveLanguageTag(tag)
+    }
 
     bootstrapProxy()
 

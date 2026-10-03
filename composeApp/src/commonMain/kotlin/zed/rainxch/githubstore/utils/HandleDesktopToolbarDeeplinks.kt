@@ -18,13 +18,8 @@ fun HandleDesktopToolbarDeeplinks(
     onDeepLinkConsumed: () -> Unit,
     navController: NavHostController,
 ) {
-    // Drains the queued links one at a time rather than re-running per value: the
-    // queue lives above the appearance gate, so every link that arrived while the
-    // gate was closed is still here and none is dropped in favour of the latest.
     LaunchedEffect(deepLinkUris) {
         for (uri in deepLinkUris) {
-            // Read per link, not once at composition: a single drain can navigate
-            // several times in a row, so the destination must be re-read after each.
             val currentScreen = navController.currentBackStackEntry.getCurrentScreen()
             when (val destination = DeepLinkParser.parse(uri)) {
                 is DeepLinkDestination.Repository -> {

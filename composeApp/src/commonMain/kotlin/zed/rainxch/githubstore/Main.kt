@@ -45,18 +45,10 @@ fun App(
 
     val mainState by mainViewModel.state.collectAsStateWithLifecycle()
 
-    // Keeps TimeZoneChangeSignal.revision live for the whole session; the date
-    // producers that observe it re-map their local dates when the system zone
-    // changes. Registered above the appearance gate so it is active from launch.
     ObserveTimeZoneChanges()
 
     val navController = rememberNavController()
 
-    // Deep links must survive the appearance gate: the handler below is not
-    // composed until it opens, and the platform hands over a single replaceable
-    // String?, so of two links arriving while the gate is closed only the
-    // latest would ever be observable. Queue them into an event stream here —
-    // above the gate — and let the handler drain it once composed.
     val pendingDeepLinks = remember { Channel<String>(Channel.UNLIMITED) }
     LaunchedEffect(deepLinkUri) {
         deepLinkUri?.let { pendingDeepLinks.trySend(it) }
@@ -69,20 +61,11 @@ fun App(
             .build()
     }
 
-    // Nothing below may run before persisted appearance preferences load: the
-    // deep-link effect navigates a NavHost that is only composed after this
-    // gate, and the theme would be built from untrusted defaults. Android
-    // covers the wait with the splash; desktop shows a plain window frame.
     if (!mainState.isAppearanceLoaded) {
         Box(modifier = Modifier.fillMaxSize())
         return
     }
 
-    // The splash condition used to read MainState's StateFlow directly, which flips one
-    // frame before this branch is composed — releasing the splash onto a frame that still
-    // draws the placeholder above. Reporting from inside the composition makes "the real UI
-    // is here" the same event the caller waits on. Runs once: the key is Unit and the gate
-    // never closes again.
     LaunchedEffect(Unit) { onContentPainted() }
 
     val currentScreen = navController.currentBackStackEntryAsState().value.getCurrentScreen()

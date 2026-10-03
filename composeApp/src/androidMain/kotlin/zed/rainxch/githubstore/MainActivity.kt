@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.getViewModel
+import zed.rainxch.core.data.services.LocalizationManager
 import zed.rainxch.core.data.utils.AndroidShareManager
 import zed.rainxch.core.domain.helpers.ShareManager
 import zed.rainxch.core.domain.repository.TweaksRepository
@@ -33,13 +34,11 @@ class MainActivity : ComponentActivity() {
     private var deepLinkUri by mutableStateOf<String?>(null)
 
     private val shareManager: ShareManager by inject()
+    private val localizationManager: LocalizationManager by inject()
     private val tweaksRepository: TweaksRepository by inject()
     private val syncInstalledAppsUseCase: SyncInstalledAppsUseCase by inject()
     private val appScope: CoroutineScope by inject()
 
-    // Flips once App() has composed the real UI past its appearance gate. A plain
-    // AtomicBoolean rather than Compose state: the splash condition is polled from the
-    // framework and only needs cross-thread visibility, not recomposition.
     private val contentPainted =
         java.util.concurrent.atomic
             .AtomicBoolean(false)
@@ -52,20 +51,8 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        // The startup language is read by MainViewModel alone; this Activity no longer
-        // performs its own preference read, so getViewModel() can follow super.onCreate
-        // directly. The Activity must be fully created first, though: the ViewModel and its
-        // SavedStateHandle are built on construction. Constructing it here also starts the
-        // appearance gate's read (and its watchdog) before the first composition.
-        //
-        // KeepOnScreenCondition is polled before each draw: while it returns true every draw
-        // request is cancelled, so no placeholder frame is ever rendered. It waits on
-        // contentPainted, which App() flips once the real UI past the gate has composed — not
-        // on MainState's StateFlow, whose value flips one frame before Compose recomposes and
-        // would release the splash onto the placeholder Box. Only on the rare watchdog
-        // timeout can the released frame still hold defaults briefly (see MainViewModel). The
-        // only ordering this condition requires is "before the first draw", which setContent
-        // far below still satisfies.
+        // Cancels draw requests until the real UI past the gate has composed, so no placeholder
+        // frame is rendered.
         getViewModel<MainViewModel>()
         splash.setKeepOnScreenCondition { !contentPainted.get() }
 
@@ -76,10 +63,8 @@ class MainActivity : ComponentActivity() {
                 tweaksRepository
                     .getAppLanguage()
                     .drop(1)
-                    .collect {
-                        // Locales are applied centrally by MainViewModel, now the single
-                        // reader of the startup language; this Activity only rebuilds itself
-                        // so resources resolve against the newly stored language.
+                    .collect { newTag ->
+                        localizationManager.setActiveLanguageTag(newTag)
                         recreate()
                     }
             }

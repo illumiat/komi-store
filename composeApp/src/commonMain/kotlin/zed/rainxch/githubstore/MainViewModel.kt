@@ -48,13 +48,6 @@ class MainViewModel(
                 }
         }
 
-        // Sole writer of the gated appearance fields: the combine chain emits
-        // only after all six sources have a first value — the five theme
-        // preferences plus appLanguageTag, which selects the font script and is
-        // therefore gated alongside the theme rather than collected separately.
-        // Fields and flag land in one update. If that emission never arrives
-        // within the timeout — or the collector throws — the watchdog releases
-        // the gate on defaults so the splash can never be held indefinitely.
         viewModelScope.launch {
             val firstEmitted = CompletableDeferred<Unit>()
             launch {
@@ -63,8 +56,6 @@ class MainViewModel(
                         firstEmitted.await()
                     } == null
                 ) {
-                    // Timed out before the language was read, so no locale is applied: the
-                    // system default is the correct fallback and the gate opens on defaults.
                     Logger.w { "Appearance preference load timed out, releasing gate on defaults" }
                     _state.update { it.copy(isAppearanceLoaded = true) }
                 }
@@ -81,21 +72,13 @@ class MainViewModel(
                 }.combine(tweaksRepository.getAppLanguage()) { appearance, appLanguageTag ->
                     appearance.copy(appLanguageTag = appLanguageTag)
                 }.collect { snapshot ->
-                    // The one place the startup language is read. The platform entry points used to read
-                    // it again on their own timeout budget, so a slow first read could leave the JVM
-                    // locale and the rendered language disagreeing. Applied before the gate opens — the
-                    // splash still covers this window — so the first real frame already resolves its
-                    // resources against the stored language.
                     localizationManager.setActiveLanguageTag(snapshot.appLanguageTag)
                     _state.update { it.withAppearance(snapshot).copy(isAppearanceLoaded = true) }
                     firstEmitted.complete(Unit)
                 }
             } catch (e: CancellationException) {
-                // Cancellation, not a degraded release: no gate update and no locale is applied.
                 throw e
             } catch (e: Exception) {
-                // The stream failed before any language arrived, so no locale is applied here —
-                // the system default stays and only the gate is released.
                 Logger.w(e) { "Appearance preference stream failed, releasing gate on defaults" }
                 _state.update { it.copy(isAppearanceLoaded = true) }
                 firstEmitted.complete(Unit)

@@ -19,11 +19,5 @@ data class MainState(
     val isScrollbarEnabled: Boolean = false,
     val contentWidth: ContentWidth = ContentWidth.COMPACT,
     val appLanguageTag: String? = null,
-    // False until the appearance gate has been released: either the persisted
-    // preferences loaded, or the startup watchdog timed out (or the stream
-    // failed). On those fallback paths the first frame may render on the
-    // default appearance and re-skin once the real values arrive, so this flag
-    // means "gate released", not "preferences loaded". The first frame must
-    // not render before it flips.
     val isAppearanceLoaded: Boolean = false,
 )
