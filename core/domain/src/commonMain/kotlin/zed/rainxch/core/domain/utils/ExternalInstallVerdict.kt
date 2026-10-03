@@ -49,6 +49,8 @@ private fun compareAndDecide(
     val latest = VersionMath.normalizeVersion(latestVersion)
     if (system.isEmpty() || latest.isEmpty()) return VersionVerdict.UNKNOWN
 
+    if (!VersionMath.versionsReconcilable(system, latest)) return VersionVerdict.UNKNOWN
+
     val cmp = VersionMath.compareVersions(system, latest)
     return when {
         cmp >= 0 -> VersionVerdict.UP_TO_DATE

@@ -58,6 +58,9 @@ interface InstalledAppDao {
         latestAssetName = :assetName,
         latestAssetUrl = :assetUrl,
         latestAssetSize = :assetSize,
+        latestReleaseId = :releaseId,
+        latestAssetId = :assetId,
+        latestAssetDigest = :assetDigest,
         releaseNotes = :releaseNotes,
         lastCheckedAt = :timestamp,
         latestVersionName = :latestVersionName,
@@ -73,6 +76,9 @@ interface InstalledAppDao {
         assetName: String?,
         assetUrl: String?,
         assetSize: Long?,
+        releaseId: Long?,
+        assetId: Long?,
+        assetDigest: String?,
         releaseNotes: String?,
         timestamp: Long,
         latestVersionName: String?,
@@ -142,6 +148,19 @@ interface InstalledAppDao {
     @Query(
         """
         UPDATE installed_apps
+           SET isUpdateAvailable = 0,
+               lastCheckedAt = :timestamp
+         WHERE packageName = :packageName
+        """,
+    )
+    suspend fun clearUpdateFlagKeepBaseline(
+        packageName: String,
+        timestamp: Long,
+    )
+
+    @Query(
+        """
+        UPDATE installed_apps
            SET skippedReleaseTag = :tag,
                isUpdateAvailable = CASE WHEN :tag IS NULL THEN isUpdateAvailable ELSE 0 END
          WHERE packageName = :packageName
@@ -203,6 +222,9 @@ interface InstalledAppDao {
                latestAssetName = NULL,
                latestAssetUrl = NULL,
                latestAssetSize = NULL,
+               latestReleaseId = NULL,
+               latestAssetId = NULL,
+               latestAssetDigest = NULL,
                latestVersionName = NULL,
                latestVersionCode = NULL,
                latestReleasePublishedAt = NULL,

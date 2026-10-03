@@ -857,11 +857,7 @@ class DetailsViewModel(
                         sourceHost = sourceHostParam,
                     )
 
-                val byPrevCategory = when (prevCategory) {
-                    ReleaseCategory.STABLE -> releases.firstOrNull { !it.isEffectivelyPreRelease() }
-                    ReleaseCategory.PRE_RELEASE -> releases.firstOrNull { it.isEffectivelyPreRelease() }
-                    ReleaseCategory.ALL -> releases.firstOrNull()
-                }
+                val byPrevCategory = releases.firstInCategory(prevCategory)
                 val selected = byPrevCategory
                     ?: releases.firstOrNull { !it.isEffectivelyPreRelease() }
                     ?: releases.firstOrNull()
@@ -914,6 +910,13 @@ class DetailsViewModel(
             }
         }
     }
+
+    private fun List<GithubRelease>.firstInCategory(category: ReleaseCategory): GithubRelease? =
+        when (category) {
+            ReleaseCategory.STABLE -> firstOrNull { !it.isEffectivelyPreRelease() }
+            ReleaseCategory.PRE_RELEASE -> firstOrNull { it.isEffectivelyPreRelease() }
+            ReleaseCategory.ALL -> firstOrNull()
+        }
 
     private fun recomputeAssetsForRelease(
         release: GithubRelease?,
@@ -2479,9 +2482,28 @@ class DetailsViewModel(
                     return@launch
                 }
 
+                val installedVersionTag = installedApp?.installedVersion
+                val installedRelease =
+                    allReleases.firstOrNull {
+                        VersionMath.isExactSameVersion(it.tagName, installedVersionTag)
+                    } ?: allReleases.firstOrNull {
+                        VersionMath.isSameVersion(it.tagName, installedVersionTag)
+                    }
+                val installedIsPreRelease = installedRelease?.isEffectivelyPreRelease() == true
                 val selectedRelease =
-                    allReleases.firstOrNull { !it.isEffectivelyPreRelease() }
-                        ?: allReleases.firstOrNull()
+                    allReleases.firstInCategory(
+                        if (installedIsPreRelease) {
+                            ReleaseCategory.PRE_RELEASE
+                        } else {
+                            ReleaseCategory.STABLE
+                        },
+                    ) ?: allReleases.firstInCategory(ReleaseCategory.ALL)
+                val resolvedCategory =
+                    if (selectedRelease?.isEffectivelyPreRelease() == true) {
+                        ReleaseCategory.PRE_RELEASE
+                    } else {
+                        ReleaseCategory.STABLE
+                    }
 
                 val (installable, primary) = recomputeAssetsForRelease(
                     selectedRelease,
@@ -2504,7 +2526,7 @@ class DetailsViewModel(
                         releasesLoadFailed = releasesFailed,
                         isRetryingReleases = false,
                         selectedRelease = selectedRelease,
-                        selectedReleaseCategory = ReleaseCategory.STABLE,
+                        selectedReleaseCategory = resolvedCategory,
                         stats = stats,
                         readmeMarkdown = readme?.first,
                         readmeLanguage = readme?.second,
@@ -2641,6 +2663,7 @@ class DetailsViewModel(
                 }
                 val selectedRelease = freshReleases?.let { list ->
                     carried
+                        ?: list.firstInCategory(previousCategory)
                         ?: list.firstOrNull { !it.isEffectivelyPreRelease() }
                         ?: list.firstOrNull()
                 } ?: previousSelected

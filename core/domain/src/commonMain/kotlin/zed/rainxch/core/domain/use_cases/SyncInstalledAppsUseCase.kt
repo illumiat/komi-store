@@ -7,6 +7,9 @@ import kotlinx.coroutines.withContext
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.SystemPackageInfo
+import zed.rainxch.core.domain.model.installation.observeExternalInstall
+import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
+import zed.rainxch.core.domain.model.installation.withMigratedVersionInfo
 import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.PackageMonitor
@@ -186,15 +189,19 @@ class SyncInstalledAppsUseCase(
     private suspend fun resolvePending(app: InstalledApp, systemInfo: SystemPackageInfo?) {
         try {
             if (systemInfo != null) {
-                val latestVersionCode = app.latestVersionCode ?: 0L
-                val resolvedTag = app.latestVersion ?: systemInfo.versionName
+                val targetCode = app.latestVersionCode ?: 0L
+                val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
+                val resolvedTag =
+                    if (installReachedTarget) {
+                        app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
+                    } else {
+                        app.installedVersion
+                    }
                 installedAppsRepository.updateApp(
-                    app.copy(
-                        isPendingInstall = false,
-                        installedVersion = resolvedTag,
-                        installedVersionName = systemInfo.versionName,
-                        installedVersionCode = systemInfo.versionCode,
-                        isUpdateAvailable = latestVersionCode > systemInfo.versionCode,
+                    app.resolvePendingFromSystem(
+                        resolvedTag = resolvedTag,
+                        versionName = systemInfo.versionName,
+                        versionCode = systemInfo.versionCode,
                     ),
                 )
                 logger.info(
@@ -234,11 +241,9 @@ class SyncInstalledAppsUseCase(
         try {
             val app = appsInDb.find { it.packageName == packageName } ?: return
             installedAppsRepository.updateApp(
-                app.copy(
-                    installedVersionName = migrationResult.versionName,
-                    installedVersionCode = migrationResult.versionCode,
-                    latestVersionName = migrationResult.versionName,
-                    latestVersionCode = migrationResult.versionCode,
+                app.withMigratedVersionInfo(
+                    versionName = migrationResult.versionName,
+                    versionCode = migrationResult.versionCode,
                 ),
             )
             logger.info(
@@ -256,24 +261,19 @@ class SyncInstalledAppsUseCase(
         try {
             if (systemInfo != null && systemInfo.versionCode != app.installedVersionCode) {
                 val wasDowngrade = systemInfo.versionCode < app.installedVersionCode
-                val latestVersionCode = app.latestVersionCode ?: 0L
-                val isUpdateAvailable = latestVersionCode > systemInfo.versionCode
 
-                installedAppsRepository.updateApp(
-                    app.copy(
-                        installedVersionName = systemInfo.versionName,
-                        installedVersionCode = systemInfo.versionCode,
-                        installedVersion = systemInfo.versionName,
-                        isUpdateAvailable = isUpdateAvailable,
-                    ),
+                val observed = app.observeExternalInstall(
+                    versionName = systemInfo.versionName,
+                    versionCode = systemInfo.versionCode,
                 )
+                installedAppsRepository.updateApp(observed)
 
                 val action = if (wasDowngrade) "downgrade" else "external update"
                 logger.info(
                     "Detected $action for ${app.packageName}: " +
                         "DB v${app.installedVersionName}(${app.installedVersionCode}) → " +
                         "System v${systemInfo.versionName}(${systemInfo.versionCode}), " +
-                        "updateAvailable=$isUpdateAvailable",
+                        "updateAvailable=${observed.isUpdateAvailable}",
                 )
             }
         } catch (e: CancellationException) {

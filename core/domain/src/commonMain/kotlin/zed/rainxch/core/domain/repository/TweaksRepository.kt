@@ -157,6 +157,10 @@ interface TweaksRepository {
 
     suspend fun setShowAllPlatforms(enabled: Boolean)
 
+    fun getRepoGridLayout(): Flow<Boolean>
+
+    suspend fun setRepoGridLayout(enabled: Boolean)
+
     fun getBatteryOptimizationPromptDismissed(): Flow<Boolean>
 
     suspend fun setBatteryOptimizationPromptDismissed(dismissed: Boolean)

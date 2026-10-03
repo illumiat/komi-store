@@ -101,11 +101,22 @@ fun SmartInstallButton(
     val displaySelected = normSelected?.let { tag ->
         VersionMath.normalizeVersion(tag).takeIf { it.isNotBlank() } ?: tag
     }
+    val selectedIsTimestampTracked = normSelected?.let { VersionMath.isTimestampTrackedTag(it) } == true
+    val selectedIsLatestRelease =
+        normSelected != null &&
+            (installedApp?.latestVersion.isNullOrBlank() ||
+                VersionMath.isExactSameVersion(normSelected, installedApp?.latestVersion))
     val isSameVersionInstalled =
         isInstalled &&
             normInstalled != null &&
             normSelected != null &&
-            VersionMath.isExactSameVersion(normInstalled, normSelected)
+            VersionMath.isExactSameVersion(normInstalled, normSelected) &&
+            !(
+                selectedIsTimestampTracked &&
+                    installedApp?.isUpdateAvailable == true &&
+                    selectedIsLatestRelease
+            )
+    val showUpdateAffordance = isUpdateAvailable && selectedIsLatestRelease
 
     val enabled = remember(primaryAsset, isDownloading, isInstalling) {
         primaryAsset != null && !isDownloading && !isInstalling
@@ -135,9 +146,9 @@ fun SmartInstallButton(
     val buttonText = when {
         !enabled && primaryAsset == null -> stringResource(Res.string.not_available)
         state.isPendingInstallReady -> stringResource(Res.string.install_ready)
-        isUpdateAvailable -> stringResource(
+        showUpdateAffordance -> stringResource(
             Res.string.update_to_version,
-            installedApp.latestVersion.toString(),
+            normSelected.orEmpty(),
         )
         isInstalled &&
             normInstalled != null &&
@@ -179,7 +190,7 @@ fun SmartInstallButton(
                 onAccent = onAccent,
                 enabled = enabled,
                 isActiveDownload = isActiveDownload,
-                isUpdateAvailable = isUpdateAvailable,
+                isUpdateAvailable = showUpdateAffordance,
                 isInstalled = isInstalled,
                 buttonText = buttonText,
                 primaryAsset = primaryAsset,
@@ -187,7 +198,7 @@ fun SmartInstallButton(
                 progress = progress,
                 onClick = {
                     if (!state.isDownloading && state.downloadStage == DownloadStage.IDLE) {
-                        if (isUpdateAvailable) {
+                        if (showUpdateAffordance) {
                             onAction(DetailsAction.UpdateApp)
                         } else {
                             onAction(DetailsAction.InstallPrimary)

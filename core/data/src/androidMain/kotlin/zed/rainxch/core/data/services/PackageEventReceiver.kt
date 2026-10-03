@@ -12,6 +12,10 @@ import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
+import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
+import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
+import zed.rainxch.core.domain.model.installation.snapshotStillNamesNewerBuild
+import zed.rainxch.core.domain.model.installation.tagForObservedBuild
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
@@ -165,19 +169,24 @@ class PackageEventReceiver() :
                             repo.updatePendingStatus(packageName, false)
                             Logger.i { "Update confirmed via broadcast: $packageName (v${systemInfo.versionName}, tag=$installedTag)" }
                         } else {
-
+                            val resolved =
+                                app.resolvePendingFromSystem(
+                                    resolvedTag = installedTag,
+                                    versionName = systemInfo.versionName,
+                                    versionCode = systemInfo.versionCode,
+                                )
                             repo.updateApp(
-                                app.copy(
-                                    isPendingInstall = false,
-                                    installedVersion = installedTag,
-                                    installedVersionName = systemInfo.versionName,
-                                    installedVersionCode = systemInfo.versionCode,
-                                    isUpdateAvailable =
-                                        (
-                                            app.latestVersionCode
-                                                ?: 0L
-                                        ) > systemInfo.versionCode,
-                                ),
+                                if (resolved.isUpdateAvailable || app.isUpdateAvailable) {
+                                    resolved
+                                } else {
+                                    resolved.copy(
+                                        isUpdateAvailable =
+                                            app.snapshotStillNamesNewerBuild(
+                                                installedCode = systemInfo.versionCode,
+                                                installedVersion = systemInfo.versionName,
+                                            ),
+                                    )
+                                },
                             )
                             Logger.i {
                                 "Package replaced but not updated to target: $packageName " +
@@ -255,7 +264,7 @@ class PackageEventReceiver() :
 
         repo.updateInstalledVersion(
             packageName = packageName,
-            installedVersion = systemInfo.versionName,
+            installedVersion = app.tagForObservedBuild(systemInfo.versionName, systemInfo.versionCode),
             installedVersionName = systemInfo.versionName,
             installedVersionCode = systemInfo.versionCode,
             isUpdateAvailable = newIsUpdateAvailable,
@@ -271,6 +280,20 @@ class PackageEventReceiver() :
         getBackstopScope().launch {
             try {
                 repo.checkForUpdates(packageName)
+                val refreshed = repo.getAppByPackage(packageName)
+                if (refreshed != null) {
+                    repo.updateInstalledVersion(
+                        packageName = packageName,
+                        installedVersion = refreshed.tagForObservedBuild(systemInfo.versionName, systemInfo.versionCode),
+                        installedVersionName = systemInfo.versionName,
+                        installedVersionCode = systemInfo.versionCode,
+                        isUpdateAvailable =
+                            refreshed.externalInstallUpdateFlag(
+                                newVersionName = systemInfo.versionName,
+                                newVersionCode = systemInfo.versionCode,
+                            ),
+                    )
+                }
                 Logger.d {
                     "External-install re-validation completed for $packageName"
                 }

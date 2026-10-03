@@ -21,6 +21,8 @@ import zed.rainxch.core.data.services.UpdateScheduler
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
+import zed.rainxch.core.domain.model.installation.normalizeInstalledTag
+import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.repository.ProxyRepository
@@ -264,11 +266,15 @@ class GithubStoreApp : Application() {
         try {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName) ?: return
-            if (systemInfo.versionCode != existing.installedVersionCode) return
+            if (systemInfo.versionCode != existing.installedVersionCode ||
+                existing.latestVersionCode != systemInfo.versionCode
+            ) {
+                return
+            }
             repo.updateApp(
-                existing.copy(
-                    installedVersion = latestTag,
-                    isUpdateAvailable = false,
+                existing.normalizeInstalledTag(
+                    tag = latestTag,
+                    isUpdateAvailable = existing.isUpdateAvailable,
                 ),
             )
             Logger.i { "Normalized stale self installedVersion tag to $latestTag" }
@@ -285,23 +291,29 @@ class GithubStoreApp : Application() {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName)
             if (systemInfo != null) {
-                val latestVersionCode = existing.latestVersionCode ?: 0L
-
-                val resolvedTag = existing.latestVersion ?: systemInfo.versionName
+                val targetCode = existing.latestVersionCode ?: 0L
+                val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
+                val resolvedTag =
+                    if (installReachedTarget) {
+                        existing.pendingInstallVersion ?: existing.latestVersion
+                            ?: systemInfo.versionName
+                    } else {
+                        existing.installedVersion
+                    }
                 repo.updateApp(
-                    existing.copy(
-                        isPendingInstall = false,
-                        installedVersion = resolvedTag,
-                        installedVersionName = systemInfo.versionName,
-                        installedVersionCode = systemInfo.versionCode,
-                        isUpdateAvailable = latestVersionCode > systemInfo.versionCode,
+                    existing.resolvePendingFromSystem(
+                        resolvedTag = resolvedTag,
+                        versionName = systemInfo.versionName,
+                        versionCode = systemInfo.versionCode,
                     ),
                 )
+                repo.setPendingInstallFilePath(packageName, path = null)
                 Logger.i {
                     "Resolved self-update pending install: ${systemInfo.versionName} (code=${systemInfo.versionCode}, tag=$resolvedTag)"
                 }
             } else {
                 repo.updatePendingStatus(packageName, false)
+                repo.setPendingInstallFilePath(packageName, path = null)
                 Logger.i { "Resolved self-update pending install (no system info)" }
             }
         } catch (e: Exception) {

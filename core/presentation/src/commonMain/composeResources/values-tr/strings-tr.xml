@@ -1408,6 +1408,8 @@
     <string name="repo_pages_pr_draft">Taslak</string>
 
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
+    <string name="feed_layout_description_grid">Izgara görünümüne geç</string>
+    <string name="feed_layout_description_list">Liste görünümüne geç</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>
