@@ -11,32 +11,10 @@ interface UserSessionRepository {
 
     suspend fun isCurrentlyUserLoggedIn(): Boolean
 
-    /**
-     * The most recent session observed in this process, or null until one has been observed.
-     * Once a session is observed the live state is always a [SessionSnapshot]: a signed-out
-     * state is [SessionSnapshot.isLoggedIn] = false with a null profile rather than a null
-     * snapshot. It stays null until the first successful observation, though — [primeSession]
-     * can fail, and [getUser] may never run in a session — so callers must treat null as
-     * "not known yet", not as "signed out". Non-suspend, so a screen can seed its first frame
-     * from it.
-     */
     val lastKnownSession: SessionSnapshot?
 
-    /**
-     * Reads the persisted session — never the network — and records it as
-     * [lastKnownSession]. Called once during startup, behind the splash, so the first
-     * frame of any screen that needs the account already has it.
-     */
     suspend fun primeSession()
 
-    /**
-     * Records the logged-out session as the current [lastKnownSession] (isLoggedIn = false,
-     * profile = null) so it is never null after the first observation. Called wherever the
-     * token is found to be gone, so a signed-out user is never seeded from an account that
-     * is no longer theirs. Note this writes a logged-out snapshot rather than clearing the
-     * field to null; callers must not rely on [lastKnownSession] being null to mean
-     * "unknown".
-     */
     fun clearLastKnownSession()
 
     val sessionExpiredEvent: SharedFlow<Unit>

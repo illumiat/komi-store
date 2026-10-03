@@ -29,14 +29,9 @@ class MainViewModel(
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            // Read the stored session once, at startup, so a screen that must be correct on
-            // its very first frame — the profile tab — already has the account before anyone
-            // can open it. Local only, so it costs a database read, and nothing waits on it.
             try {
                 userSessionRepository.primeSession()
             } catch (e: CancellationException) {
-                // Not a failure: swallowing this would let the cancelled coroutine run on
-                // instead of ending with it.
                 throw e
             } catch (e: Exception) {
                 logger.warn("Session prime failed; continuing without it: ${e.message}")
@@ -48,20 +43,11 @@ class MainViewModel(
             }
         }
 
-        // Deliberately its own launch, not the one above: the login state must be observed
-        // even if the prime read never returns (a stalled store, a slow disk). Sharing a
-        // launch made the collector wait behind it, so a stuck prime meant a session that was
-        // never observed and rateLimitRepository.clear() that never fired on sign-in.
         viewModelScope.launch(Dispatchers.IO) {
             userSessionRepository
                 .isUserLoggedIn()
                 .collect { isLoggedIn ->
-                    // The warm-up target belongs to whoever is signed in *now*: on a sign-out
-                    // it must go, or the next account's tab would warm the previous account's
-                    // avatar. The snapshot's own flag is checked as well, because between
-                    // accounts it still holds the previous account's profile until the new
-                    // one is read.
-                    var avatarUrl =
+                    val avatarUrl =
                         if (isLoggedIn) {
                             userSessionRepository.lastKnownSession
                                 ?.takeIf { it.isLoggedIn }
@@ -70,14 +56,6 @@ class MainViewModel(
                         } else {
                             null
                         }
-
-                    if (isLoggedIn && avatarUrl == null) {
-                        // Signed in with no account read yet — a login in this process, or a
-                        // cold start with an empty profile cache. Nothing would warm, because
-                        // recordSession (which fills the profile) does not emit on the token
-                        // flow. getUser() records it, so read it once here.
-                        avatarUrl = userSessionRepository.getUser().first()?.imageUrl
-                    }
 
                     _state.update {
                         it.copy(
@@ -88,6 +66,18 @@ class MainViewModel(
 
                     if (isLoggedIn) {
                         rateLimitRepository.clear()
+                    }
+
+                    if (isLoggedIn && avatarUrl == null) {
+                        launch {
+                            val fetched = userSessionRepository.getUser().first()?.imageUrl
+                            if (fetched != null &&
+                                _state.value.isLoggedIn &&
+                                userSessionRepository.lastKnownSession?.isLoggedIn == true
+                            ) {
+                                _state.update { it.copy(signedInAvatarUrl = fetched) }
+                            }
+                        }
                     }
                 }
         }
@@ -182,8 +172,6 @@ class MainViewModel(
 
         viewModelScope.launch {
             userSessionRepository.sessionExpiredEvent.collect {
-                // The token is gone by the time this fires, so drop the warm-up target with
-                // it rather than waiting for the token flow to report the sign-out.
                 _state.update {
                     it.copy(showSessionExpiredDialog = true, signedInAvatarUrl = null)
                 }

@@ -68,23 +68,6 @@ class UserSessionRepositoryImpl(
         recordSession(isLoggedIn = false, profile = null)
     }
 
-    /**
-     * The cached profile, but only when it was stored under [token].
-     *
-     * The entry is keyed by a fixed "profile:me" that outlives the token, and replacing
-     * the token (logging in as another account) does not re-key it, so without this stamp
-     * check a new account could be seeded from the previous account's cached profile.
-     *
-     * A stamp missing on either side means "owner unknown", not "somebody else": caches
-     * written before this field existed must stay readable, otherwise upgrading would
-     * blank the profile until the first successful fetch. Only two known, different
-     * owners reject the cache.
-     *
-     * [allowStale] decides whether an expired entry may be served. A hot read must pass
-     * false: serving an expired row as a cache hit makes [getUser] return early and never
-     * refresh over the network for the whole TTL window. Only startup ([primeSession]) and
-     * the offline fallback in [getUser] pass true, where an old account beats a placeholder.
-     */
     private suspend fun ownedCachedProfile(
         token: GithubDeviceTokenSuccessDto,
         allowStale: Boolean,
@@ -98,25 +81,14 @@ class UserSessionRepositoryImpl(
             ?: if (allowStale) cacheManager.getStale<UserProfile>(CACHE_KEY) else null
     }
 
-    // Identifies the token without being derivable from it: the moment the token was
-    // stored, which TokenStore guarantees is present and which only changes on sign-in.
-    // A token hash was the obvious alternative, but a 32-bit hash can collide, and this
-    // check exists precisely to stop one account's profile being shown for another's.
     private fun ownershipStamp(token: GithubDeviceTokenSuccessDto): String? =
         token.savedAtEpochMillis?.toString()
 
-    // True while [token] is still the live token in the store. Between capturing it at the
-    // top of getUser() and the network round-trip below, logout() or a 401-driven sign-out
-    // can replace/clear the token; awaiting that must never let this method write a
-    // logged-in snapshot for an account that is no longer the current one.
     private suspend fun isCurrentToken(token: GithubDeviceTokenSuccessDto): Boolean =
         tokenStore.currentToken()?.accessToken == token.accessToken
 
     override suspend fun primeSession() {
         val token = tokenStore.currentToken()
-        // Stale is acceptable here: showing yesterday's account beats showing a
-        // placeholder, and the normal read replaces it moments later. Never the
-        // network — startup must not wait on GitHub.
         val profile = token?.let { ownedCachedProfile(it, allowStale = true) }
         recordSession(token != null, profile)
     }
@@ -130,8 +102,6 @@ class UserSessionRepositoryImpl(
             return@flow
         }
 
-        // Fresh-only: an expired row must not count as a cache hit, or getUser() would
-        // return here and never refresh over the network within the TTL window.
         val cached = ownedCachedProfile(token, allowStale = false)
         if (cached != null) {
             logger.debug("Profile cache hit")
@@ -139,8 +109,6 @@ class UserSessionRepositoryImpl(
                 recordSession(isLoggedIn = true, profile = cached)
                 emit(cached)
             } else {
-                // Token rotated/cleared while we were deciding; do not flip the session back
-                // to logged-in for an account that is no longer current.
                 emit(null)
             }
             return@flow
@@ -163,8 +131,6 @@ class UserSessionRepositoryImpl(
                 recordSession(isLoggedIn = true, profile = userProfile)
                 emit(userProfile)
             } else {
-                // Sign-out landed during the fetch; cache the profile but keep the session
-                // reported as signed-out so the caller seeds the signed-out first frame.
                 emit(null)
             }
         } catch (e: CancellationException) {
@@ -179,16 +145,10 @@ class UserSessionRepositoryImpl(
                     recordSession(isLoggedIn = true, profile = fallback)
                     emit(fallback)
                 } else {
-                    // Token gone mid-fallback: keep session signed-out, do not replay an
-                    // old account's profile into the new signed-out first frame.
                     emit(null)
                 }
             } else {
                 if (isCurrentToken(token)) {
-                    // Do not downgrade a known account to (true, null): consumers read that
-                    // pair as "token present, account not read yet" and seed a placeholder,
-                    // so a single failed fetch would blank a signed-in user's first frame.
-                    // Keep the account we last recorded instead.
                     val previous = _lastKnownSession?.takeIf { it.isLoggedIn }?.profile
                     if (previous != null) {
                         recordSession(isLoggedIn = true, profile = previous)
@@ -236,13 +196,7 @@ class UserSessionRepositoryImpl(
                     "window; clearing token"
             }
             tokenStore.clear()
-            // The profile cache outlives the token (6h TTL) and is only wiped on logout, so a
-            // later login as a different account could otherwise be primed from the previous
-            // account's profile. Drop it together with the token.
             cacheManager.invalidate(CACHE_KEY)
-            // Keep the session snapshot honest: the token is gone, so the session is signed
-            // out. Without this, _lastKnownSession would still report isLoggedIn = true with
-            // the old account after a 401-driven sign-out.
             recordSession(isLoggedIn = false, profile = null)
             resetCounter()
             _sessionExpiredEvent.emit(Unit)
@@ -275,9 +229,6 @@ class UserSessionRepositoryImpl(
         const val REQUIRED_CONSECUTIVE_FAILURES = 2
         const val FAILURE_WINDOW_MS = 60_000L
         private const val CACHE_KEY = "profile:me"
-        // Records which token the CACHE_KEY profile was fetched under, so it is never
-        // served to a different account. Deliberately a non-reversible fingerprint rather
-        // than the token itself: the cache is not encrypted storage.
         private const val CACHE_OWNER_KEY = "profile:me:owner"
     }
 }

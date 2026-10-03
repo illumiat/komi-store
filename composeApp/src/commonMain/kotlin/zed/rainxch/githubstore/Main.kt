@@ -52,16 +52,8 @@ fun App(
             .build()
     }
 
-    // Warm the account's avatar while the user is still on the first screen, so the profile
-    // tab finds it in the image cache whenever it is first opened. Warm-up only — an image
-    // that fails here is fetched again, normally, wherever it is actually shown.
     val imageContext = LocalPlatformContext.current
-    // The profile card draws this avatar at ProfileAvatarSpec.Size, so warm exactly that:
-    // with no size Coil decodes the source (GitHub avatars are ~460px) at full resolution
-    // for something that is only ever shown that small.
     val avatarSizePx = with(LocalDensity.current) { ProfileAvatarSpec.Size.roundToPx() }
-    // avatarSizePx is a key too: on a density change the captured pixel size is stale, so
-    // the effect must re-run to warm the size the card now actually requests.
     LaunchedEffect(mainState.signedInAvatarUrl, avatarSizePx) {
         mainState.signedInAvatarUrl?.let { url ->
             runCatching {
