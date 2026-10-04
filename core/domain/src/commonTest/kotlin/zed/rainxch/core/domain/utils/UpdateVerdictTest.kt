@@ -691,4 +691,85 @@ class UpdateVerdictTest {
         assertTrue(result.isUpdateAvailable)
         assertTrue(result.skipBecameStale)
     }
+
+    @Test
+    fun a_one_sided_digest_falls_back_to_object_ids() {
+        // The mixed cell: the stored row predates digest capture (the column defaults to NULL), so
+        // only the matched side has one. The bytes cannot be compared, so the ids remain the
+        // evidence and a swapped object must still be reported.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = null,
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_blank_digest_is_no_evidence_rather_than_a_different_value() {
+        // A blank string is not a digest. Reading it as one would compare "" against a real value,
+        // call the build changed, and report an update for a release whose bytes and object ids are
+        // both unchanged — the phantom update this whole function exists to prevent.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 801L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun the_same_digest_written_two_ways_is_the_same_digest() {
+        // GitHub hands back `sha256:<hex>`; a row written by an older build may hold the bare hex.
+        // Those are the same value, so the bytes agree and the changed object id must not report.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:AAAA",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
 }
