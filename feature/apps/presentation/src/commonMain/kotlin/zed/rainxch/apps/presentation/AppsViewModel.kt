@@ -1179,6 +1179,7 @@ class AppsViewModel(
                             pinnedVariant = app.preferredAssetVariant,
                             pinnedTokens = AssetVariant.deserializeTokens(app.preferredAssetTokens),
                             pinnedGlob = app.assetGlobPattern,
+                            releaseTag = latestRelease.tagName,
                         )
                     val primaryAsset =
                         variantMatch

@@ -73,6 +73,7 @@ class InstallationManagerImpl(
                 AssetVariant.fingerprintFromPickedAsset(
                     pickedAssetName = params.assetName,
                     siblingAssetCount = params.siblingAssetCount,
+                    releaseTag = params.releaseTag,
                 )
             val serializedTokens = fingerprint?.tokens?.let(AssetVariant::serializeTokens)
             val pickedIndex = params.pickedAssetIndex?.takeIf { it >= 0 }

@@ -194,10 +194,10 @@ class InstalledAppsRepositoryImpl(
 
         // An APK no installed app owns is usually a sibling app the user never installed
         // (monorepos). Only an app with no asset name or glob to compare can't tell.
-        fun belongsElsewhere(asset: GithubAsset, releaseAssets: List<GithubAsset>): Boolean {
+        fun belongsElsewhere(asset: GithubAsset, releaseTag: String, releaseAssets: List<GithubAsset>): Boolean {
             if (self == null) return false
             if (!AssetOwnership.canOwn(self, asset.name)) return true
-            val owner = AssetOwnership.ownerOf(asset.name, repoApps, releaseAssets, releases)
+            val owner = AssetOwnership.ownerOf(asset.name, repoApps, releaseAssets, releases, releaseTag)
                 ?: return self.installedAssetName != null || !self.assetGlobPattern.isNullOrBlank()
             return owner.packageName != trackedPackageName
         }
@@ -221,17 +221,19 @@ class InstalledAppsRepositoryImpl(
                 (
                     if (filter == null) installableForPlatform
                     else installableForPlatform.filter { filter.matches(it.name) }
-                ).filterNot { belongsElsewhere(it, installableForPlatform) }
+                ).filterNot { belongsElsewhere(it, release.tagName, installableForPlatform) }
 
             if (installableForApp.isEmpty()) continue
 
-            val sameApp = AssetOwnership.narrowToApp(installableForApp, installedAssetName)
+            val sameApp =
+                AssetOwnership.narrowToApp(installableForApp, installedAssetName, release.tagName, self?.installedVersion)
             val fingerprintMatch =
                 AssetVariant.resolvePreferredAsset(
                     assets = sameApp,
                     pinnedVariant = preferredVariant,
                     pinnedTokens = preferredTokens.takeIf { it.isNotEmpty() },
                     pinnedGlob = preferredGlob,
+                    releaseTag = release.tagName,
                 )
 
             val positionMatch =
@@ -249,6 +251,8 @@ class InstalledAppsRepositoryImpl(
                 AssetOwnership.narrowToApp(
                     AssetVariant.filterByPackageFlavor(installableForApp, trackedPackageName),
                     installedAssetName,
+                    release.tagName,
+                    self?.installedVersion,
                 )
             val primary = fingerprintMatch
                 ?: positionMatch

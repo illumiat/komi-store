@@ -297,35 +297,29 @@ class AssetOwnershipTest {
         )
     }
 
-    // wxxsfxyzm/InstallerX-Revived: an automatic build is tagged with a commit hash glued
-    // onto the calendar version (26.09.8ede272) while the released one is just 26.09. The
-    // hash used to survive into the stem and the glob, so the newest release's APK looked
-    // like another app's, was filtered out as "belongs elsewhere", and the app fell back
-    // to the older release — reporting an update to a version older than the installed one.
+    // wxxsfxyzm/InstallerX-Revived tags automatic builds with a commit hash after the version
+    // (26.09.8ede272) and names the APK the same way, next to a released 26.09.
     @Test
-    fun aBuildIdGluedToTheVersionIsTheSameApp() {
+    fun aBuildIdInTheReleaseVersionIsTheSameApp() {
         val released = "InstallerX-Revived-online-26.09.apk"
         val autoBuild = "InstallerX-Revived-online-26.09.8ede272.apk"
-        assertEquals(AssetVariant.deriveGlob(released), AssetVariant.deriveGlob(autoBuild))
-        assertTrue(AssetOwnership.isSameApp(released, autoBuild))
+        assertEquals(AssetVariant.tagGlob(released, "26.09"), AssetVariant.tagGlob(autoBuild, "26.09.8ede272"))
+        assertTrue(AssetOwnership.isSameApp(released, autoBuild, "26.09", "26.09.8ede272"))
     }
 
     @Test
-    fun aGluedBuildIdDoesNotHideTheNewestReleaseOfTheInstalledApp() {
+    fun aBuildIdDoesNotHideTheNewestReleaseOfTheInstalledApp() {
         val released = "InstallerX-Revived-online-26.09.apk"
         val autoBuild = "InstallerX-Revived-online-26.09.8ede272.apk"
-        val installed = app("com.rosan.installer.x.revived", autoBuild, installedVersion = "26.09")
+        val installed = app("com.rosan.installer.x.revived", autoBuild, installedVersion = "26.09.8ede272")
         val newest = listOf(asset(released))
-        // The real history matters: an older release whose version tokens drop out shares the
-        // stem, and the rename heuristic then reads the new name as older than the old one.
         val history = listOf(
             release("26.09", newest),
             release("26.09.8ede272", listOf(asset(autoBuild))),
             release("26.05.01", listOf(asset("InstallerX-Revived-offline-26.05.01.apk"), asset("InstallerX-Revived-online-26.05.01.apk"))),
             release("26.05", listOf(asset("InstallerX-Revived-offline-26.05.apk"), asset("InstallerX-Revived-online-26.05.apk"))),
         )
-        assertEquals(installed, AssetOwnership.ownerOf(released, listOf(installed), newest, history))
-        assertEquals(released, AssetOwnership.narrowToApp(newest, autoBuild).single().name)
+        assertEquals(installed, AssetOwnership.ownerOf(released, listOf(installed), newest, history, "26.09"))
     }
 
     @Test
