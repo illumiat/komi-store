@@ -156,6 +156,52 @@ object VersionMath {
         return candidateInstant > baselineInstant
     }
 
+    /**
+     * Whether the build behind the matched release is a different one from the build stored.
+     *
+     * Byte content decides whenever both sides can produce it. An asset's bytes are immutable: the
+     * object id changes when the same bytes are re-uploaded (a delete-and-reupload, which is what
+     * `--clobber` does), so **an id change on its own is not evidence of a new build** — the object
+     * was replaced, the program was not. Reading the ids first inverted that: a release re-uploaded
+     * byte-for-byte looked like a fresh build, which is exactly the case a rolling tag hits when
+     * someone re-runs a nightly job without changing the code.
+     *
+     * Without a digest on both sides the ids are the only evidence available, and they are used
+     * instead. Size is consulted after them because it survives neither of the two ways a build can
+     * really change, and it is the one comparison that cannot be fooled by a re-upload of identical
+     * bytes.
+     */
+    fun assetBuildChanged(
+        matchedReleaseId: Long?,
+        matchedAssetId: Long?,
+        matchedDigest: String?,
+        matchedSize: Long?,
+        storedReleaseId: Long?,
+        storedAssetId: Long?,
+        storedDigest: String?,
+        storedSize: Long?,
+    ): Boolean {
+        if (matchedDigest != null && storedDigest != null) {
+            return matchedDigest != storedDigest
+        }
+        if (
+            releaseObjectChanged(
+                matchedReleaseId = matchedReleaseId,
+                matchedAssetId = matchedAssetId,
+                storedReleaseId = storedReleaseId,
+                storedAssetId = storedAssetId,
+            )
+        ) {
+            return true
+        }
+        return assetIdentityChanged(
+            matchedDigest = matchedDigest,
+            matchedSize = matchedSize,
+            storedDigest = storedDigest,
+            storedSize = storedSize,
+        )
+    }
+
     fun releaseObjectChanged(
         matchedReleaseId: Long?,
         matchedAssetId: Long?,
@@ -202,21 +248,20 @@ object VersionMath {
             return !isExactSameVersion(matchedTag, installedTag)
         }
         val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
-        val newerByObject =
-            releaseObjectChanged(
+        // One decision, not two ORed together: see [assetBuildChanged] for why the bytes have to be
+        // consulted before the object ids rather than beside them.
+        val newerByBuild =
+            assetBuildChanged(
                 matchedReleaseId = matchedReleaseId,
                 matchedAssetId = matchedAssetId,
-                storedReleaseId = previousReleaseId,
-                storedAssetId = previousAssetId,
-            )
-        val newerByAsset =
-            assetIdentityChanged(
                 matchedDigest = matchedAssetDigest,
                 matchedSize = matchedAssetSize,
+                storedReleaseId = previousReleaseId,
+                storedAssetId = previousAssetId,
                 storedDigest = previousAssetDigest,
                 storedSize = previousAssetSize,
             )
-        return newerByTimestamp || newerByObject || newerByAsset ||
+        return newerByTimestamp || newerByBuild ||
             (previousWasUpdateAvailable && isExactSameVersion(matchedTag, previousLatestTag))
     }
 
