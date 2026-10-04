@@ -772,4 +772,63 @@ class UpdateVerdictTest {
             )
         assertFalse(result.isUpdateAvailable)
     }
+
+    @Test
+    fun the_digest_prefix_is_case_insensitive_too() {
+        // "SHA256:" and "sha256:" are the same prefix, so they have to be folded together before
+        // anything is stripped. Stripping the prefix first leaves an upper-case spelling intact, and
+        // the identical value then reads as different — the same phantom update, reached through the
+        // helper that was added to remove it.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "SHA256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_digest_of_nothing_but_the_prefix_is_no_evidence_either() {
+        // "sha256:" with no hex behind it is the blank case reached one step later, and it has to be
+        // treated the same way: reading it as a value compares it against a real digest, reports a
+        // release whose bytes and object ids are unchanged, and releases the user's skip.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                skippedTag = "nightly",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 801L,
+            )
+        assertFalse(result.isUpdateAvailable)
+        assertFalse(result.skipBecameStale)
+    }
 }
