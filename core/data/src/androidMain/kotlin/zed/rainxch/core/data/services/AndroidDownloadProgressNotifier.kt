@@ -15,12 +15,6 @@ import zed.rainxch.core.domain.system.DownloadProgressNotifier
 
 class AndroidDownloadProgressNotifier(
     private val context: Context,
-    /**
-     * Notification action labels, injected rather than hard-coded so a caller with a resource
-     * context can supply localized text. The matching resources (`pause` / `delete_download`) live
-     * in `core/presentation`, which `core/data` cannot depend on, so only the caller can pass them;
-     * the defaults preserve the previous English text for callers that cannot.
-     */
     private val pauseLabel: String = "Pause",
     private val deleteLabel: String = "Delete",
 ) : DownloadProgressNotifier {

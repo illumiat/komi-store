@@ -1229,11 +1229,9 @@ class DetailsViewModel(
         }
     }
 
-    // TODO(PR-3): this path drives [downloader] directly instead of going through
-    //  [downloadOrchestrator], so a download started here is still invisible in the library
-    //  (no progress, no cancel, no pending-install row). Deliberately left alone by PR-3: the
-    //  user is standing on this screen when it runs, so the impact is the smallest of the
-    //  remaining gaps. Unifying it belongs with the stage-vocabulary cleanup, not here.
+    // TODO: drives [downloader] directly instead of [downloadOrchestrator], so a download
+    //  started here stays invisible in the library. Left alone deliberately: the user is on
+    //  this screen while it runs, and unifying it needs the stage-vocabulary cleanup.
     private fun installViaExternalApp() {
         currentDownloadJob?.cancel()
         val job = viewModelScope.launch {
@@ -2026,20 +2024,6 @@ class DetailsViewModel(
         return "$owner/$name"
     }
 
-    /**
-     * Keeps the visible download stage in step with the orchestrator for the whole lifetime of
-     * this screen.
-     *
-     * A download started here is otherwise observed only by the coroutine inside [installAsset]
-     * / [downloadAsset], which lives in [currentDownloadJob] and dies with the screen. The
-     * orchestrator keeps the download — and the entry — alive, so on return the screen used to
-     * read a zeroed progress bar while the file was still coming down (PR-3 D-1, details side).
-     *
-     * Deliberately display-only: it mirrors the stage and the byte counters and never installs,
-     * parks, or writes to the database. Re-opening the screen must not re-trigger an install the
-     * user never asked for again. While this VM owns a download job, that job's own observer is
-     * the writer and this one stands down, so the two never fight over the same fields.
-     */
     private fun observeOrchestratorForDisplay() {
         viewModelScope.launch {
             combine(
@@ -2258,10 +2242,8 @@ class DetailsViewModel(
                     return@collect
                 }
 
-                // D-8 pause: a paused download is surfaced by the app library's card, not this
-                // screen, so the pause state is deliberately not rendered here — it collapses to
-                // IDLE like a missing entry. That returns the button to "download / update";
-                // tapping it re-enqueues, and because the partial is still on disk the transfer
+                // A paused download is surfaced by the library's card, not here, so it collapses to IDLE
+                // and the button returns to download/update. Tapping it re-enqueues and the partial
                 // continues from where it stopped. Pausing is not a cancel, so no log is appended.
                 OrchestratorStage.Paused -> {
                     _state.value =

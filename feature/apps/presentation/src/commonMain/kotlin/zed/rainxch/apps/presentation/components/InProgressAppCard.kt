@@ -147,10 +147,8 @@ fun InProgressAppCard(
                     Spacer(Modifier.height(12.dp))
 
                     KomiButton(
-                        // Still routed through the orchestrator's cancel(); after this change that
-                        // call stops the transfer and keeps every byte, so "Pause" is what it
-                        // does. It is no longer styled as destructive, because it throws nothing
-                        // away — the partial stays on disk and the Paused state below picks it up.
+                        // Routed through the orchestrator's cancel(), which now keeps every byte, so this is a
+                        // Pause and is not styled as destructive.
                         onClick = onCancel,
                         label = stringResource(Res.string.pause),
                         variant = KomiButtonVariant.Primary,
@@ -159,9 +157,8 @@ fun InProgressAppCard(
                     )
                 }
 
-                // Stopped on purpose, with the bytes kept. The bar holds the value it stopped at
-                // rather than being cleared, because that value is the evidence that pausing threw
-                // nothing away — and resuming picks up from exactly there.
+                // The bar holds the value it stopped at rather than clearing: resuming picks up from
+                // exactly there.
                 DownloadStage.Paused -> {
                     val percent = download.progressPercent
                     Row(
