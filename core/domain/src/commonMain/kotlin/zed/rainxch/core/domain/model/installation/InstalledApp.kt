@@ -62,6 +62,12 @@ data class InstalledApp(
 
     val pendingInstallAssetName: String? = null,
 
+    val pendingInstallReleaseId: Long? = null,
+
+    val pendingInstallAssetId: Long? = null,
+
+    val pendingInstallAssetDigest: String? = null,
+
     val skippedReleaseTag: String? = null,
     val sourceHost: String? = null,
 )

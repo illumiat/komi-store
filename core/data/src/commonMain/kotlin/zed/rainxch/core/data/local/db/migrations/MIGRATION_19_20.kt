@@ -18,5 +18,14 @@ val MIGRATION_19_20 =
             connection.execSQL(
                 "ALTER TABLE installed_apps ADD COLUMN installedAssetDigest TEXT DEFAULT NULL",
             )
+            connection.execSQL(
+                "ALTER TABLE installed_apps ADD COLUMN pendingInstallReleaseId INTEGER DEFAULT NULL",
+            )
+            connection.execSQL(
+                "ALTER TABLE installed_apps ADD COLUMN pendingInstallAssetId INTEGER DEFAULT NULL",
+            )
+            connection.execSQL(
+                "ALTER TABLE installed_apps ADD COLUMN pendingInstallAssetDigest TEXT DEFAULT NULL",
+            )
         }
     }

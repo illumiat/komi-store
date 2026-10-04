@@ -55,6 +55,9 @@ fun InstalledApp.toEntity(): InstalledAppEntity =
         pendingInstallFilePath = pendingInstallFilePath,
         pendingInstallVersion = pendingInstallVersion,
         pendingInstallAssetName = pendingInstallAssetName,
+        pendingInstallReleaseId = pendingInstallReleaseId,
+        pendingInstallAssetId = pendingInstallAssetId,
+        pendingInstallAssetDigest = pendingInstallAssetDigest,
         skippedReleaseTag = skippedReleaseTag,
         sourceHost = sourceHost,
     )
@@ -111,6 +114,9 @@ fun InstalledAppEntity.toDomain(): InstalledApp =
         pendingInstallFilePath = pendingInstallFilePath,
         pendingInstallVersion = pendingInstallVersion,
         pendingInstallAssetName = pendingInstallAssetName,
+        pendingInstallReleaseId = pendingInstallReleaseId,
+        pendingInstallAssetId = pendingInstallAssetId,
+        pendingInstallAssetDigest = pendingInstallAssetDigest,
         skippedReleaseTag = skippedReleaseTag,
         sourceHost = sourceHost,
     )

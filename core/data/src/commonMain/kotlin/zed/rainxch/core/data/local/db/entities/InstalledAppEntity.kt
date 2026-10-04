@@ -78,6 +78,15 @@ data class InstalledAppEntity(
     val pendingInstallAssetName: String? = null,
 
     @ColumnInfo(defaultValue = "NULL")
+    val pendingInstallReleaseId: Long? = null,
+
+    @ColumnInfo(defaultValue = "NULL")
+    val pendingInstallAssetId: Long? = null,
+
+    @ColumnInfo(defaultValue = "NULL")
+    val pendingInstallAssetDigest: String? = null,
+
+    @ColumnInfo(defaultValue = "NULL")
     val skippedReleaseTag: String? = null,
     @ColumnInfo(defaultValue = "NULL")
     val sourceHost: String? = null,

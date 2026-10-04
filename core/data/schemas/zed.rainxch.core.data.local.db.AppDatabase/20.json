@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 20,
-    "identityHash": "105eeeea677c348fa6a317566a8e698a",
+    "identityHash": "d8f32b04921a08e6a9e3fae5fa7d2db1",
     "entities": [
       {
         "tableName": "installed_apps",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `repoId` INTEGER NOT NULL, `repoName` TEXT NOT NULL, `repoOwner` TEXT NOT NULL, `repoOwnerAvatarUrl` TEXT NOT NULL, `repoDescription` TEXT, `primaryLanguage` TEXT, `repoUrl` TEXT NOT NULL, `installedVersion` TEXT NOT NULL, `installedReleaseId` INTEGER DEFAULT NULL, `installedAssetId` INTEGER DEFAULT NULL, `installedAssetDigest` TEXT DEFAULT NULL, `installedAssetName` TEXT, `installedAssetUrl` TEXT, `latestVersion` TEXT, `latestAssetName` TEXT, `latestAssetUrl` TEXT, `latestAssetSize` INTEGER, `latestReleaseId` INTEGER DEFAULT NULL, `latestAssetId` INTEGER DEFAULT NULL, `latestAssetDigest` TEXT DEFAULT NULL, `appName` TEXT NOT NULL, `installSource` TEXT NOT NULL, `signingFingerprint` TEXT, `installedAt` INTEGER NOT NULL, `lastCheckedAt` INTEGER NOT NULL, `lastUpdatedAt` INTEGER NOT NULL, `isUpdateAvailable` INTEGER NOT NULL, `updateCheckEnabled` INTEGER NOT NULL, `releaseNotes` TEXT, `systemArchitecture` TEXT NOT NULL, `fileExtension` TEXT NOT NULL, `isPendingInstall` INTEGER NOT NULL, `installedVersionName` TEXT, `installedVersionCode` INTEGER NOT NULL, `latestVersionName` TEXT, `latestVersionCode` INTEGER, `latestReleasePublishedAt` TEXT, `includePreReleases` INTEGER NOT NULL, `assetFilterRegex` TEXT, `fallbackToOlderReleases` INTEGER NOT NULL DEFAULT 0, `preferredAssetVariant` TEXT, `preferredVariantStale` INTEGER NOT NULL DEFAULT 0, `preferredAssetTokens` TEXT, `assetGlobPattern` TEXT, `pickedAssetIndex` INTEGER, `pickedAssetSiblingCount` INTEGER, `pendingInstallFilePath` TEXT, `pendingInstallVersion` TEXT, `pendingInstallAssetName` TEXT, `skippedReleaseTag` TEXT DEFAULT NULL, `sourceHost` TEXT DEFAULT NULL, PRIMARY KEY(`packageName`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `repoId` INTEGER NOT NULL, `repoName` TEXT NOT NULL, `repoOwner` TEXT NOT NULL, `repoOwnerAvatarUrl` TEXT NOT NULL, `repoDescription` TEXT, `primaryLanguage` TEXT, `repoUrl` TEXT NOT NULL, `installedVersion` TEXT NOT NULL, `installedReleaseId` INTEGER DEFAULT NULL, `installedAssetId` INTEGER DEFAULT NULL, `installedAssetDigest` TEXT DEFAULT NULL, `installedAssetName` TEXT, `installedAssetUrl` TEXT, `latestVersion` TEXT, `latestAssetName` TEXT, `latestAssetUrl` TEXT, `latestAssetSize` INTEGER, `latestReleaseId` INTEGER DEFAULT NULL, `latestAssetId` INTEGER DEFAULT NULL, `latestAssetDigest` TEXT DEFAULT NULL, `appName` TEXT NOT NULL, `installSource` TEXT NOT NULL, `signingFingerprint` TEXT, `installedAt` INTEGER NOT NULL, `lastCheckedAt` INTEGER NOT NULL, `lastUpdatedAt` INTEGER NOT NULL, `isUpdateAvailable` INTEGER NOT NULL, `updateCheckEnabled` INTEGER NOT NULL, `releaseNotes` TEXT, `systemArchitecture` TEXT NOT NULL, `fileExtension` TEXT NOT NULL, `isPendingInstall` INTEGER NOT NULL, `installedVersionName` TEXT, `installedVersionCode` INTEGER NOT NULL, `latestVersionName` TEXT, `latestVersionCode` INTEGER, `latestReleasePublishedAt` TEXT, `includePreReleases` INTEGER NOT NULL, `assetFilterRegex` TEXT, `fallbackToOlderReleases` INTEGER NOT NULL DEFAULT 0, `preferredAssetVariant` TEXT, `preferredVariantStale` INTEGER NOT NULL DEFAULT 0, `preferredAssetTokens` TEXT, `assetGlobPattern` TEXT, `pickedAssetIndex` INTEGER, `pickedAssetSiblingCount` INTEGER, `pendingInstallFilePath` TEXT, `pendingInstallVersion` TEXT, `pendingInstallAssetName` TEXT, `pendingInstallReleaseId` INTEGER DEFAULT NULL, `pendingInstallAssetId` INTEGER DEFAULT NULL, `pendingInstallAssetDigest` TEXT DEFAULT NULL, `skippedReleaseTag` TEXT DEFAULT NULL, `sourceHost` TEXT DEFAULT NULL, PRIMARY KEY(`packageName`))",
         "fields": [
           {
             "fieldPath": "packageName",
@@ -286,6 +286,24 @@
             "fieldPath": "pendingInstallAssetName",
             "columnName": "pendingInstallAssetName",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pendingInstallReleaseId",
+            "columnName": "pendingInstallReleaseId",
+            "affinity": "INTEGER",
+            "defaultValue": "NULL"
+          },
+          {
+            "fieldPath": "pendingInstallAssetId",
+            "columnName": "pendingInstallAssetId",
+            "affinity": "INTEGER",
+            "defaultValue": "NULL"
+          },
+          {
+            "fieldPath": "pendingInstallAssetDigest",
+            "columnName": "pendingInstallAssetDigest",
+            "affinity": "TEXT",
+            "defaultValue": "NULL"
           },
           {
             "fieldPath": "skippedReleaseTag",
@@ -877,7 +895,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '105eeeea677c348fa6a317566a8e698a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd8f32b04921a08e6a9e3fae5fa7d2db1')"
     ]
   }
 }

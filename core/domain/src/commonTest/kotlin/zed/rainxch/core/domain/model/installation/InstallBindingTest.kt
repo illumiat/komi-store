@@ -37,6 +37,10 @@ class InstallBindingTest {
         latestReleaseId = latestReleaseId,
         latestAssetId = latestAssetId,
         latestAssetDigest = latestAssetDigest,
+        // This parameter used to be declared and then dropped: every test that set it silently got
+        // the InstalledApp default (null), so any assertion that depended on a *known* target code
+        // was really exercising the unknown-target path.
+        latestVersionCode = latestVersionCode,
         appName = "App",
         installSource = InstallSource.THIS_APP,
         installedAt = 1000L,
@@ -205,10 +209,109 @@ class InstallBindingTest {
 
     @Test
     fun markPendingStartsUnbound() {
-        val after = app().markPending()
+        val after = app().markPending(
+            releaseId = 7001L,
+            assetId = 7002L,
+            assetDigest = "sha256:aaa",
+        )
         assertEquals(null, after.installedReleaseId)
         assertEquals(null, after.installedAssetId)
         assertEquals(null, after.installedAssetDigest)
+    }
+
+    @Test
+    fun markPendingParksTheTargetIdentity() {
+        val after = app().markPending(
+            releaseId = 7001L,
+            assetId = 7002L,
+            assetDigest = "sha256:aaa",
+        )
+        assertEquals(7001L, after.pendingInstallReleaseId)
+        assertEquals(7002L, after.pendingInstallAssetId)
+        assertEquals("sha256:aaa", after.pendingInstallAssetDigest)
+        assertEquals(null, after.installedReleaseId)
+        assertEquals(null, after.installedAssetId)
+        assertEquals(null, after.installedAssetDigest)
+    }
+
+    @Test
+    fun resolvePendingMovesIdentityAcrossWhenTheBuildLanded() {
+        val parked = app(
+            installedVersion = "2.0.0",
+            installedVersionName = "2.0.0",
+            installedVersionCode = 200L,
+            installedReleaseId = null,
+            installedAssetId = null,
+            installedAssetDigest = null,
+            latestVersion = "2.0.0",
+            latestVersionCode = 200L,
+        ).copy(
+            isPendingInstall = true,
+            pendingInstallVersion = "2.0.0",
+            pendingInstallReleaseId = 7001L,
+            pendingInstallAssetId = 7002L,
+            pendingInstallAssetDigest = "sha256:aaa",
+        )
+
+        val after = parked.resolvePendingFromSystem(
+            resolvedTag = "2.0.0",
+            versionName = "2.0.0",
+            versionCode = 200L,
+        )
+
+        assertEquals(7001L, after.installedReleaseId)
+        assertEquals(7002L, after.installedAssetId)
+        assertEquals("sha256:aaa", after.installedAssetDigest)
+        assertEquals(null, after.pendingInstallReleaseId)
+        assertEquals(null, after.pendingInstallAssetId)
+        assertEquals(null, after.pendingInstallAssetDigest)
+    }
+
+    @Test
+    fun resolvePendingDropsBothSidesWhenTheBuildNeverLanded() {
+        val parked = app(
+            installedVersion = "1.0.0",
+            installedVersionName = "1.0.0",
+            installedVersionCode = 100L,
+            installedReleaseId = null,
+            installedAssetId = null,
+            installedAssetDigest = null,
+            latestVersion = "2.0.0",
+            latestVersionCode = 200L,
+        ).copy(
+            isPendingInstall = true,
+            pendingInstallVersion = "2.0.0",
+            pendingInstallReleaseId = 7001L,
+            pendingInstallAssetId = 7002L,
+            pendingInstallAssetDigest = "sha256:aaa",
+        )
+
+        val after = parked.resolvePendingFromSystem(
+            resolvedTag = "1.0.0",
+            versionName = "1.5.0",
+            versionCode = 150L,
+        )
+
+        assertEquals(null, after.installedReleaseId)
+        assertEquals(null, after.installedAssetId)
+        assertEquals(null, after.installedAssetDigest)
+        assertEquals(null, after.pendingInstallReleaseId)
+        assertEquals(null, after.pendingInstallAssetId)
+        assertEquals(null, after.pendingInstallAssetDigest)
+    }
+
+    @Test
+    fun clearPendingDropsTheParkedTargetIdentity() {
+        val parked = app().copy(
+            isPendingInstall = true,
+            pendingInstallReleaseId = 7001L,
+            pendingInstallAssetId = 7002L,
+            pendingInstallAssetDigest = "sha256:aaa",
+        )
+        val after = parked.clearPending()
+        assertEquals(null, after.pendingInstallReleaseId)
+        assertEquals(null, after.pendingInstallAssetId)
+        assertEquals(null, after.pendingInstallAssetDigest)
     }
 
     @Test

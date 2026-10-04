@@ -510,7 +510,11 @@ class InstalledAppUpdatesTest {
 
     @Test
     fun markAndClearPendingTouchOnlyPendingFlag() {
-        val marked = app().markPending()
+        val marked = app().markPending(
+            releaseId = 7001L,
+            assetId = 7002L,
+            assetDigest = "sha256:aaa",
+        )
         assertTrue(marked.isPendingInstall)
         assertEquals("/data/parked.apk", marked.pendingInstallFilePath)
 
@@ -540,7 +544,11 @@ class InstalledAppUpdatesTest {
     @Test
     fun chainedPreInstallHandoffCombinesBothZones() {
         val result = app()
-            .markPending()
+            .markPending(
+                releaseId = 7001L,
+                assetId = 7002L,
+                assetDigest = "sha256:aaa",
+            )
             .withLatestSnapshot(
                 version = "3.0.0",
                 assetName = "a3",

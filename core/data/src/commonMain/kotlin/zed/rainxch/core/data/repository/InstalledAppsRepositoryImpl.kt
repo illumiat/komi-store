@@ -569,7 +569,19 @@ class InstalledAppsRepositoryImpl(
         val app = installedAppsDao.getAppByPackage(packageName) ?: return
         installedAppsDao.updateApp(
             app.toDomain()
-                .let { if (isPending) it.markPending() else it.clearPending() }
+                .let {
+                    if (isPending) {
+                        // Only the stored snapshot is available at this layer; callers that hold a
+                        // fresher release/asset pass the identity straight to markPending instead.
+                        it.markPending(
+                            releaseId = app.latestReleaseId,
+                            assetId = app.latestAssetId,
+                            assetDigest = app.latestAssetDigest,
+                        )
+                    } else {
+                        it.clearPending()
+                    }
+                }
                 .toEntity(),
         )
     }

@@ -160,10 +160,11 @@ class PackageEventReceiver() :
                             repo.updateAppVersion(
                                 packageName = packageName,
                                 newTag = installedTag,
-                                // Confirming an install we started: keep the identity saved with it.
-                                newReleaseId = app.installedReleaseId,
-                                newAssetId = app.installedAssetId,
-                                newAssetDigest = app.installedAssetDigest,
+                                // Confirming an install we started: carry the identity saved with
+                                // it, not the snapshot, which may have moved on since.
+                                newReleaseId = app.pendingInstallReleaseId ?: app.installedReleaseId,
+                                newAssetId = app.pendingInstallAssetId ?: app.installedAssetId,
+                                newAssetDigest = app.pendingInstallAssetDigest ?: app.installedAssetDigest,
                                 newAssetName = app.latestAssetName,
                                 newAssetUrl = app.latestAssetUrl,
                                 newVersionName = systemInfo.versionName,
