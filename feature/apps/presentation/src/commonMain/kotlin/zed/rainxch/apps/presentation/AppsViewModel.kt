@@ -1493,8 +1493,10 @@ class AppsViewModel(
             }
         }
 
-        // A download the details screen started has no [activeUpdates] entry, so the job cancel
-        // above is a no-op for it. Routing through the orchestrator as well stops either kind.
+        // A download the details screen started has no [activeUpdates] entry, so cancelling the
+        // job above is a no-op for it and the orchestrator would keep running. Routing the
+        // cancel through the orchestrator as well makes the library's own cancel button stop
+        // either kind of download (PR-3 E2).
         viewModelScope.launch {
             try {
                 downloadOrchestrator.cancel(packageName)
@@ -1627,6 +1629,18 @@ class AppsViewModel(
         }
     }
 
+    /**
+     * Mirrors the orchestrator's own download registry into the library list.
+     *
+     * The library used to learn about progress only from [waitForOrchestratorReady], a
+     * coroutine that lives inside [updateSingleApp]. A download the details screen enqueued
+     * therefore produced no state change here at all: no progress, no cancel entry — the
+     * package was simply invisible until the page that started it died. Subscribing to the
+     * registry makes every download visible whoever started it (PR-3 D-1).
+     *
+     * Packages already owned by [activeUpdates] are skipped: those drive their own state from
+     * the same registry, and two writers would fight over it (PR-3 E6).
+     */
     private fun observeOrchestratorDownloads() {
         viewModelScope.launch {
             downloadOrchestrator.downloads.collect { snapshot ->
