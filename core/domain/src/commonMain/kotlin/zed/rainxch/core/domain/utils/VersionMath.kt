@@ -168,8 +168,13 @@ object VersionMath {
     private fun comparableDigest(raw: String?): String? =
         raw
             ?.takeIf { it.isNotBlank() }
-            ?.removePrefix("sha256:")
+            // Fold the case first: `removePrefix` matches exactly, so stripping before folding would
+            // leave "SHA256:…" intact and the same value would then read as a different one.
             ?.lowercase()
+            ?.removePrefix("sha256:")
+            // A prefix with no hex behind it is not a digest either — same reason as a blank string,
+            // reached one step later.
+            ?.takeIf { it.isNotEmpty() }
 
     /**
      * Whether the build behind the matched release is a different one from the build stored.
@@ -182,12 +187,13 @@ object VersionMath {
      * someone re-runs a nightly job without changing the code.
      *
      * Without a digest on both sides the ids are the only evidence available, and they are used
-     * instead. Size is consulted after them because it survives neither of the two ways a build can
-     * really change, and it is the one comparison that cannot be fooled by a re-upload of identical
-     * bytes.
+     * instead, with size after them — size survives neither of the two ways a build can really
+     * change, and it is the one comparison that cannot be fooled by a re-upload of identical bytes.
      *
      * The digest comparison itself lives in [assetIdentityChanged] and is delegated to, so the
-     * "same bytes" rule has one implementation rather than one per call path.
+     * "same bytes" rule has one implementation rather than one per call path. The fallback is
+     * spelled out as ids-then-size rather than delegated, because the digest branch of that
+     * function cannot be reached from here and a reader should not have to work that out.
      */
     fun assetBuildChanged(
         matchedReleaseId: Long?,
@@ -209,23 +215,19 @@ object VersionMath {
                 storedSize = storedSize,
             )
         }
-        if (
-            releaseObjectChanged(
-                matchedReleaseId = matchedReleaseId,
-                matchedAssetId = matchedAssetId,
-                storedReleaseId = storedReleaseId,
-                storedAssetId = storedAssetId,
-            )
-        ) {
-            return true
-        }
-        return assetIdentityChanged(
-            matchedDigest = matchedDigest,
-            matchedSize = matchedSize,
-            storedDigest = storedDigest,
-            storedSize = storedSize,
-        )
+        return releaseObjectChanged(
+            matchedReleaseId = matchedReleaseId,
+            matchedAssetId = matchedAssetId,
+            storedReleaseId = storedReleaseId,
+            storedAssetId = storedAssetId,
+        ) || sizeChanged(matchedSize = matchedSize, storedSize = storedSize)
     }
+
+    /** A size difference is real evidence; a size match is not. */
+    private fun sizeChanged(
+        matchedSize: Long?,
+        storedSize: Long?,
+    ): Boolean = matchedSize != null && storedSize != null && matchedSize != storedSize
 
     fun releaseObjectChanged(
         matchedReleaseId: Long?,
@@ -256,8 +258,7 @@ object VersionMath {
         val matched = comparableDigest(matchedDigest)
         val stored = comparableDigest(storedDigest)
         if (matched != null && stored != null) return matched != stored
-        if (matchedSize != null && storedSize != null) return matchedSize != storedSize
-        return false
+        return sizeChanged(matchedSize = matchedSize, storedSize = storedSize)
     }
 
     fun shouldReportTimestampUpdate(
