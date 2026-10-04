@@ -799,4 +799,95 @@ class UpdateVerdictTest {
             )
         assertTrue(bound.isUpdateAvailable)
     }
+
+    @Test
+    fun an_asset_replaced_in_place_with_identical_bytes_is_not_a_new_build() {
+        // The cell this file was missing. A delete-and-reupload of the same bytes (`--clobber`)
+        // yields a new asset id for identical content, and an asset's bytes cannot change without
+        // a new upload. With a digest on both sides, therefore, the bytes settle it: the object was
+        // replaced, the build was not. Reading the ids first made this report an update for a
+        // program that had not changed — which is what a re-run of a nightly job looks like.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_skip_survives_an_in_place_replacement_of_identical_bytes() {
+        // The same cell through the skip gate. The user asked not to be told about this build; a
+        // re-upload of the very same bytes does not produce a different build, so the skip has
+        // nothing to be released by and must hold. Before, the new asset id released it and the
+        // update came back — the user's "skip" undone by an upload that changed nothing they can
+        // install.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                skippedTag = "nightly",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+        assertFalse(result.skipBecameStale)
+    }
+
+    @Test
+    fun a_skip_is_still_released_when_the_bytes_actually_change() {
+        // The other direction, so the two tests above cannot be satisfied by simply never releasing
+        // a skip: a genuine byte change must still release it and report.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                skippedTag = "nightly",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:bbbb",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 801L,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertTrue(result.skipBecameStale)
+    }
 }

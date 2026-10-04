@@ -53,18 +53,16 @@ object UpdateVerdict {
         val publishedAtAdvanced =
             VersionMath.isPublishedAtAfter(matched.publishedAt, stored.publishedAt)
         val identityAdvanced =
-            VersionMath.releaseObjectChanged(
+            VersionMath.assetBuildChanged(
                 matchedReleaseId = matched.releaseId,
                 matchedAssetId = matched.assetId,
+                matchedDigest = matched.assetDigest,
+                matchedSize = matched.assetSize,
                 storedReleaseId = stored.latestReleaseId,
                 storedAssetId = stored.latestAssetId,
-            ) ||
-                VersionMath.assetIdentityChanged(
-                    matchedDigest = matched.assetDigest,
-                    matchedSize = matched.assetSize,
-                    storedDigest = stored.latestAssetDigest,
-                    storedSize = stored.latestAssetSize,
-                )
+                storedDigest = stored.latestAssetDigest,
+                storedSize = stored.latestAssetSize,
+            )
         val skipSupersededByNewBuild =
             matchesSkipped &&
                 VersionMath.isTimestampTrackedTag(matched.tag) &&
