@@ -224,7 +224,7 @@ class UpdateVerdictTest {
     }
 
     @Test
-    fun installerx_matching_codes_and_tag_still_report_an_update() {
+    fun installerx_matching_codes_and_tag_make_the_rewrite_gate_open() {
         val result =
             decide(
                 installedTag = "26.08.21fae85",
@@ -236,6 +236,7 @@ class UpdateVerdictTest {
                 storedPublishedAt = "2026-08-01T00:00:00Z",
                 matchedIsPrerelease = false,
             )
+        assertTrue(result.codesAlreadyMatch)
         assertTrue(result.isUpdateAvailable)
     }
 
@@ -250,6 +251,7 @@ class UpdateVerdictTest {
                 matchedTag = "1.0.0",
             )
         assertFalse(result.isUpdateAvailable)
+        assertTrue(result.codesAlreadyMatch)
     }
 
     @Test
@@ -353,6 +355,45 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun codes_already_match_requires_positive_codes() {
+        val zeroInstalled =
+            decide(
+                installedTag = "1.0.0",
+                installedVersionCode = 0L,
+                storedLatestTag = "1.0.0",
+                storedLatestVersionCode = 0L,
+                matchedTag = "1.0.0",
+            )
+        assertFalse(zeroInstalled.codesAlreadyMatch)
+
+        val zeroStored =
+            decide(
+                installedTag = "1.0.0",
+                installedVersionCode = 100L,
+                storedLatestTag = "1.0.0",
+                storedLatestVersionCode = 0L,
+                matchedTag = "1.0.0",
+            )
+        assertFalse(zeroStored.codesAlreadyMatch)
+    }
+
+    @Test
+    fun rewrite_gate_rejects_when_codes_or_stored_tag_differ() {
+        val matched = decide(installedTag = "1.0.0", installedVersionCode = 100L)
+        assertFalse(matched.codesAlreadyMatch)
+
+        val tagMismatch =
+            decide(
+                installedTag = "1.0.0",
+                installedVersionCode = 100L,
+                storedLatestTag = "1.0.1",
+                storedLatestVersionCode = 100L,
+                matchedTag = "1.0.0",
+            )
+        assertFalse(tagMismatch.codesAlreadyMatch)
+    }
+
+    @Test
     fun skipped_nightly_same_instant_in_offset_form_is_not_a_rebuild() {
         val result =
             decide(
@@ -396,6 +437,7 @@ class UpdateVerdictTest {
                 matchedPublishedAt = "2026-08-02T00:00:00Z",
                 matchedIsPrerelease = true,
             )
+        assertTrue(result.codesAlreadyMatch)
         assertTrue(result.skipBecameStale)
         assertTrue(result.isUpdateAvailable)
     }
@@ -414,8 +456,16 @@ class UpdateVerdictTest {
                 matchedPublishedAt = "2026-08-01T00:00:00Z",
                 matchedIsPrerelease = true,
             )
+        assertTrue(result.codesAlreadyMatch)
         assertFalse(result.skipBecameStale)
         assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun adopt_gate_needs_code_proof() {
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(false, "26.09.01", "nightly"))
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(false, "2.0.2", "nightly"))
+        assertTrue(UpdateVerdict.shouldAdoptMatchedTag(true, "26.09.01", "nightly"))
     }
 
     @Test
@@ -432,6 +482,14 @@ class UpdateVerdictTest {
                 matchedIsPrerelease = true,
             )
         assertTrue(result.isUpdateAvailable)
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(result.codesAlreadyMatch, "2.0.2", "nightly"))
+    }
+
+    @Test
+    fun adopt_gate_keeps_its_other_bounds() {
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(true, "2.0.0", "2.0.0"))
+        assertFalse(UpdateVerdict.shouldAdoptMatchedTag(false, "1.0.0", "2.0.0"))
+        assertTrue(UpdateVerdict.shouldAdoptMatchedTag(true, "1.0.0", "2.0.0"))
     }
 
     @Test
@@ -564,5 +622,138 @@ class UpdateVerdictTest {
                 matchedAssetSize = 70_543_755L,
             )
         assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_later_release_with_a_different_file_is_an_update() {
+        // 26.09.8 installed, 26.09.8a published afterwards as a different file. fallback=false
+        // proves the report comes from the release date, not from a carried-over verdict.
+        val sameFile =
+            UpdateVerdict.isSameFile(
+                installedAssetId = 11L,
+                installedAssetDigest = "sha256:old",
+                matchedAssetId = 22L,
+                matchedAssetDigest = "sha256:new",
+            )
+        assertFalse(sameFile)
+
+        assertTrue(
+            UpdateVerdict.decideBound(
+                sameFile = sameFile,
+                matchedPublishedAt = "2026-09-08T12:00:00Z",
+                installedReleasePublishedAt = "2026-09-08T00:00:00Z",
+                fallback = false,
+            ),
+        )
+    }
+
+    @Test
+    fun a_rebuilt_nightly_with_a_changed_file_is_an_update() {
+        // Same 'nightly' tag: the identity, not the tag string, has to carry the signal.
+        val sameFile =
+            UpdateVerdict.isSameFile(
+                installedAssetId = 100L,
+                installedAssetDigest = null,
+                matchedAssetId = 200L,
+                matchedAssetDigest = null,
+            )
+        assertFalse(sameFile)
+
+        assertTrue(
+            UpdateVerdict.decideBound(
+                sameFile = sameFile,
+                matchedPublishedAt = "2026-09-25T02:00:00Z",
+                installedReleasePublishedAt = "2026-09-24T11:46:11Z",
+                fallback = false,
+            ),
+        )
+    }
+
+    @Test
+    fun the_same_asset_id_stays_quiet_even_when_the_tag_reads_differently() {
+        val sameFile =
+            UpdateVerdict.isSameFile(
+                installedAssetId = 42L,
+                installedAssetDigest = null,
+                matchedAssetId = 42L,
+                matchedAssetDigest = null,
+            )
+        assertTrue(sameFile)
+
+        // fallback=true: a false here can only come from the same-file short circuit.
+        assertFalse(
+            UpdateVerdict.decideBound(
+                sameFile = sameFile,
+                matchedPublishedAt = "2026-09-10T00:00:00Z",
+                installedReleasePublishedAt = "2026-09-01T00:00:00Z",
+                fallback = true,
+            ),
+        )
+    }
+
+    @Test
+    fun a_matching_digest_beats_a_new_asset_id() {
+        // Digests are the stronger statement: a re-upload keeps the bytes under a new id.
+        val sameFile =
+            UpdateVerdict.isSameFile(
+                installedAssetId = 7L,
+                installedAssetDigest = "sha256:same",
+                matchedAssetId = 8L,
+                matchedAssetDigest = "sha256:same",
+            )
+        assertTrue(sameFile)
+
+        assertFalse(
+            UpdateVerdict.decideBound(
+                sameFile = sameFile,
+                matchedPublishedAt = "2026-09-10T00:00:00Z",
+                installedReleasePublishedAt = "2026-09-01T00:00:00Z",
+                fallback = true,
+            ),
+        )
+    }
+
+    @Test
+    fun a_different_file_from_an_earlier_release_is_not_an_update() {
+        val sameFile =
+            UpdateVerdict.isSameFile(
+                installedAssetId = 5L,
+                installedAssetDigest = "sha256:new",
+                matchedAssetId = 6L,
+                matchedAssetDigest = "sha256:old",
+            )
+        assertFalse(sameFile)
+
+        // fallback=true: staying quiet can only come from the release date going forwards.
+        assertFalse(
+            UpdateVerdict.decideBound(
+                sameFile = sameFile,
+                matchedPublishedAt = "2026-08-01T00:00:00Z",
+                installedReleasePublishedAt = "2026-09-01T00:00:00Z",
+                fallback = true,
+            ),
+        )
+    }
+
+    @Test
+    fun an_unbound_record_passes_the_fallback_through_untouched() {
+        // No identity means there is nothing to date against, so decideBound must hand back
+        // whatever the caller's verdict said — both directions.
+        assertTrue(
+            UpdateVerdict.decideBound(
+                sameFile = false,
+                matchedPublishedAt = "2026-09-10T00:00:00Z",
+                installedReleasePublishedAt = null,
+                fallback = true,
+            ),
+        )
+        assertFalse(
+            UpdateVerdict.decideBound(
+                sameFile = false,
+                matchedPublishedAt = "2026-09-10T00:00:00Z",
+                installedReleasePublishedAt = null,
+                fallback = false,
+            ),
+        )
     }
 }

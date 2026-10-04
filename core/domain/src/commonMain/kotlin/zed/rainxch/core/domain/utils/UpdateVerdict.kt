@@ -116,11 +116,53 @@ object UpdateVerdict {
         return Result(
             isUpdateAvailable = isUpdateAvailable,
             skipBecameStale = skipBecameStale,
+            codesAlreadyMatch = codesAlreadyMatch,
         )
+    }
+
+    fun shouldAdoptMatchedTag(
+        codesAlreadyMatch: Boolean,
+        installedTag: String?,
+        matchedTag: String,
+    ): Boolean = installedTag != matchedTag && codesAlreadyMatch
+
+    /**
+     * Whether the recorded install and the matched asset are the same bytes. The same asset id
+     * means the same file; a digest that both sides carry is the stronger statement, because a
+     * re-upload gets a new id but keeps its bytes.
+     */
+    fun isSameFile(
+        installedAssetId: Long?,
+        installedAssetDigest: String?,
+        matchedAssetId: Long?,
+        matchedAssetDigest: String?,
+    ): Boolean {
+        if (installedAssetDigest != null && matchedAssetDigest != null) {
+            return installedAssetDigest == matchedAssetDigest
+        }
+        return installedAssetId != null && matchedAssetId != null && installedAssetId == matchedAssetId
+    }
+
+    /**
+     * The verdict for a record that carries an identity. The file decides first — the same bytes
+     * are up to date whatever the tags or version strings say — and the release date decides only
+     * when the file changed. When the installed release is not in the fetched window there is
+     * nothing to date it against, so the caller's [fallback] stands.
+     */
+    fun decideBound(
+        sameFile: Boolean,
+        matchedPublishedAt: String?,
+        installedReleasePublishedAt: String?,
+        fallback: Boolean,
+    ): Boolean = when {
+        sameFile -> false
+        installedReleasePublishedAt == null -> fallback
+        else -> VersionMath.isPublishedAtAfter(matchedPublishedAt, installedReleasePublishedAt)
     }
 
     data class Result(
         val isUpdateAvailable: Boolean,
         val skipBecameStale: Boolean,
+        val codesAlreadyMatch: Boolean,
     )
 }

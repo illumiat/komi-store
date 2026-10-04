@@ -16,6 +16,7 @@ import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
+import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
 import zed.rainxch.core.data.mappers.toReleaseWindow
@@ -276,6 +277,20 @@ class InstalledAppsRepositoryImpl(
         installedAppsDao.clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
     }
 
+    private suspend fun adoptMatchedTag(
+        app: InstalledAppEntity,
+        matchedTag: String,
+        isUpdateAvailable: Boolean,
+    ) {
+        installedAppsDao.updateInstalledVersion(
+            packageName = app.packageName,
+            installedVersion = matchedTag,
+            installedVersionName = app.installedVersionName,
+            installedVersionCode = app.installedVersionCode,
+            isUpdateAvailable = isUpdateAvailable,
+        )
+    }
+
     override suspend fun checkForUpdates(packageName: String): Boolean {
         val app = installedAppsDao.getAppByPackage(packageName) ?: return false
 
@@ -366,13 +381,44 @@ class InstalledAppsRepositoryImpl(
                 installedAppsDao.setSkippedReleaseTag(packageName, null)
             }
 
-            val isUpdateAvailable = verdict.isUpdateAvailable
+            // A record that carries an identity is decided by the file first: the same bytes are
+            // up to date whatever the tags say, and a changed file only counts when the matched
+            // release is newer than the one this install came from. Without an identity there is
+            // nothing to compare against, so today's verdict stands unchanged.
+            val hasIdentity = app.installedAssetId != null || app.installedAssetDigest != null
+            val installedReleasePublishedAt =
+                if (app.installedReleaseId == null) {
+                    null
+                } else {
+                    releases.firstOrNull { it.id == app.installedReleaseId }?.publishedAt
+                }
+            val sameFile =
+                hasIdentity &&
+                    UpdateVerdict.isSameFile(
+                        installedAssetId = app.installedAssetId,
+                        installedAssetDigest = app.installedAssetDigest,
+                        matchedAssetId = primaryAsset.id,
+                        matchedAssetDigest = primaryAsset.digest,
+                    )
+
+            val isUpdateAvailable =
+                if (!hasIdentity) {
+                    verdict.isUpdateAvailable
+                } else {
+                    UpdateVerdict.decideBound(
+                        sameFile = sameFile,
+                        matchedPublishedAt = matchedRelease.publishedAt,
+                        installedReleasePublishedAt = installedReleasePublishedAt,
+                        fallback = verdict.isUpdateAvailable,
+                    )
+                }
 
             Logger.d {
                 "[UPDATE-CHECK] ${app.appName} $packageName " +
                         "installedTag=${app.installedVersion} matchedTag=${matchedRelease.tagName} " +
                         "storedPublishedAt=${app.latestReleasePublishedAt} " +
                         "matchedPublishedAt=${matchedRelease.publishedAt} " +
+                        "hasIdentity=$hasIdentity sameFile=$sameFile " +
                         "isUpdate=$isUpdateAvailable"
             }
 
@@ -396,6 +442,19 @@ class InstalledAppsRepositoryImpl(
                 latestReleasePublishedAt = matchedRelease.publishedAt,
             )
 
+            val shouldRewriteTag =
+                UpdateVerdict.shouldAdoptMatchedTag(
+                    codesAlreadyMatch = verdict.codesAlreadyMatch,
+                    installedTag = app.installedVersion,
+                    matchedTag = matchedRelease.tagName,
+                )
+            if (shouldRewriteTag) {
+                adoptMatchedTag(
+                    app = app,
+                    matchedTag = matchedRelease.tagName,
+                    isUpdateAvailable = isUpdateAvailable,
+                )
+            }
 
             if (variantWasLost != app.preferredVariantStale) {
                 installedAppsDao.updateVariantStaleness(packageName, variantWasLost)
