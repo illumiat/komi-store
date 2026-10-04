@@ -478,13 +478,6 @@ class DefaultDownloadOrchestrator(
         val versionTag: String,
     )
 
-    /**
-     * D-8 "pause": stop the transfer but *remember* it. The entry stays in the registry with
-     * [DownloadStage.Paused] and its progress fields untouched, and the partial + sidecar are left
-     * on disk, so [resume] (or a plain [enqueue]) can continue from the retained bytes. Only
-     * [discard] deletes. Keeping the entry is the whole point: without it a paused download vanished
-     * from the UI and PR-1's resumable partial was unreachable from the card.
-     */
     override suspend fun cancel(packageName: String) {
         val job = stateMutex.withLock { activeJobs.remove(packageName) }
         job?.cancel()
@@ -519,8 +512,8 @@ class DefaultDownloadOrchestrator(
             }
         }
 
-        // "Stop but remember" — do NOT remove the entry. Marking it Paused keeps bytes, progress and
-        // file path so the user still sees the download and can continue it. [discard] removes it.
+        // Do not remove the entry: Paused keeps the bytes, the progress and the file path so the
+        // user still sees the download and can continue it. [discard] is what removes it.
         stateMutex.withLock {
             _downloads.update { state ->
                 val current = state[packageName] ?: return@update state
@@ -529,18 +522,6 @@ class DefaultDownloadOrchestrator(
         }
     }
 
-    /**
-     * Resume a [cancel]-ed download from its retained partial.
-     *
-     * The [DownloadSpec] is rebuilt from the paused entry so the existing enqueue → download path
-     * re-issues the transfer; the downloader then finds the retained `.part` + sidecar and continues
-     * with a `Range` request. [OrchestratedDownload] now retains the asset `id` and `digest`, so the
-     * rebuilt [GithubAsset] carries the real identity: the resumed transfer proves ownership of the
-     * on-disk bytes with the same `AssetIdentity(id, digest, size)` as the original one — not by
-     * size alone — and the authenticated GitHub asset-API fallback (which needs a positive id)
-     * stays available. `contentType` is intentionally not persisted: it is not part of
-     * `AssetIdentity` and is unused on the download path.
-     */
     override suspend fun resume(packageName: String) {
         val entry = _downloads.value[packageName] ?: return
         if (entry.stage != DownloadStage.Paused) return
@@ -567,19 +548,11 @@ class DefaultDownloadOrchestrator(
         enqueue(spec)
     }
 
-    /**
-     * D-8 "delete": [cancel] is the pause half (stops the transfer, keeps `.part` + sidecar so the
-     * next [resume] continues); this method is the delete half, so it also drops the list entry and
-     * erases the bytes. It is the only path that removes a download entry *and* its bytes.
-     *
-     * The byte deletion is delegated to the downloader, which owns the naming scheme and the
-     * per-name write lock — the orchestrator must not reconstruct partial paths itself.
-     */
     override suspend fun discard(packageName: String) {
         val entry = _downloads.value[packageName]
-        // Stop the transfer and clear a parked install, but keep the bytes for now…
+        // Keep the bytes: stop the transfer and clear the parked install.
         cancel(packageName)
-        // …then forget the entry, which cancel deliberately no longer does.
+        // Only then forget the entry, which cancel deliberately no longer does.
         stateMutex.withLock {
             _downloads.update { it - packageName }
         }
