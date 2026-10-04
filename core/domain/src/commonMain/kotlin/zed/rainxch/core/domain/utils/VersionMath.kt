@@ -157,6 +157,21 @@ object VersionMath {
     }
 
     /**
+     * A digest as it is worth comparing. The `sha256:` prefix and the letter case are how the value
+     * is written down, not what it is, and the two places that read a digest already disagree about
+     * the form: GitHub hands back `sha256:<hex>`, while the verifiers strip the prefix and lowercase
+     * before comparing. Comparing the raw strings here would call a build changed whenever the same
+     * value arrived in two spellings. A blank string is treated as nothing at all — a row carrying
+     * one carries no evidence, and letting it through the "both sides present" gate would compare it
+     * against a real digest and report a build that never changed.
+     */
+    private fun comparableDigest(raw: String?): String? =
+        raw
+            ?.takeIf { it.isNotBlank() }
+            ?.removePrefix("sha256:")
+            ?.lowercase()
+
+    /**
      * Whether the build behind the matched release is a different one from the build stored.
      *
      * Byte content decides whenever both sides can produce it. An asset's bytes are immutable: the
@@ -170,6 +185,9 @@ object VersionMath {
      * instead. Size is consulted after them because it survives neither of the two ways a build can
      * really change, and it is the one comparison that cannot be fooled by a re-upload of identical
      * bytes.
+     *
+     * The digest comparison itself lives in [assetIdentityChanged] and is delegated to, so the
+     * "same bytes" rule has one implementation rather than one per call path.
      */
     fun assetBuildChanged(
         matchedReleaseId: Long?,
@@ -181,8 +199,15 @@ object VersionMath {
         storedDigest: String?,
         storedSize: Long?,
     ): Boolean {
-        if (matchedDigest != null && storedDigest != null) {
-            return matchedDigest != storedDigest
+        // The bytes can only settle it when both sides actually carry one; a blank side is a side
+        // with no evidence, and belongs in the fallback with the ids rather than in this branch.
+        if (comparableDigest(matchedDigest) != null && comparableDigest(storedDigest) != null) {
+            return assetIdentityChanged(
+                matchedDigest = matchedDigest,
+                matchedSize = matchedSize,
+                storedDigest = storedDigest,
+                storedSize = storedSize,
+            )
         }
         if (
             releaseObjectChanged(
@@ -217,13 +242,20 @@ object VersionMath {
         return false
     }
 
+    /**
+     * The one digest comparison. Also the size fallback, which is what remains when the bytes cannot
+     * be compared directly — a re-upload of identical bytes cannot change the size, so a size
+     * difference is real evidence even though a size match is not.
+     */
     fun assetIdentityChanged(
         matchedDigest: String?,
         matchedSize: Long?,
         storedDigest: String?,
         storedSize: Long?,
     ): Boolean {
-        if (matchedDigest != null && storedDigest != null) return matchedDigest != storedDigest
+        val matched = comparableDigest(matchedDigest)
+        val stored = comparableDigest(storedDigest)
+        if (matched != null && stored != null) return matched != stored
         if (matchedSize != null && storedSize != null) return matchedSize != storedSize
         return false
     }
