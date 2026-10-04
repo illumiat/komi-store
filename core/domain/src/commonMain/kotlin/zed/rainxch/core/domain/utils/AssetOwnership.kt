@@ -16,6 +16,38 @@ object AssetOwnership {
         return assets.filter { isSameApp(it.name, anchorAssetName) }.ifEmpty { assets }
     }
 
+    enum class VariantStatus {
+        INSTALLED,
+        UPDATE,
+        OTHER_VERSION,
+    }
+
+    fun variantStatus(
+        assetName: String,
+        releaseTag: String?,
+        apps: List<InstalledApp>,
+    ): VariantStatus? {
+        val app = installedVariantOf(assetName, apps) ?: return null
+        return when {
+            VersionMath.isExactSameVersion(app.installedVersion, releaseTag) -> VariantStatus.INSTALLED
+            VersionMath.isVersionNewer(releaseTag, app.installedVersion) -> VariantStatus.UPDATE
+            else -> VariantStatus.OTHER_VERSION
+        }
+    }
+
+    private fun installedVariantOf(assetName: String, apps: List<InstalledApp>): InstalledApp? {
+        val glob = AssetVariant.deriveGlob(assetName)
+        return apps.firstOrNull { app ->
+            if (app.isPendingInstall) return@firstOrNull false
+            val installed = app.installedAssetName
+            if (glob == null) {
+                installed == assetName
+            } else {
+                (installed?.let(AssetVariant::deriveGlob) ?: app.assetGlobPattern) == glob
+            }
+        }
+    }
+
     fun ownerOf(
         assetName: String,
         apps: List<InstalledApp>,

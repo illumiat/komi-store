@@ -12,6 +12,8 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
@@ -49,6 +51,8 @@ class InstalledAppsRepositoryImpl(
     private val backendApiClient: zed.rainxch.core.data.network.BackendApiClient,
     private val forgejoClientRegistry: zed.rainxch.core.data.network.ForgejoClientRegistry,
 ) : InstalledAppsRepository {
+    private val checkAllMutex = Mutex()
+
 
     private val httpClient: HttpClient get() = clientProvider.client
 
@@ -260,19 +264,6 @@ class InstalledAppsRepositoryImpl(
         return null
     }
 
-    private suspend fun recordTransientFailure(
-        installedTag: String?,
-        storedLatestTag: String?,
-        packageName: String,
-    ) {
-        val now = System.currentTimeMillis()
-        if (VersionMath.shouldRetainSnapshotBaseline(installedTag, storedLatestTag)) {
-            installedAppsDao.updateLastChecked(packageName, now)
-        } else {
-            installedAppsDao.clearUpdateMetadata(packageName, now)
-        }
-    }
-
     private suspend fun recordUnmatchedRelease(packageName: String) {
         installedAppsDao.clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
     }
@@ -307,9 +298,12 @@ class InstalledAppsRepositoryImpl(
                     sourceHost = app.sourceHost,
                 )
 
+            // An empty window is a failed fetch (backend error, rate limit, network), not
+            // proof the repo lost its releases. Keep what the last good check found and
+            // leave lastCheckedAt alone so the next check retries.
             if (releases.isEmpty()) {
-                recordTransientFailure(app.installedVersion, app.latestVersion, packageName)
-                return false
+                Logger.d { "No releases for ${app.appName} this time; keeping its stored update state" }
+                return app.isUpdateAvailable
             }
 
             val compiledFilter =
@@ -441,15 +435,23 @@ class InstalledAppsRepositoryImpl(
     }
 
     override suspend fun checkAllForUpdates() {
-        val apps = installedAppsDao.getAllInstalledApps().first()
-        apps.forEach { app ->
-            if (app.updateCheckEnabled) {
-                try {
-                    checkForUpdates(app.packageName)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Logger.w { "Failed to check updates for ${app.packageName}: ${e.message}" }
+        // App start, Library and the background worker can ask at once; a run already in
+        // flight answers all of them.
+        if (checkAllMutex.isLocked) {
+            checkAllMutex.withLock { }
+            return
+        }
+        checkAllMutex.withLock {
+            val apps = installedAppsDao.getAllInstalledApps().first()
+            apps.forEach { app ->
+                if (app.updateCheckEnabled) {
+                    try {
+                        checkForUpdates(app.packageName)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.w { "Failed to check updates for ${app.packageName}: ${e.message}" }
+                    }
                 }
             }
         }

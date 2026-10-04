@@ -46,7 +46,9 @@ import kotlinx.collections.immutable.persistentListOf
 import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubUser
+import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.repository.DiscoveryPlatform
+import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonSize
@@ -77,6 +79,8 @@ fun ReleaseAssetsPicker(
     pinnedVariant: String? = null,
     showAllPlatforms: Boolean = false,
     crossPlatformAssets: ImmutableList<GithubAsset> = persistentListOf(),
+    installedApps: ImmutableList<InstalledApp> = persistentListOf(),
+    selectedReleaseTag: String? = null,
 ) {
     val colors = LocalPersonality.current.colors
 
@@ -89,6 +93,8 @@ fun ReleaseAssetsPicker(
         showAllPlatforms = showAllPlatforms,
         selectedAsset = selectedAsset,
         pinnedVariant = pinnedVariant,
+        installedApps = installedApps,
+        selectedReleaseTag = selectedReleaseTag,
         onDismiss = { onAction(DetailsAction.ToggleReleaseAssetsPicker) },
         onSelect = { onAction(DetailsAction.SelectDownloadAsset(it)) },
         onUnpin = { onAction(DetailsAction.UnpinPreferredVariant) },
@@ -164,6 +170,8 @@ private fun ReleaseAssetsItemsPicker(
     onUnpin: () -> Unit,
     onToggleShowAllPlatforms: (Boolean) -> Unit,
     onDownloadForTransfer: (GithubAsset) -> Unit,
+    installedApps: ImmutableList<InstalledApp> = persistentListOf(),
+    selectedReleaseTag: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (!showPicker) return
@@ -266,6 +274,21 @@ private fun ReleaseAssetsItemsPicker(
             val installableIds = remember(assetsList) {
                 assetsList.map { it.id }.toSet()
             }
+            val variantStatuses = remember(assetsList, crossPlatformAssets, installedApps, selectedReleaseTag) {
+                (assetsList + crossPlatformAssets).mapNotNull { asset ->
+                    AssetOwnership.variantStatus(asset.name, selectedReleaseTag, installedApps)?.let { asset.id to it }
+                }.toMap()
+            }
+            val installedAssets = remember(assetsList, variantStatuses) {
+                assetsList.filter { it.id in variantStatuses }
+            }
+            val otherAssets = remember(assetsList, installedAssets) {
+                if (installedAssets.isEmpty()) assetsList
+                else {
+                    val installedIds = installedAssets.map { it.id }.toSet()
+                    assetsList.filter { it.id !in installedIds }
+                }
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxWidth()
                     .animateContentSize(animationSpec = tween(durationMillis = 250))
@@ -298,6 +321,7 @@ private fun ReleaseAssetsItemsPicker(
                                 assets = assets,
                                 selectedAsset = selectedAsset,
                                 pinnedVariant = pinnedVariant,
+                                variantStatuses = variantStatuses,
                                 onAssetClick = { asset ->
                                     if (asset.id in installableIds) {
                                         onSelect(asset)
@@ -309,17 +333,77 @@ private fun ReleaseAssetsItemsPicker(
                         }
                     }
                 } else if (assetsList.isNotEmpty()) {
-                    items(items = assetsList, key = { it.id }) { asset ->
-                        val variantTag = AssetVariant.extract(asset.name)
-                        val isPinned = !pinnedVariant.isNullOrBlank() &&
-                                variantTag?.equals(pinnedVariant, ignoreCase = true) == true
-                        ReleaseAssetItem(
-                            asset = asset,
-                            isSelected = asset.id == selectedAsset?.id,
-                            isPinned = isPinned,
-                            onClick = { onSelect(asset) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+
+                    if (installedAssets.isNotEmpty()) {
+                        item(key = "section-header-installed") {
+                            val allInstalled = installedAssets.all {
+                                variantStatuses[it.id] == AssetOwnership.VariantStatus.INSTALLED
+                            }
+                            KomiText(
+                                text = stringResource(
+                                    if (allInstalled) Res.string.installed else Res.string.assets_section_your_app,
+                                ),
+                                role = KomiTextRole.Label,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.primary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            )
+                        }
+                        items(items = installedAssets, key = { "installed-${it.id}" }) { asset ->
+                            val variantTag = AssetVariant.extract(asset.name)
+                            val isPinned = !pinnedVariant.isNullOrBlank() &&
+                                    variantTag?.equals(pinnedVariant, ignoreCase = true) == true
+                            ReleaseAssetItem(
+                                asset = asset,
+                                isSelected = asset.id == selectedAsset?.id,
+                                isPinned = isPinned,
+                                variantStatus = variantStatuses[asset.id],
+                                onClick = { onSelect(asset) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        if (otherAssets.isNotEmpty()) {
+                            item(key = "section-divider-available") {
+                                KomiHorizontalDivider(
+                                    color = colors.outlineVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                )
+                            }
+                            item(key = "section-header-available") {
+                                KomiText(
+                                    text = stringResource(Res.string.assets_section_available),
+                                    role = KomiTextRole.Label,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.primary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                )
+                            }
+                            items(items = otherAssets, key = { "available-${it.id}" }) { asset ->
+                                val variantTag = AssetVariant.extract(asset.name)
+                                val isPinned = !pinnedVariant.isNullOrBlank() &&
+                                        variantTag?.equals(pinnedVariant, ignoreCase = true) == true
+                                ReleaseAssetItem(
+                                    asset = asset,
+                                    isSelected = asset.id == selectedAsset?.id,
+                                    isPinned = isPinned,
+                                    onClick = { onSelect(asset) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    } else {
+                        items(items = assetsList, key = { it.id }) { asset ->
+                            val variantTag = AssetVariant.extract(asset.name)
+                            val isPinned = !pinnedVariant.isNullOrBlank() &&
+                                    variantTag?.equals(pinnedVariant, ignoreCase = true) == true
+                            ReleaseAssetItem(
+                                asset = asset,
+                                isSelected = asset.id == selectedAsset?.id,
+                                isPinned = isPinned,
+                                onClick = { onSelect(asset) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 } else {
                     item {
@@ -385,6 +469,7 @@ private fun ReleaseAssetItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isPinned: Boolean = false,
+    variantStatus: AssetOwnership.VariantStatus? = null,
 ) {
     val colors = LocalPersonality.current.colors
     val shape = LocalPersonality.current.shape
@@ -415,6 +500,25 @@ private fun ReleaseAssetItem(
                     modifier = Modifier.weight(1f, fill = false),
                     uppercase = false,
                 )
+                val variantBadge = when (variantStatus) {
+                    AssetOwnership.VariantStatus.INSTALLED -> Res.string.installed
+                    AssetOwnership.VariantStatus.UPDATE -> Res.string.update
+                    else -> null
+                }
+                if (variantBadge != null) {
+                    Spacer(Modifier.width(6.dp))
+                    KomiText(
+                        text = stringResource(variantBadge),
+                        role = KomiTextRole.Label,
+                        fontSize = 11.sp,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(shape.cornerSmall))
+                            .background(colors.surfaceVariant)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        uppercase = false,
+                    )
+                }
                 if (isPinned) {
                     Spacer(Modifier.width(6.dp))
                     KomiText(
@@ -479,6 +583,7 @@ private fun PlatformSectionCard(
     selectedAsset: GithubAsset?,
     pinnedVariant: String?,
     onAssetClick: (GithubAsset) -> Unit,
+    variantStatuses: Map<Long, AssetOwnership.VariantStatus> = emptyMap(),
 ) {
     val colors = LocalPersonality.current.colors
     KomiSurface(
@@ -534,6 +639,7 @@ private fun PlatformSectionCard(
                     asset = asset,
                     isSelected = isInstallableHere && asset.id == selectedAsset?.id,
                     isPinned = isPinned,
+                    variantStatus = variantStatuses[asset.id]?.takeIf { isInstallableHere },
                     onClick = { onAssetClick(asset) },
                     modifier = Modifier.fillMaxWidth(),
                 )

@@ -713,8 +713,15 @@ fun AppNavigation(
                                     onNavigateBack = {
                                         navController.navigateUp()
                                     },
-                                    onNavigateToDetails = {
-                                        navController.navigate(GithubStoreGraph.DetailsScreen(it))
+                                    onNavigateToDetails = { repoId, owner, repo, sourceHost ->
+                                        navController.navigate(
+                                            GithubStoreGraph.DetailsScreen(
+                                                repositoryId = repoId,
+                                                owner = owner,
+                                                repo = repo,
+                                                sourceHost = sourceHost,
+                                            ),
+                                        )
                                     },
                                     onNavigateToDeveloperProfile = { username ->
                                         navController.navigate(
@@ -796,10 +803,13 @@ fun AppNavigation(
                                     onNavigateBack = {
                                         navController.navigateUp()
                                     },
-                                    onNavigateToDetails = { repoId ->
+                                    onNavigateToDetails = { repoId, owner, repo, sourceHost ->
                                         navController.navigate(
                                             GithubStoreGraph.DetailsScreen(
                                                 repositoryId = repoId,
+                                                owner = owner,
+                                                repo = repo,
+                                                sourceHost = sourceHost,
                                             ),
                                         )
                                     },

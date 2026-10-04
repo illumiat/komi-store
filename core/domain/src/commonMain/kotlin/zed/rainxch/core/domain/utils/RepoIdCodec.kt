@@ -14,4 +14,9 @@ object RepoIdCodec {
     }
 
     fun isForeignSource(repoId: Long): Boolean = repoId < 0L
+
+    fun sourceHostOf(repoId: Long, repoUrl: String): String? {
+        if (!isForeignSource(repoId)) return null
+        return repoUrl.substringAfter("://").substringBefore('/').lowercase().ifBlank { null }
+    }
 }
