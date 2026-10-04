@@ -302,7 +302,21 @@ class SyncInstalledAppsUseCase(
                 )
                 installedAppsRepository.updateApp(observed)
 
-                val action = if (wasDowngrade) "downgrade" else "external update"
+                val versionChanged =
+                    local.versionCode != app.installedVersionCode ||
+                        local.versionName != app.installedVersionName
+                // Reaching here with the version unchanged means the signer is the only thing that
+                // moved (see `unchanged` above), and saying "external update" for that reads as a
+                // version change that did not happen. Name it for what it is, with both keys, since
+                // the key is the whole of the difference.
+                val action =
+                    when {
+                        wasDowngrade -> "downgrade"
+                        !versionChanged && signerDrifted ->
+                            "signer change " +
+                                "(stored=${app.signingFingerprint} now=${local.signingFingerprint})"
+                        else -> "external update"
+                    }
                 logger.info(
                     "Detected $action for ${app.packageName}: " +
                         "DB v${app.installedVersionName}(${app.installedVersionCode}) → " +
