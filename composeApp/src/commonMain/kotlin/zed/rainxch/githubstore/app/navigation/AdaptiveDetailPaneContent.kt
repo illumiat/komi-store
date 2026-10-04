@@ -159,6 +159,8 @@ private fun MainDetailPane(
             append(args.repo.orEmpty())
             append('|')
             append(args.sourceHost.orEmpty())
+            append('|')
+            append(args.packageName.orEmpty())
         }
     val viewModel: DetailsViewModel =
         koinViewModel(key = vmKey) {
@@ -168,6 +170,7 @@ private fun MainDetailPane(
                 args.repo.orEmpty(),
                 args.isComingFromUpdate,
                 args.sourceHost,
+                args.packageName,
             )
         }
     DetailsRoot(
@@ -178,13 +181,6 @@ private fun MainDetailPane(
         onNavigateToDeveloperProfile = { username ->
             navController.navigate(
                 GithubStoreGraph.DeveloperProfileScreen(username = username),
-            )
-        },
-        onNavigateToSearchByPlatform = { platform ->
-            navController.navigate(
-                GithubStoreGraph.SearchScreen(
-                    initialPlatform = platform.name,
-                ),
             )
         },
         onNavigateToAbout = onOpenAbout,

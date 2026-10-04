@@ -27,6 +27,7 @@ import zed.rainxch.apps.domain.repository.AppsRepository
 import zed.rainxch.apps.presentation.mappers.toDomain
 import zed.rainxch.apps.presentation.mappers.toUi
 import zed.rainxch.apps.presentation.mappers.computeIsBusy
+import zed.rainxch.apps.presentation.mappers.groupedByRepo
 import zed.rainxch.apps.presentation.mappers.toAppItem
 import zed.rainxch.apps.presentation.model.AdvancedPreviewMessage
 import zed.rainxch.apps.presentation.model.AppItem
@@ -159,6 +160,9 @@ class AppsViewModel(
             pendingApps = pending,
             updateApps = updates,
             idleApps = idle,
+            pendingGroups = pending.groupedByRepo(),
+            updateGroups = updates.groupedByRepo(),
+            idleGroups = idle.groupedByRepo(),
         )
     }
 
@@ -258,12 +262,19 @@ class AppsViewModel(
 
     private fun autoCheckForUpdatesIfNeeded() {
         val now = System.currentTimeMillis()
-        if (now - lastAutoCheckTimestamp < UPDATE_CHECK_COOLDOWN_MS) {
-            logger.debug("Skipping auto-check: last check was ${(now - lastAutoCheckTimestamp) / 1000}s ago")
+        val lastCheck = maxOf(lastAutoCheckTimestamp, oldestTrackedCheck())
+        if (now - lastCheck < UPDATE_CHECK_COOLDOWN_MS) {
+            logger.debug("Skipping auto-check: last check was ${(now - lastCheck) / 1000}s ago")
             return
         }
         checkAllForUpdates()
     }
+
+    private fun oldestTrackedCheck(): Long =
+        _state.value.apps
+            .map { it.installedApp }
+            .filter { it.updateCheckEnabled }
+            .minOfOrNull { it.lastCheckedAt } ?: 0L
 
     private fun checkAllForUpdates() {
         viewModelScope.launch {
@@ -401,10 +412,6 @@ class AppsViewModel(
                 _state.update { it.copy(isUpdatesSectionExpanded = !it.isUpdatesSectionExpanded) }
             }
 
-            is AppsAction.OnTwoPaneSelect -> {
-                _state.update { it.copy(twoPaneSelectedPackage = action.packageName) }
-            }
-
             is AppsAction.OnNavigateToRepo -> {
                 viewModelScope.launch {
                     _events.send(
@@ -413,6 +420,7 @@ class AppsViewModel(
                             sourceHost = action.sourceHost,
                             owner = action.owner,
                             repo = action.repo,
+                            packageName = action.packageName,
                         ),
                     )
                 }

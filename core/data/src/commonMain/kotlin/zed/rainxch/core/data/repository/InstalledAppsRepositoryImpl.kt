@@ -12,6 +12,8 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
@@ -35,6 +37,7 @@ import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.Installer
 import zed.rainxch.core.domain.utils.AssetFilter
+import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
@@ -48,6 +51,8 @@ class InstalledAppsRepositoryImpl(
     private val backendApiClient: zed.rainxch.core.data.network.BackendApiClient,
     private val forgejoClientRegistry: zed.rainxch.core.data.network.ForgejoClientRegistry,
 ) : InstalledAppsRepository {
+    private val checkAllMutex = Mutex()
+
 
     private val httpClient: HttpClient get() = clientProvider.client
 
@@ -181,8 +186,21 @@ class InstalledAppsRepositoryImpl(
         pickedSiblingCount: Int?,
         trackedPackageName: String,
         installedAssetName: String?,
+        repoApps: List<InstalledApp>,
     ): ResolvedRelease? {
         if (releases.isEmpty()) return null
+
+        val self = repoApps.firstOrNull { it.packageName == trackedPackageName }
+
+        // An APK no installed app owns is usually a sibling app the user never installed
+        // (monorepos). Only an app with no asset name or glob to compare can't tell.
+        fun belongsElsewhere(asset: GithubAsset, releaseAssets: List<GithubAsset>): Boolean {
+            if (self == null) return false
+            if (!AssetOwnership.canOwn(self, asset.name)) return true
+            val owner = AssetOwnership.ownerOf(asset.name, repoApps, releaseAssets, releases)
+                ?: return self.installedAssetName != null || !self.assetGlobPattern.isNullOrBlank()
+            return owner.packageName != trackedPackageName
+        }
 
         val candidates =
             if (filter != null && !fallbackToOlderReleases) {
@@ -200,21 +218,24 @@ class InstalledAppsRepositoryImpl(
             val installableForPlatform =
                 release.assets.filter { installer.isAssetInstallable(it.name) }
             val installableForApp =
-                if (filter == null) installableForPlatform
-                else installableForPlatform.filter { filter.matches(it.name) }
+                (
+                    if (filter == null) installableForPlatform
+                    else installableForPlatform.filter { filter.matches(it.name) }
+                ).filterNot { belongsElsewhere(it, installableForPlatform) }
 
             if (installableForApp.isEmpty()) continue
 
+            val sameApp = AssetOwnership.narrowToApp(installableForApp, installedAssetName)
             val fingerprintMatch =
                 AssetVariant.resolvePreferredAsset(
-                    assets = installableForApp,
+                    assets = sameApp,
                     pinnedVariant = preferredVariant,
                     pinnedTokens = preferredTokens.takeIf { it.isNotEmpty() },
                     pinnedGlob = preferredGlob,
                 )
 
             val positionMatch =
-                if (fingerprintMatch == null && hasAnyPin) {
+                if (fingerprintMatch == null && hasAnyPin && sameApp.size == installableForApp.size) {
                     AssetVariant.resolveBySamePosition(
                         assets = installableForApp,
                         originalIndex = pickedIndex,
@@ -224,25 +245,11 @@ class InstalledAppsRepositoryImpl(
                     null
                 }
 
-            val installedStem =
-                installedAssetName
-                    ?.let { AssetVariant.extractBaseStem(it) }
-                    ?.takeIf { it.isNotEmpty() }
             val autoPickPool =
-                AssetVariant
-                    .filterByPackageFlavor(installableForApp, trackedPackageName)
-                    .let { pool ->
-                        if (installedStem == null) {
-                            pool
-                        } else {
-                            val matching =
-                                pool.filter {
-                                    AssetVariant.extractBaseStem(it.name) == installedStem
-                                }
-
-                            matching.ifEmpty { pool }
-                        }
-                    }
+                AssetOwnership.narrowToApp(
+                    AssetVariant.filterByPackageFlavor(installableForApp, trackedPackageName),
+                    installedAssetName,
+                )
             val primary = fingerprintMatch
                 ?: positionMatch
                 ?: installer.choosePrimaryAsset(autoPickPool)
@@ -255,19 +262,6 @@ class InstalledAppsRepositoryImpl(
         }
 
         return null
-    }
-
-    private suspend fun recordTransientFailure(
-        installedTag: String?,
-        storedLatestTag: String?,
-        packageName: String,
-    ) {
-        val now = System.currentTimeMillis()
-        if (VersionMath.shouldRetainSnapshotBaseline(installedTag, storedLatestTag)) {
-            installedAppsDao.updateLastChecked(packageName, now)
-        } else {
-            installedAppsDao.clearUpdateMetadata(packageName, now)
-        }
     }
 
     private suspend fun recordUnmatchedRelease(packageName: String) {
@@ -304,9 +298,12 @@ class InstalledAppsRepositoryImpl(
                     sourceHost = app.sourceHost,
                 )
 
+            // An empty window is a failed fetch (backend error, rate limit, network), not
+            // proof the repo lost its releases. Keep what the last good check found and
+            // leave lastCheckedAt alone so the next check retries.
             if (releases.isEmpty()) {
-                recordTransientFailure(app.installedVersion, app.latestVersion, packageName)
-                return false
+                Logger.d { "No releases for ${app.appName} this time; keeping its stored update state" }
+                return app.isUpdateAvailable
             }
 
             val compiledFilter =
@@ -329,6 +326,7 @@ class InstalledAppsRepositoryImpl(
                 pickedSiblingCount = app.pickedAssetSiblingCount,
                 trackedPackageName = app.packageName,
                 installedAssetName = app.installedAssetName,
+                repoApps = installedAppsDao.getAppsByRepoId(app.repoId).map { it.toDomain() },
             )
 
             if (resolved == null) {
@@ -437,15 +435,23 @@ class InstalledAppsRepositoryImpl(
     }
 
     override suspend fun checkAllForUpdates() {
-        val apps = installedAppsDao.getAllInstalledApps().first()
-        apps.forEach { app ->
-            if (app.updateCheckEnabled) {
-                try {
-                    checkForUpdates(app.packageName)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Logger.w { "Failed to check updates for ${app.packageName}: ${e.message}" }
+        // App start, Library and the background worker can ask at once; a run already in
+        // flight answers all of them.
+        if (checkAllMutex.isLocked) {
+            checkAllMutex.withLock { }
+            return
+        }
+        checkAllMutex.withLock {
+            val apps = installedAppsDao.getAllInstalledApps().first()
+            apps.forEach { app ->
+                if (app.updateCheckEnabled) {
+                    try {
+                        checkForUpdates(app.packageName)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.w { "Failed to check updates for ${app.packageName}: ${e.message}" }
+                    }
                 }
             }
         }

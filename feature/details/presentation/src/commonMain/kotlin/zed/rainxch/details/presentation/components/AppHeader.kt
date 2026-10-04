@@ -1,5 +1,12 @@
 package zed.rainxch.details.presentation.components
 
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.layout.PaddingValues
+import kotlinx.coroutines.flow.first
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -23,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.CallSplit
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.runtime.Composable
@@ -47,7 +55,10 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.account.github.GithubRepoSummary
 import zed.rainxch.core.domain.model.account.github.GithubUserProfile
 import zed.rainxch.core.domain.model.installation.InstalledApp
+import zed.rainxch.core.domain.utils.PlatformRelease
+import zed.rainxch.core.domain.utils.VersionMath
 import zed.rainxch.core.presentation.components.GitHubStoreImage
+import zed.rainxch.core.presentation.components.InstalledAppIcon
 import zed.rainxch.core.presentation.components.chips.KomiChip
 import zed.rainxch.core.presentation.components.chips.KomiChipKind
 import zed.rainxch.core.presentation.components.chips.KomiChipSize
@@ -56,6 +67,7 @@ import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
+import zed.rainxch.core.presentation.utils.daysSinceIso
 import zed.rainxch.core.presentation.utils.formatReleasedAgo
 import zed.rainxch.core.presentation.utils.toIcon
 import zed.rainxch.core.presentation.utils.toLabel
@@ -94,10 +106,16 @@ fun AppHeader(
     release: GithubRelease?,
     installedApp: InstalledApp?,
     modifier: Modifier = Modifier,
+    installedApps: List<InstalledApp> = emptyList(),
+    onSelectInstalledApp: (String) -> Unit = {},
     downloadStage: DownloadStage = DownloadStage.IDLE,
     downloadProgress: Int? = null,
     isCurrentUserOwner: Boolean = false,
     onPlatformClick: ((DiscoveryPlatform) -> Unit)? = null,
+    platformReleases: List<PlatformRelease> = emptyList(),
+    devicePlatform: DiscoveryPlatform? = null,
+    appLabel: String? = null,
+    onAppLabelClick: () -> Unit = {},
     onOwnerClick: () -> Unit = {},
 ) {
     val isDark = isSystemInDarkTheme()
@@ -126,22 +144,6 @@ fun AppHeader(
         animationSpec = tween(durationMillis = 500),
         label = "avatar-progress",
     )
-
-    val supportedPlatforms = remember(release?.assets) {
-        val names = release?.assets?.map { it.name.lowercase() }.orEmpty()
-        buildList {
-            if (names.any { it.endsWith(".apk") }) add(DiscoveryPlatform.Android)
-            if (names.any { it.endsWith(".exe") || it.endsWith(".msi") }) add(DiscoveryPlatform.Windows)
-            if (names.any { it.endsWith(".dmg") || it.endsWith(".pkg") }) add(DiscoveryPlatform.Macos)
-            if (names.any {
-                    it.endsWith(".appimage") ||
-                            it.endsWith(".deb") ||
-                            it.endsWith(".rpm") ||
-                            it.endsWith(".pkg.tar.zst")
-                }
-            ) add(DiscoveryPlatform.Linux)
-        }
-    }
 
     Box(
         modifier = modifier
@@ -297,51 +299,92 @@ fun AppHeader(
                 color = colors.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp),
             )
-            if (installedApp != null) {
+            val showAppSwitcher =
+                installedApps.size > 1 || (installedApps.isNotEmpty() && installedApp == null)
+            val showStatusPill =
+                installedApp != null &&
+                    (!showAppSwitcher || installedApp.isPendingInstall || installedApp.isUpdateAvailable)
+            val showAppLabel = appLabel != null && installedApp == null
+            if (showStatusPill || showAppSwitcher || showAppLabel) {
                 Spacer(Modifier.height(12.dp))
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    val statusColor = when {
-                        installedApp.isPendingInstall -> colors.primary
-                        installedApp.isUpdateAvailable -> colors.primary
-                        else -> colors.primary
+                val switcherApps =
+                    remember(installedApps, showAppSwitcher) {
+                        if (showAppSwitcher) installedApps.sortedBy { it.appName.lowercase() } else emptyList()
                     }
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(shape.cornerSmall))
-                            .border(
-                                width = 1.dp,
-                                color = statusColor,
-                                shape = RoundedCornerShape(shape.cornerSmall),
+                val firstChipIndex = (if (showStatusPill) 1 else 0) + (if (showAppLabel) 1 else 0)
+                val selectedIndex =
+                    switcherApps.indexOfFirst { it.packageName == installedApp?.packageName }
+                val rowState = rememberLazyListState()
+                val targetIndex = when {
+                    showAppLabel -> 0
+                    selectedIndex >= 0 -> firstChipIndex + selectedIndex
+                    else -> -1
+                }
+                LaunchedEffect(targetIndex) {
+                    if (targetIndex < 0) return@LaunchedEffect
+                    val target = targetIndex
+                    val layout = snapshotFlow { rowState.layoutInfo }
+                        .first { it.visibleItemsInfo.isNotEmpty() }
+                    val item = layout.visibleItemsInfo.firstOrNull { it.index == target }
+                    val fullyVisible =
+                        item != null &&
+                            item.offset >= layout.viewportStartOffset &&
+                            item.offset + item.size <= layout.viewportEndOffset
+                    if (!fullyVisible) rowState.animateScrollToItem(target)
+                }
+                LazyRow(
+                    state = rowState,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (showStatusPill && installedApp != null) {
+                        item(key = "status") { InstalledStatusPill(installedApp = installedApp) }
+                    }
+                    if (showAppLabel && appLabel != null) {
+                        item(key = "app") {
+                            KomiChip(
+                                label = appLabel,
+                                kind = KomiChipKind.Filter,
+                                size = KomiChipSize.Sm,
+                                selected = true,
+                                leadingIcon = Icons.Default.UnfoldMore,
+                                onClick = onAppLabelClick,
                             )
-                            .padding(horizontal = 12.dp, vertical = 5.dp),
-                    ) {
-                        KomiText(
-                            text = stringResource(
-                                when {
-                                    installedApp.isPendingInstall -> Res.string.pending_install
-                                    installedApp.isUpdateAvailable -> Res.string.update_available
-                                    else -> Res.string.installed
-                                },
-                            ),
-                            role = KomiTextRole.Label,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            color = statusColor,
-                            uppercase = false,
+                        }
+                    }
+                    items(switcherApps, key = { it.packageName }) { app ->
+                        KomiChip(
+                            label = app.appName,
+                            kind = KomiChipKind.Filter,
+                            size = KomiChipSize.Sm,
+                            selected = app.packageName == installedApp?.packageName,
+                            leadingContent = {
+                                InstalledAppIcon(
+                                    packageName = app.packageName,
+                                    appName = app.appName,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clip(RoundedCornerShape(shape.cornerSmall)),
+                                )
+                            },
+                            onClick = { onSelectInstalledApp(app.packageName) },
                         )
                     }
                 }
             }
-            if (supportedPlatforms.isNotEmpty()) {
+            if (platformReleases.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(horizontal = 20.dp),
                 ) {
-                    supportedPlatforms.forEach { platform ->
+                    platformReleases.forEach { (platform, platformRelease) ->
+                        val isDevice = platform == devicePlatform
                         KomiChip(
-                            label = platform.toLabel(),
+                            label = platformChipLabel(platform.toLabel(), platformRelease),
                             kind = KomiChipKind.Info,
                             size = KomiChipSize.Sm,
                             leadingContent = {
@@ -350,7 +393,7 @@ fun AppHeader(
                                         imageVector = icon,
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp),
-                                        tint = colors.onSurface,
+                                        tint = if (isDevice) colors.onSurface else colors.onSurfaceVariant,
                                     )
                                 }
                             },
@@ -433,3 +476,43 @@ private fun HeaderAvatar(
         }
     }
 }
+
+@Composable
+private fun InstalledStatusPill(installedApp: InstalledApp) {
+    val colors = LocalPersonality.current.colors
+    val shape = RoundedCornerShape(LocalPersonality.current.shape.cornerSmall)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .border(width = 1.dp, color = colors.primary, shape = shape)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+    ) {
+        KomiText(
+            text = stringResource(
+                when {
+                    installedApp.isPendingInstall -> Res.string.pending_install
+                    installedApp.isUpdateAvailable -> Res.string.update_available
+                    else -> Res.string.installed
+                },
+            ),
+            role = KomiTextRole.Label,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp,
+            color = colors.primary,
+            uppercase = false,
+        )
+    }
+}
+
+private fun platformChipLabel(platformLabel: String, release: GithubRelease): String {
+    val version = VersionMath.normalizeVersion(release.tagName).ifBlank { release.tagName }
+    val days = daysSinceIso(release.publishedAt)
+    val year = release.publishedAt.take(4)
+    return if (days != null && days > STALE_PLATFORM_DAYS) {
+        "$platformLabel $version · $year"
+    } else {
+        "$platformLabel $version"
+    }
+}
+
+private const val STALE_PLATFORM_DAYS = 365

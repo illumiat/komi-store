@@ -1,5 +1,6 @@
 package zed.rainxch.apps.presentation.components
 
+import zed.rainxch.core.presentation.components.InstalledAppIcon
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -495,18 +496,20 @@ fun AppItemCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val uninstallDescription = stringResource(Res.string.uninstall)
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clickable(enabled = !appItem.isBusy, onClick = onUninstallClick),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    KomiIcon(
-                        imageVector = Icons.Outlined.DeleteOutline,
-                        contentDescription = uninstallDescription,
-                        tint = colors.error,
-                    )
+                if (!app.isPendingInstall) {
+                    val uninstallDescription = stringResource(Res.string.uninstall)
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable(enabled = !appItem.isBusy, onClick = onUninstallClick),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        KomiIcon(
+                            imageVector = Icons.Outlined.DeleteOutline,
+                            contentDescription = uninstallDescription,
+                            tint = colors.error,
+                        )
+                    }
                 }
 
                 when (appItem.updateState) {
@@ -527,7 +530,6 @@ fun AppItemCard(
                                 label = stringResource(Res.string.install),
                                 variant = KomiButtonVariant.Primary,
                                 leadingIcon = Icons.Default.Update,
-                                enabled = !appItem.isBusy,
                                 modifier = Modifier.weight(1f),
                             )
 

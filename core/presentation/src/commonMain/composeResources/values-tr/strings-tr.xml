@@ -1058,16 +1058,6 @@
     <string name="adaptive_pick_repo_subtitle">Ayrıntılarını burada görüntülemek için soldaki herhangi bir karta dokunun.</string>
     <string name="adaptive_pick_repo_title">Bir depo seçin</string>
     <string name="apps_section_pending_installs">Kurulmaya hazır</string>
-    <string name="apps_two_pane_advanced_settings">Gelişmiş ayarlar</string>
-    <string name="apps_two_pane_detail_section_actions">Hızlı işlemler</string>
-    <string name="apps_two_pane_detail_section_settings">Ayarlar</string>
-    <string name="apps_two_pane_detail_section_status">Durum</string>
-    <string name="apps_two_pane_empty_subtitle">Ayrıntılarını ve işlemlerini görmek için soldaki herhangi bir uygulamayı seçin.</string>
-    <string name="apps_two_pane_empty_title">Bir uygulama seçin</string>
-    <string name="apps_two_pane_installed_label">Yüklü</string>
-    <string name="apps_two_pane_latest_label">En son</string>
-    <string name="apps_two_pane_open_repo">Depoyu aç</string>
-    <string name="apps_two_pane_pick_variant">Varyant seç</string>
     <string name="apps_updates_banner_hide">Listeyi gizle</string>
     <string name="apps_updates_banner_show">Listeyi gör</string>
     <string name="apps_updates_banner_subtitle">Tümünü tek seferde incele veya güncelle.</string>
@@ -1461,4 +1451,10 @@
     <string name="sidebar_categories">Kategoriler</string>
     <string name="sidebar_platform">Platform</string>
     <string name="tweaks_privacy_usage_data_section">Kullanım verileri</string>
+    <string name="no_build_for_this_device">Bu cihaz için derleme yok</string>
+    <string name="newer_releases_no_build_for_device">Daha yeni sürümlerde bu cihaz için derleme yok</string>
+    <string name="latest_for_platform">%1$s için en yeni</string>
+    <string name="go_to_version">%1$s sürümüne git</string>
+    <string name="get_it_on_platform">%1$s için edinin</string>
+    <string name="share_link">Bağlantıyı paylaş</string>
 </resources>

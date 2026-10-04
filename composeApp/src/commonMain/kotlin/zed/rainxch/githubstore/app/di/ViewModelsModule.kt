@@ -49,6 +49,7 @@ val viewModelsModule =
                 repoParam = params[2],
                 isComingFromUpdate = params[3],
                 sourceHostParam = if (params.size() > 4) params[4] else null,
+                packageNameParam = if (params.size() > 5) params[5] else null,
                 detailsRepository = get(),
                 downloader = get(),
                 installer = get(),

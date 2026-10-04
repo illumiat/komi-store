@@ -2,6 +2,11 @@ package zed.rainxch.details.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -26,6 +31,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.getString
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
+import zed.rainxch.core.domain.model.repository.DiscoveryPlatform
 import zed.rainxch.core.domain.model.repository.FavoriteRepo
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubRelease
@@ -54,8 +60,13 @@ import zed.rainxch.core.domain.model.installation.InstallerType
 import zed.rainxch.core.domain.repository.UserSessionRepository
 import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
+import zed.rainxch.core.domain.utils.platforms
+import zed.rainxch.core.domain.utils.toDiscoveryPlatform
 import zed.rainxch.core.presentation.utils.daysSinceIso
+import zed.rainxch.core.domain.utils.AssetFilter
+import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
+import zed.rainxch.core.domain.utils.ReleaseLines
 import zed.rainxch.core.domain.utils.VersionMath
 import zed.rainxch.core.domain.helpers.BrowserHelper
 import zed.rainxch.core.domain.helpers.ShareManager
@@ -136,7 +147,8 @@ class DetailsViewModel(
     private val externalImportRepository: ExternalImportRepository,
     private val apkInspector: ApkInspector,
     private val systemInstallSerializer: zed.rainxch.core.domain.system.SystemInstallSerializer,
-    private val userSessionRepository: UserSessionRepository
+    private val userSessionRepository: UserSessionRepository,
+    private val packageNameParam: String? = null,
 ) : ViewModel() {
     private var hasLoadedInitialData = false
     private var currentDownloadJob: Job? = null
@@ -144,7 +156,7 @@ class DetailsViewModel(
     private var aboutTranslationJob: Job? = null
     private var whatsNewTranslationJob: Job? = null
 
-    private val _state = MutableStateFlow(RawDetailsState())
+    private val _state = MutableStateFlow(RawDetailsState(devicePlatform = platform.toDiscoveryPlatform()))
     val state: StateFlow<DetailsState> =
         _state
             .onStart {
@@ -264,9 +276,9 @@ class DetailsViewModel(
             }
 
             DetailsAction.OnConfirmDowngradeUninstall -> {
-                _state.value.downgradeWarning ?: return
+                val warning = _state.value.downgradeWarning ?: return
                 dismissDowngradeWarning()
-                uninstallApp()
+                uninstallPackage(warning.packageName)
             }
 
             DetailsAction.OnDismissSigningKeyWarning -> {
@@ -382,10 +394,13 @@ class DetailsViewModel(
             is DetailsAction.SelectRelease -> {
                 val release = action.release
                 val (installable, primary) = recomputeAssetsForRelease(release)
+                val newInstalledApp =
+                    pickPrimaryInstalledApp(_state.value.installedApps, primary?.name, installable)
                 whatsNewTranslationJob?.cancel()
 
                 _state.update {
                     it.copy(
+                        installedApp = newInstalledApp,
                         selectedRelease = release,
                         installableAssets = installable,
                         primaryAsset = primary,
@@ -506,7 +521,24 @@ class DetailsViewModel(
             }
 
             is DetailsAction.OnPlatformChipClick -> {
-                // Handled in composable
+                if (action.platform == _state.value.devicePlatform) {
+                    jumpToDeviceBuild()
+                } else {
+                    _state.update { it.copy(handoffPlatform = action.platform) }
+                }
+            }
+
+            DetailsAction.OnJumpToDeviceBuild -> {
+                jumpToDeviceBuild()
+            }
+
+            DetailsAction.OnDismissPlatformHandoff -> {
+                _state.update { it.copy(handoffPlatform = null) }
+            }
+
+            is DetailsAction.OnShareAssetLink -> {
+                runCatching { shareManager.shareText(action.assetUrl) }
+                    .onFailure { logger.warn("Share asset link failed: ${it.message}") }
             }
 
             is DetailsAction.OnMessage -> {
@@ -514,8 +546,24 @@ class DetailsViewModel(
             }
 
             is DetailsAction.SelectDownloadAsset -> {
-                _state.update { state -> state.copy(primaryAsset = action.release) }
-                persistPreferredVariantOnPick(action.release)
+                val newPrimary = pickPrimaryInstalledApp(
+                    apps = _state.value.installedApps,
+                    primaryAssetName = action.release.name,
+                    releaseAssets = _state.value.installableAssets,
+                )
+                _state.update { state ->
+                    state.copy(
+                        primaryAsset = action.release,
+                        installedApp = newPrimary,
+                    )
+                }
+                if (newPrimary != null) {
+                    persistPreferredVariantOnPick(action.release)
+                }
+            }
+
+            is DetailsAction.OnSelectInstalledApp -> {
+                switchToInstalledApp(action.packageName)
             }
 
             DetailsAction.ToggleReleaseAssetsPicker -> {
@@ -890,7 +938,10 @@ class DetailsViewModel(
                         sourceHost = sourceHostParam,
                     )
 
-                val byPrevCategory = releases.firstInCategory(prevCategory)
+                val deviceBuildIds = deviceBuildReleaseIds(releases)
+                val byPrevCategory =
+                    releases.filter { it.id in deviceBuildIds }.firstInCategory(prevCategory)
+                        ?: releases.firstInCategory(prevCategory)
                 val selected = byPrevCategory
                     ?: releases.firstOrNull { !it.isEffectivelyPreRelease() }
                     ?: releases.firstOrNull()
@@ -902,10 +953,21 @@ class DetailsViewModel(
                 }
                 val (installable, primary) =
                     recomputeAssetsForRelease(selected, _state.value.installedApp)
-                val insights = computeReleaseInsights(releases, _state.value.installedApp)
+                val newInstalledApp =
+                    pickPrimaryInstalledApp(
+                        _state.value.installedApps,
+                        primary?.name,
+                        installable,
+                        releases,
+                    )
+                val insights = computeReleaseInsights(releases, newInstalledApp)
                 _state.update {
                     it.copy(
+                        installedApp = newInstalledApp,
                         allReleases = releases,
+                        releasePlatforms = platformsByRelease(releases),
+                        deviceBuildReleaseIds = deviceBuildIds,
+                        releaseLines = releaseLines(releases),
                         releasesLoadFailed = false,
                         isRetryingReleases = false,
                         selectedRelease = selected,
@@ -954,6 +1016,8 @@ class DetailsViewModel(
     private fun recomputeAssetsForRelease(
         release: GithubRelease?,
         installedAppOverride: InstalledApp? = _state.value.installedApp,
+        anchorAssetName: String? =
+            _state.value.primaryAsset?.name ?: installedAppOverride?.installedAssetName,
     ): Pair<List<GithubAsset>, GithubAsset?> {
         val installable =
             release
@@ -961,15 +1025,16 @@ class DetailsViewModel(
                 ?.filter { asset ->
                     installer.isAssetInstallable(asset.name)
                 }.orEmpty()
+        val candidates = assetsOfSameApp(installable, installedAppOverride, anchorAssetName)
 
         val variantMatch = AssetVariant.resolvePreferredAsset(
-            assets = installable,
+            assets = candidates,
             pinnedVariant = installedAppOverride?.preferredAssetVariant,
             pinnedTokens = AssetVariant.deserializeTokens(installedAppOverride?.preferredAssetTokens),
             pinnedGlob = installedAppOverride?.assetGlobPattern,
         )
         val samePositionMatch =
-            if (variantMatch == null) {
+            if (variantMatch == null && candidates.size == installable.size) {
                 AssetVariant.resolveBySamePosition(
                     assets = installable,
                     originalIndex = installedAppOverride?.pickedAssetIndex,
@@ -978,26 +1043,99 @@ class DetailsViewModel(
             } else {
                 null
             }
-        val primary = variantMatch ?: samePositionMatch ?: installer.choosePrimaryAsset(installable)
+        val primary = variantMatch ?: samePositionMatch ?: installer.choosePrimaryAsset(candidates)
         return installable to primary
+    }
+
+    private fun assetsOfSameApp(
+        installable: List<GithubAsset>,
+        installedApp: InstalledApp?,
+        anchorAssetName: String?,
+    ): List<GithubAsset> {
+        val filter = AssetFilter.parse(installedApp?.assetFilterRegex)?.getOrNull()
+        if (filter != null) {
+            val filtered = installable.filter { filter.matches(it.name) }
+            if (filtered.isNotEmpty()) return filtered
+        }
+        return AssetOwnership.narrowToApp(installable, anchorAssetName)
     }
 
     private fun pickPrimaryInstalledApp(
         apps: List<InstalledApp>,
         primaryAssetName: String?,
+        releaseAssets: List<GithubAsset>,
+        releaseHistory: List<GithubRelease> = _state.value.allReleases,
     ): InstalledApp? {
         if (apps.isEmpty()) return null
-        if (apps.size == 1) return apps.first()
-        if (primaryAssetName != null) {
-            val filterMatch = apps.firstOrNull { existing ->
-                val filter = existing.assetFilterRegex
-                filter != null && runCatching { Regex(filter).containsMatchIn(primaryAssetName) }
-                    .getOrDefault(false)
-            }
-            if (filterMatch != null) return filterMatch
+        if (primaryAssetName == null) {
+            return apps.singleOrNull() ?: apps.firstOrNull { !it.isUpdateAvailable } ?: apps.first()
         }
-        return apps.firstOrNull { !it.isUpdateAvailable } ?: apps.first()
+        return AssetOwnership.ownerOf(primaryAssetName, apps, releaseAssets, releaseHistory)
     }
+
+    private fun switchToInstalledApp(packageName: String) {
+        val current = _state.value
+        val app = current.installedApps.firstOrNull { it.packageName == packageName } ?: return
+        val anchor = app.installedAssetName ?: app.latestAssetName ?: app.pendingInstallAssetName
+        val category = current.selectedReleaseCategory
+        val inCategory =
+            current.allReleases.firstOwnedBy(app, category, current.installedApps, anchor)
+        val release =
+            inCategory
+                ?: current.allReleases.firstOwnedBy(
+                    app,
+                    ReleaseCategory.ALL,
+                    current.installedApps,
+                    anchor,
+                )
+                ?: return
+        val resolvedCategory =
+            when {
+                inCategory != null -> category
+                release.isEffectivelyPreRelease() -> ReleaseCategory.PRE_RELEASE
+                else -> ReleaseCategory.STABLE
+            }
+        val (installable, primary) = recomputeAssetsForRelease(release, app, anchor)
+        val insights = computeReleaseInsights(current.allReleases, app)
+        whatsNewTranslationJob?.cancel()
+
+        _state.update {
+            it.copy(
+                installedApp = app,
+                selectedRelease = release,
+                selectedReleaseCategory = resolvedCategory,
+                installableAssets = installable,
+                primaryAsset = primary,
+                isVersionPickerVisible = false,
+                whatsNewTranslation = TranslationState(),
+                whatsNewMeasuredHeightPx = null,
+                mergedChangelog = insights.mergedChangelog,
+                mergedChangelogBaseTag = insights.mergedChangelogBaseTag,
+                stalledStableSinceDays = insights.stalledStableSinceDays,
+                latestStableHasInstallableAsset = insights.latestStableHasInstallableAsset,
+            )
+        }
+    }
+
+    private fun List<GithubRelease>.firstOwnedBy(
+        app: InstalledApp,
+        category: ReleaseCategory,
+        repoApps: List<InstalledApp>,
+        anchorAssetName: String?,
+    ): GithubRelease? =
+        firstOrNull { release ->
+            val inCategory =
+                when (category) {
+                    ReleaseCategory.STABLE -> !release.isEffectivelyPreRelease()
+                    ReleaseCategory.PRE_RELEASE -> release.isEffectivelyPreRelease()
+                    ReleaseCategory.ALL -> true
+                }
+            if (!inCategory) return@firstOrNull false
+            val (installable, primary) = recomputeAssetsForRelease(release, app, anchorAssetName)
+            primary != null &&
+                pickPrimaryInstalledApp(repoApps, primary.name, installable, this)?.packageName ==
+                app.packageName
+        }
 
     private fun observeInstalledApp(repoId: Long) {
         viewModelScope.launch {
@@ -1006,10 +1144,15 @@ class DetailsViewModel(
                 .distinctUntilChanged()
                 .collect { apps ->
 
-                    val primary = pickPrimaryInstalledApp(
-                        apps = apps,
-                        primaryAssetName = _state.value.primaryAsset?.name,
-                    )
+                    val primaryAssetName = _state.value.primaryAsset?.name
+                    val releaseAssets = _state.value.installableAssets
+                    val primary =
+                        if (primaryAssetName == null && !packageNameParam.isNullOrBlank()) {
+                            apps.firstOrNull { it.packageName == packageNameParam }
+                                ?: pickPrimaryInstalledApp(apps, null, releaseAssets)
+                        } else {
+                            pickPrimaryInstalledApp(apps, primaryAssetName, releaseAssets)
+                        }
 
                     val insights = computeReleaseInsights(_state.value.allReleases, primary)
                     _state.update {
@@ -1164,12 +1307,16 @@ class DetailsViewModel(
                 ReleaseCategory.PRE_RELEASE -> _state.value.allReleases.filter { it.isEffectivelyPreRelease() }
                 ReleaseCategory.ALL -> _state.value.allReleases
             }
-        val newSelected = filtered.firstOrNull()
+        val deviceBuildIds = _state.value.deviceBuildReleaseIds
+        val newSelected = filtered.firstOrNull { it.id in deviceBuildIds } ?: filtered.firstOrNull()
         val (installable, primary) = recomputeAssetsForRelease(newSelected)
+        val newInstalledApp =
+            pickPrimaryInstalledApp(_state.value.installedApps, primary?.name, installable)
 
         whatsNewTranslationJob?.cancel()
         _state.update {
             it.copy(
+                installedApp = newInstalledApp,
                 selectedReleaseCategory = newCategory,
                 selectedRelease = newSelected,
                 installableAssets = installable,
@@ -1178,6 +1325,42 @@ class DetailsViewModel(
             )
         }
     }
+
+    private fun jumpToDeviceBuild() {
+        val current = _state.value
+        val deviceBuildIds = current.deviceBuildReleaseIds
+        if (current.selectedRelease?.id in deviceBuildIds) return
+        val selectedLine = current.selectedRelease?.let { current.releaseLines[it.id] }
+        val targets = current.allReleases.filter {
+            it.id in deviceBuildIds && (selectedLine == null || current.releaseLines[it.id] == selectedLine)
+        }
+        val inCategory = targets.firstInCategory(current.selectedReleaseCategory)
+        when {
+            inCategory != null -> onAction(DetailsAction.SelectRelease(inCategory))
+            targets.isNotEmpty() -> {
+                onAction(DetailsAction.SelectReleaseCategory(ReleaseCategory.ALL))
+                onAction(DetailsAction.SelectRelease(targets.first()))
+            }
+        }
+    }
+
+    private fun releaseLines(releases: List<GithubRelease>): ImmutableMap<Long, String> =
+        if (ReleaseLines.isMultiLine(releases)) {
+            releases.associate { it.id to ReleaseLines.of(it.tagName) }.toImmutableMap()
+        } else {
+            persistentMapOf()
+        }
+
+    private fun platformsByRelease(
+        releases: List<GithubRelease>,
+    ): ImmutableMap<Long, Set<DiscoveryPlatform>> =
+        releases.associate { it.id to it.platforms() }.toImmutableMap()
+
+    private fun deviceBuildReleaseIds(releases: List<GithubRelease>): ImmutableSet<Long> =
+        releases
+            .filter { release -> release.assets.any { installer.isAssetInstallable(it.name) } }
+            .map { it.id }
+            .toImmutableSet()
 
     private fun openAppManager() {
         viewModelScope.launch {
@@ -1470,17 +1653,21 @@ class DetailsViewModel(
 
     private fun uninstallApp() {
         val installedApp = _state.value.installedApp ?: return
-        logger.debug("Uninstalling app: ${installedApp.packageName}")
+        uninstallPackage(installedApp.packageName)
+    }
+
+    private fun uninstallPackage(packageName: String) {
+        logger.debug("Uninstalling app: $packageName")
         viewModelScope.launch {
             try {
-                installer.uninstall(installedApp.packageName)
+                installer.uninstall(packageName)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                logger.error("Failed to request uninstall for ${installedApp.packageName}: ${e.message}")
+                logger.error("Failed to request uninstall for $packageName: ${e.message}")
                 _events.send(
                     DetailsEvent.OnMessage(
-                        getString(Res.string.failed_to_uninstall, installedApp.packageName),
+                        getString(Res.string.failed_to_uninstall, packageName),
                     ),
                 )
             }
@@ -2501,10 +2688,11 @@ class DetailsViewModel(
                 val readme = readmeDeferred.await()
                 val userProfile = userProfileDeferred.await()
                 val allInstalledApps = installedAppsDeferred.await()
-                val installedApp = pickPrimaryInstalledApp(
-                    apps = allInstalledApps,
-                    primaryAssetName = null,
-                )
+                val installedApp =
+                    packageNameParam
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { pkg -> allInstalledApps.firstOrNull { it.packageName == pkg } }
+                        ?: pickPrimaryInstalledApp(allInstalledApps, null, emptyList())
 
                 if (rateLimited.get()) {
 
@@ -2516,6 +2704,9 @@ class DetailsViewModel(
                     return@launch
                 }
 
+                val installedAssetName = installedApp?.let {
+                    it.installedAssetName ?: it.latestAssetName ?: it.pendingInstallAssetName
+                }
                 val installedVersionTag = installedApp?.installedVersion
                 val installedRelease =
                     allReleases.firstOrNull {
@@ -2524,14 +2715,25 @@ class DetailsViewModel(
                         VersionMath.isSameVersion(it.tagName, installedVersionTag)
                     }
                 val installedIsPreRelease = installedRelease?.isEffectivelyPreRelease() == true
+                val installedChannel =
+                    if (installedIsPreRelease) {
+                        ReleaseCategory.PRE_RELEASE
+                    } else {
+                        ReleaseCategory.STABLE
+                    }
+                val deviceBuildIds = deviceBuildReleaseIds(allReleases)
                 val selectedRelease =
-                    allReleases.firstInCategory(
-                        if (installedIsPreRelease) {
-                            ReleaseCategory.PRE_RELEASE
-                        } else {
-                            ReleaseCategory.STABLE
-                        },
-                    ) ?: allReleases.firstInCategory(ReleaseCategory.ALL)
+                    installedApp?.let { app ->
+                        allReleases.firstOwnedBy(
+                            app = app,
+                            category = installedChannel,
+                            repoApps = allInstalledApps,
+                            anchorAssetName = installedAssetName,
+                        )
+                    }
+                        ?: allReleases.filter { it.id in deviceBuildIds }.firstInCategory(installedChannel)
+                        ?: allReleases.firstInCategory(installedChannel)
+                        ?: allReleases.firstInCategory(ReleaseCategory.ALL)
                 val resolvedCategory =
                     if (selectedRelease?.isEffectivelyPreRelease() == true) {
                         ReleaseCategory.PRE_RELEASE
@@ -2541,7 +2743,8 @@ class DetailsViewModel(
 
                 val (installable, primary) = recomputeAssetsForRelease(
                     selectedRelease,
-                    installedApp
+                    installedApp,
+                    installedAssetName,
                 )
 
                 val isObtainiumAvailable = installer.isObtainiumInstalled()
@@ -2557,6 +2760,9 @@ class DetailsViewModel(
                         errorMessage = null,
                         repository = repo,
                         allReleases = allReleases,
+                        releasePlatforms = platformsByRelease(allReleases),
+                        deviceBuildReleaseIds = deviceBuildIds,
+                        releaseLines = releaseLines(allReleases),
                         releasesLoadFailed = releasesFailed,
                         isRetryingReleases = false,
                         selectedRelease = selectedRelease,
@@ -2723,6 +2929,10 @@ class DetailsViewModel(
                         isRefreshing = false,
                         repository = refreshed,
                         allReleases = freshReleases ?: it.allReleases,
+                        releasePlatforms = freshReleases?.let(::platformsByRelease) ?: it.releasePlatforms,
+                        deviceBuildReleaseIds =
+                            freshReleases?.let(::deviceBuildReleaseIds) ?: it.deviceBuildReleaseIds,
+                        releaseLines = freshReleases?.let(::releaseLines) ?: it.releaseLines,
                         releasesLoadFailed = freshReleases == null && it.releasesLoadFailed,
                         selectedRelease = selectedRelease,
                         selectedReleaseCategory = resolvedCategory,

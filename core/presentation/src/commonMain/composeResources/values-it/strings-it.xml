@@ -1045,16 +1045,6 @@
     <string name="adaptive_pick_repo_subtitle">Tocca una scheda a sinistra per vederne i dettagli qui.</string>
     <string name="adaptive_pick_repo_title">Scegli un repository</string>
     <string name="apps_section_pending_installs">Pronte da installare</string>
-    <string name="apps_two_pane_advanced_settings">Impostazioni avanzate</string>
-    <string name="apps_two_pane_detail_section_actions">Azioni rapide</string>
-    <string name="apps_two_pane_detail_section_settings">Impostazioni</string>
-    <string name="apps_two_pane_detail_section_status">Stato</string>
-    <string name="apps_two_pane_empty_subtitle">Seleziona un'app a sinistra per vedere dettagli e azioni.</string>
-    <string name="apps_two_pane_empty_title">Scegli un'app</string>
-    <string name="apps_two_pane_installed_label">Installata</string>
-    <string name="apps_two_pane_latest_label">Ultima</string>
-    <string name="apps_two_pane_open_repo">Apri repository</string>
-    <string name="apps_two_pane_pick_variant">Scegli variante</string>
     <string name="apps_updates_banner_hide">Nascondi elenco</string>
     <string name="apps_updates_banner_show">Vedi elenco</string>
     <string name="apps_updates_banner_subtitle">Esamina o aggiorna tutto in una volta.</string>
@@ -1464,4 +1454,10 @@
     <string name="sidebar_categories">Categorie</string>
     <string name="sidebar_platform">Piattaforma</string>
     <string name="tweaks_privacy_usage_data_section">Dati di utilizzo</string>
+    <string name="no_build_for_this_device">Nessuna build per questo dispositivo</string>
+    <string name="newer_releases_no_build_for_device">Le versioni più recenti non hanno una build per questo dispositivo</string>
+    <string name="latest_for_platform">Ultima per %1$s</string>
+    <string name="go_to_version">Vai a %1$s</string>
+    <string name="get_it_on_platform">Scaricalo per %1$s</string>
+    <string name="share_link">Condividi link</string>
 </resources>

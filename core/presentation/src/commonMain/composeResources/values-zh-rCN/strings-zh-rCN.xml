@@ -1013,16 +1013,6 @@
     <string name="adaptive_pick_repo_subtitle">点按左侧任意卡片，在此查看详情。</string>
     <string name="adaptive_pick_repo_title">选择一个仓库</string>
     <string name="apps_section_pending_installs">可以安装</string>
-    <string name="apps_two_pane_advanced_settings">高级设置</string>
-    <string name="apps_two_pane_detail_section_actions">快捷操作</string>
-    <string name="apps_two_pane_detail_section_settings">设置</string>
-    <string name="apps_two_pane_detail_section_status">状态</string>
-    <string name="apps_two_pane_empty_subtitle">在左侧选择任意应用，即可查看详情和操作。</string>
-    <string name="apps_two_pane_empty_title">选择一个应用</string>
-    <string name="apps_two_pane_installed_label">已安装</string>
-    <string name="apps_two_pane_latest_label">最新</string>
-    <string name="apps_two_pane_open_repo">打开仓库</string>
-    <string name="apps_two_pane_pick_variant">选择变体</string>
     <string name="apps_updates_banner_hide">隐藏列表</string>
     <string name="apps_updates_banner_show">查看列表</string>
     <string name="apps_updates_banner_subtitle">逐个审查或一键全部更新。</string>
@@ -1427,4 +1417,10 @@
     <string name="sidebar_categories">分类</string>
     <string name="sidebar_platform">平台</string>
     <string name="tweaks_privacy_usage_data_section">使用数据</string>
+    <string name="no_build_for_this_device">没有适用于此设备的版本</string>
+    <string name="newer_releases_no_build_for_device">更新的版本中没有适用于此设备的版本</string>
+    <string name="latest_for_platform">%1$s 最新版</string>
+    <string name="go_to_version">前往 %1$s</string>
+    <string name="get_it_on_platform">获取 %1$s 版</string>
+    <string name="share_link">分享链接</string>
 </resources>

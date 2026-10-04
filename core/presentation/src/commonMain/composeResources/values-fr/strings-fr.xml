@@ -1011,16 +1011,6 @@
     <string name="adaptive_pick_repo_subtitle">Touchez une carte à gauche pour voir ses détails ici.</string>
     <string name="adaptive_pick_repo_title">Choisissez un dépôt</string>
     <string name="apps_section_pending_installs">Prêt à installer</string>
-    <string name="apps_two_pane_advanced_settings">Paramètres avancés</string>
-    <string name="apps_two_pane_detail_section_actions">Actions rapides</string>
-    <string name="apps_two_pane_detail_section_settings">Paramètres</string>
-    <string name="apps_two_pane_detail_section_status">État</string>
-    <string name="apps_two_pane_empty_subtitle">Sélectionnez une app à gauche pour voir ses détails et actions.</string>
-    <string name="apps_two_pane_empty_title">Choisissez une app</string>
-    <string name="apps_two_pane_installed_label">Installée</string>
-    <string name="apps_two_pane_latest_label">Dernière</string>
-    <string name="apps_two_pane_open_repo">Ouvrir le dépôt</string>
-    <string name="apps_two_pane_pick_variant">Choisir la variante</string>
     <string name="apps_updates_banner_hide">Masquer la liste</string>
     <string name="apps_updates_banner_show">Voir la liste</string>
     <string name="apps_updates_banner_subtitle">Examinez ou mettez tout à jour d'un coup.</string>
@@ -1430,4 +1420,10 @@
     <string name="sidebar_browse">Parcourir</string>
     <string name="sidebar_categories">Catégories</string>
     <string name="sidebar_platform">Plateforme</string>
+    <string name="no_build_for_this_device">Aucune version pour cet appareil</string>
+    <string name="newer_releases_no_build_for_device">Les versions plus récentes n'ont rien pour cet appareil</string>
+    <string name="latest_for_platform">Dernière pour %1$s</string>
+    <string name="go_to_version">Aller à %1$s</string>
+    <string name="get_it_on_platform">Obtenir pour %1$s</string>
+    <string name="share_link">Partager le lien</string>
 </resources>
