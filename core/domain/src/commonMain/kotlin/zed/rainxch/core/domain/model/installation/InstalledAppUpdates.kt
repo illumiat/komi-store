@@ -175,6 +175,47 @@ sealed interface BindingStatus {
     }
 }
 
+/** What a scan of the device found relative to the record. */
+enum class DeviceChange {
+    /** Everything the record knows still matches: there is nothing to write. */
+    NONE,
+
+    DOWNGRADE,
+
+    /**
+     * Same version, different signer. The version fields cannot express this, and reporting it as
+     * an "update" names a version change that did not happen.
+     */
+    SIGNER_CHANGE,
+
+    VERSION_CHANGE,
+}
+
+/**
+ * Compares the record against the device.
+ *
+ * A drift is only claimed when *both* sides carry a key — a value we do not have cannot disagree,
+ * and guessing would turn every unknown into a false alarm.
+ *
+ * [SIGNER_CHANGE] is deliberately not [NONE]: a signer that differs from the recorded one has to
+ * keep the record out of the "nothing to do" branch, or nothing would ever write the device's key
+ * back and the same mismatch would be reported on every scan.
+ */
+fun InstalledApp.deviceChangeAgainst(local: SystemPackageInfo): DeviceChange {
+    val signerDrifted =
+        !local.signingFingerprint.isNullOrBlank() &&
+            !signingFingerprint.isNullOrBlank() &&
+            !local.signingFingerprint.equals(signingFingerprint, ignoreCase = true)
+    val versionMatches =
+        local.versionCode == installedVersionCode && local.versionName == installedVersionName
+    return when {
+        versionMatches && !signerDrifted -> DeviceChange.NONE
+        local.versionCode < installedVersionCode -> DeviceChange.DOWNGRADE
+        versionMatches -> DeviceChange.SIGNER_CHANGE
+        else -> DeviceChange.VERSION_CHANGE
+    }
+}
+
 fun InstalledApp.bindingStatusAgainst(local: SystemPackageInfo): BindingStatus {
     if (local.packageName != packageName) {
         return BindingStatus.Broken(BindingStatus.BreakReason.PACKAGE_NAME)

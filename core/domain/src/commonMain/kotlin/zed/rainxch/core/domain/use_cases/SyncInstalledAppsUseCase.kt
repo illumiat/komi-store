@@ -6,9 +6,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.installation.BindingStatus
+import zed.rainxch.core.domain.model.installation.DeviceChange
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.bindingStatusAgainst
+import zed.rainxch.core.domain.model.installation.deviceChangeAgainst
 import zed.rainxch.core.domain.model.installation.observeExternalInstall
 import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.model.installation.withMigratedVersionInfo
@@ -264,17 +266,9 @@ class SyncInstalledAppsUseCase(
             val local = systemInfo ?: return
 
             val binding = app.bindingStatusAgainst(local)
+            val change = app.deviceChangeAgainst(local)
 
-            val signerDrifted =
-                !local.signingFingerprint.isNullOrBlank() &&
-                    !app.signingFingerprint.isNullOrBlank() &&
-                    !local.signingFingerprint.equals(app.signingFingerprint, ignoreCase = true)
-            val unchanged =
-                local.versionCode == app.installedVersionCode &&
-                    local.versionName == app.installedVersionName &&
-                    !signerDrifted
-
-            if (binding is BindingStatus.Intact && unchanged) {
+            if (binding is BindingStatus.Intact && change == DeviceChange.NONE) {
                 logger.debug("Binding intact and unchanged for ${app.packageName}; no write")
                 return
             }
@@ -293,8 +287,7 @@ class SyncInstalledAppsUseCase(
                 }
             }
 
-            if (!unchanged) {
-                val wasDowngrade = local.versionCode < app.installedVersionCode
+            if (change != DeviceChange.NONE) {
                 val observed = app.observeExternalInstall(
                     versionName = local.versionName,
                     versionCode = local.versionCode,
@@ -302,20 +295,15 @@ class SyncInstalledAppsUseCase(
                 )
                 installedAppsRepository.updateApp(observed)
 
-                val versionChanged =
-                    local.versionCode != app.installedVersionCode ||
-                        local.versionName != app.installedVersionName
-                // Reaching here with the version unchanged means the signer is the only thing that
-                // moved (see `unchanged` above), and saying "external update" for that reads as a
-                // version change that did not happen. Name it for what it is, with both keys, since
-                // the key is the whole of the difference.
                 val action =
-                    when {
-                        wasDowngrade -> "downgrade"
-                        !versionChanged && signerDrifted ->
+                    when (change) {
+                        DeviceChange.DOWNGRADE -> "downgrade"
+                        DeviceChange.SIGNER_CHANGE ->
                             "signer change " +
                                 "(stored=${app.signingFingerprint} now=${local.signingFingerprint})"
-                        else -> "external update"
+                        DeviceChange.NONE,
+                        DeviceChange.VERSION_CHANGE,
+                        -> "external update"
                     }
                 logger.info(
                     "Detected $action for ${app.packageName}: " +

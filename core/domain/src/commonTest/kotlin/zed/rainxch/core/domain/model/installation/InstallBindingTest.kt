@@ -320,4 +320,82 @@ class InstallBindingTest {
         val b = app().bindingStatusAgainst(local(signingFingerprint = "BBBB"))
         assertNotEquals(a, b)
     }
+
+    // -----------------------------------------------------------------------------------------
+    // What a scan found, relative to the record.
+    //
+    // This classification used to be written inline in SyncInstalledAppsUseCase, which has no test
+    // file at all — so the signer-change case (the one this behaviour exists for) could only be
+    // "verified" by reproducing a debug-over-release install on a device. As a pure function it is
+    // decided here instead.
+    // -----------------------------------------------------------------------------------------
+
+    @Test
+    fun nothingToDoWhenTheDeviceStillMatchesTheRecord() {
+        assertEquals(DeviceChange.NONE, app().deviceChangeAgainst(local()))
+    }
+
+    @Test
+    fun aChangedSignerIsItsOwnKindOfChange() {
+        val change = app().deviceChangeAgainst(local(signingFingerprint = "BBBB"))
+
+        assertEquals(DeviceChange.SIGNER_CHANGE, change)
+        // The convergence argument, asserted rather than asserted-in-prose: because a drifted
+        // signer is NOT "nothing to do", the next scan takes the write path and stores the key the
+        // device actually has. If this ever became NONE, the stored key would stay wrong forever.
+        assertNotEquals(DeviceChange.NONE, change)
+    }
+
+    @Test
+    fun aLowerVersionCodeIsADowngrade() {
+        assertEquals(
+            DeviceChange.DOWNGRADE,
+            app().deviceChangeAgainst(local(versionCode = 99L, versionName = "0.9.0")),
+        )
+    }
+
+    @Test
+    fun aDowngradeOutranksASignerChange() {
+        // Precedence kept from the inline version: a lower code was reported as a downgrade even
+        // when the signer had also moved.
+        assertEquals(
+            DeviceChange.DOWNGRADE,
+            app().deviceChangeAgainst(local(versionCode = 99L, versionName = "0.9.0", signingFingerprint = "BBBB")),
+        )
+    }
+
+    @Test
+    fun aDifferentVersionNameIsAVersionChange() {
+        assertEquals(
+            DeviceChange.VERSION_CHANGE,
+            app().deviceChangeAgainst(local(versionName = "2.0.0")),
+        )
+    }
+
+    @Test
+    fun aHigherVersionCodeIsAVersionChange() {
+        assertEquals(
+            DeviceChange.VERSION_CHANGE,
+            app().deviceChangeAgainst(local(versionCode = 101L, versionName = "1.0.1")),
+        )
+    }
+
+    @Test
+    fun anUnknownSignerOnEitherSideIsNeverADrift() {
+        // A key we do not have cannot disagree with anything. Both directions, so neither side can
+        // quietly turn an unknown into a false alarm.
+        assertEquals(DeviceChange.NONE, app(signingFingerprint = null).deviceChangeAgainst(local()))
+        assertEquals(DeviceChange.NONE, app().deviceChangeAgainst(local(signingFingerprint = null)))
+    }
+
+    @Test
+    fun aBlankSignerIsTreatedAsUnknownNotAsADifference() {
+        assertEquals(DeviceChange.NONE, app(signingFingerprint = "").deviceChangeAgainst(local()))
+        assertEquals(DeviceChange.NONE, app().deviceChangeAgainst(local(signingFingerprint = "   ")))
+    }
+
+    @Test
+    fun signerCaseIsInsensitiveSoAReformattingIsNotADrift() {
+        assertEquals(DeviceChange.NONE, app().deviceChangeAgainst(local(signingFingerprint = "aaaa")))
+    }
 }
