@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import zed.rainxch.core.data.data_source.TokenStore
 import zed.rainxch.core.data.network.GithubAssetAuth
+import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.installation.DownloadProgress
 import zed.rainxch.core.domain.model.installation.markPending
 import zed.rainxch.core.domain.model.installation.withLatestSnapshot
@@ -72,7 +73,8 @@ class DefaultDownloadOrchestrator(
         stateMutex.withLock {
             val existing = _downloads.value[spec.packageName]
             if (existing != null && existing.stage != DownloadStage.Failed &&
-                existing.stage != DownloadStage.Cancelled
+                existing.stage != DownloadStage.Cancelled &&
+                existing.stage != DownloadStage.Paused
             ) {
                 if (existing.installPolicy != spec.installPolicy &&
                     existing.installPolicy.priority < spec.installPolicy.priority
@@ -95,6 +97,8 @@ class DefaultDownloadOrchestrator(
                 displayAppName = spec.displayAppName,
                 assetName = spec.asset.name,
                 assetSize = spec.asset.size,
+                assetId = spec.asset.id,
+                assetDigest = spec.asset.digest,
                 downloadUrl = spec.asset.downloadUrl,
                 releaseTag = spec.releaseTag,
                 filePath = null,
@@ -409,7 +413,7 @@ class DefaultDownloadOrchestrator(
         stateMutex.withLock {
             val existing = _downloads.value[packageName] ?: return
             when (existing.stage) {
-                DownloadStage.Queued, DownloadStage.Downloading -> {
+                DownloadStage.Queued, DownloadStage.Downloading, DownloadStage.Paused -> {
                     _downloads.update { state ->
                         state + (
                             packageName to existing.copy(
@@ -474,6 +478,13 @@ class DefaultDownloadOrchestrator(
         val versionTag: String,
     )
 
+    /**
+     * D-8 "pause": stop the transfer but *remember* it. The entry stays in the registry with
+     * [DownloadStage.Paused] and its progress fields untouched, and the partial + sidecar are left
+     * on disk, so [resume] (or a plain [enqueue]) can continue from the retained bytes. Only
+     * [discard] deletes. Keeping the entry is the whole point: without it a paused download vanished
+     * from the UI and PR-1's resumable partial was unreachable from the card.
+     */
     override suspend fun cancel(packageName: String) {
         val job = stateMutex.withLock { activeJobs.remove(packageName) }
         job?.cancel()
@@ -508,14 +519,70 @@ class DefaultDownloadOrchestrator(
             }
         }
 
+        // "Stop but remember" — do NOT remove the entry. Marking it Paused keeps bytes, progress and
+        // file path so the user still sees the download and can continue it. [discard] removes it.
         stateMutex.withLock {
-            _downloads.update { it - packageName }
+            _downloads.update { state ->
+                val current = state[packageName] ?: return@update state
+                state + (packageName to current.copy(stage = DownloadStage.Paused))
+            }
         }
     }
 
+    /**
+     * Resume a [cancel]-ed download from its retained partial.
+     *
+     * The [DownloadSpec] is rebuilt from the paused entry so the existing enqueue → download path
+     * re-issues the transfer; the downloader then finds the retained `.part` + sidecar and continues
+     * with a `Range` request. [OrchestratedDownload] now retains the asset `id` and `digest`, so the
+     * rebuilt [GithubAsset] carries the real identity: the resumed transfer proves ownership of the
+     * on-disk bytes with the same `AssetIdentity(id, digest, size)` as the original one — not by
+     * size alone — and the authenticated GitHub asset-API fallback (which needs a positive id)
+     * stays available. `contentType` is intentionally not persisted: it is not part of
+     * `AssetIdentity` and is unused on the download path.
+     */
+    override suspend fun resume(packageName: String) {
+        val entry = _downloads.value[packageName] ?: return
+        if (entry.stage != DownloadStage.Paused) return
+
+        val spec =
+            DownloadSpec(
+                packageName = entry.packageName,
+                repoOwner = entry.repoOwner,
+                repoName = entry.repoName,
+                asset =
+                    GithubAsset(
+                        id = entry.assetId,
+                        name = entry.assetName,
+                        contentType = "",
+                        size = entry.assetSize,
+                        downloadUrl = entry.downloadUrl,
+                        digest = entry.assetDigest,
+                    ),
+                displayAppName = entry.displayAppName,
+                installPolicy = entry.installPolicy,
+                releaseTag = entry.releaseTag,
+            )
+        // enqueue treats a Paused entry as restartable, so this re-issues the transfer.
+        enqueue(spec)
+    }
+
+    /**
+     * D-8 "delete": [cancel] is the pause half (stops the transfer, keeps `.part` + sidecar so the
+     * next [resume] continues); this method is the delete half, so it also drops the list entry and
+     * erases the bytes. It is the only path that removes a download entry *and* its bytes.
+     *
+     * The byte deletion is delegated to the downloader, which owns the naming scheme and the
+     * per-name write lock — the orchestrator must not reconstruct partial paths itself.
+     */
     override suspend fun discard(packageName: String) {
         val entry = _downloads.value[packageName]
+        // Stop the transfer and clear a parked install, but keep the bytes for now…
         cancel(packageName)
+        // …then forget the entry, which cancel deliberately no longer does.
+        stateMutex.withLock {
+            _downloads.update { it - packageName }
+        }
         if (entry != null) {
             val scopedName =
                 AssetFileName.scoped(entry.repoOwner, entry.repoName, entry.assetName)

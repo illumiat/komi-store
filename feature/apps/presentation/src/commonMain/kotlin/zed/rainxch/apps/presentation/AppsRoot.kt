@@ -37,6 +37,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.apps.presentation.components.AdvancedAppSettingsBottomSheet
 import zed.rainxch.apps.presentation.components.AppGroupCard
@@ -58,6 +59,7 @@ import zed.rainxch.apps.presentation.import.components.ImportProposalBanner
 import zed.rainxch.apps.presentation.model.AppGroup
 import zed.rainxch.apps.presentation.model.AppItem
 import zed.rainxch.apps.presentation.model.InstalledAppUi
+import zed.rainxch.core.domain.system.DownloadOrchestrator
 import zed.rainxch.core.presentation.components.ScrollbarContainer
 import zed.rainxch.core.presentation.components.buttons.KomiFab
 import zed.rainxch.core.presentation.components.inputs.KomiTextField
@@ -106,6 +108,7 @@ fun AppsRoot(
 ) {
     val toastState = rememberKomiToastState()
     val coroutineScope = rememberCoroutineScope()
+    val downloadOrchestrator: DownloadOrchestrator = koinInject()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -161,6 +164,9 @@ fun AppsRoot(
             }
         },
         toastState = toastState,
+        onResumeInProgressDownload = { key ->
+            coroutineScope.launch { downloadOrchestrator.resume(key) }
+        },
     )
 
     if (state.showLinkSheet) {
@@ -215,6 +221,7 @@ fun AppsScreen(
     state: AppsState,
     onAction: (AppsAction) -> Unit,
     toastState: KomiToastState,
+    onResumeInProgressDownload: (String) -> Unit = {},
 ) {
     val colors = LocalPersonality.current.colors
     KomiScaffold(
@@ -409,6 +416,9 @@ fun AppsScreen(
                                                             download.packageName,
                                                         ),
                                                     )
+                                                },
+                                                onResume = {
+                                                    onResumeInProgressDownload(download.packageName)
                                                 },
                                                 onInstall = {
                                                     onAction(

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -40,12 +42,16 @@ import zed.rainxch.githubstore.core.presentation.res.downloading
 import zed.rainxch.githubstore.core.presentation.res.error_with_message
 import zed.rainxch.githubstore.core.presentation.res.install
 import zed.rainxch.githubstore.core.presentation.res.installing
+import zed.rainxch.githubstore.core.presentation.res.pause
+import zed.rainxch.githubstore.core.presentation.res.paused
 import zed.rainxch.githubstore.core.presentation.res.ready_to_install
+import zed.rainxch.githubstore.core.presentation.res.resume
 
 @Composable
 fun InProgressAppCard(
     download: OrchestratedDownload,
     onCancel: () -> Unit,
+    onResume: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -141,10 +147,71 @@ fun InProgressAppCard(
                     Spacer(Modifier.height(12.dp))
 
                     KomiButton(
+                        // Still routed through the orchestrator's cancel(); after this change that
+                        // call stops the transfer and keeps every byte, so "Pause" is what it
+                        // does. It is no longer styled as destructive, because it throws nothing
+                        // away — the partial stays on disk and the Paused state below picks it up.
                         onClick = onCancel,
-                        label = stringResource(Res.string.cancel),
-                        variant = KomiButtonVariant.Destructive,
-                        leadingIcon = Icons.Default.Cancel,
+                        label = stringResource(Res.string.pause),
+                        variant = KomiButtonVariant.Primary,
+                        leadingIcon = Icons.Default.Pause,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                // Stopped on purpose, with the bytes kept. The bar holds the value it stopped at
+                // rather than being cleared, because that value is the evidence that pausing threw
+                // nothing away — and resuming picks up from exactly there.
+                DownloadStage.Paused -> {
+                    val percent = download.progressPercent
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        KomiText(
+                            text = stringResource(Res.string.paused),
+                            role = KomiTextRole.Body,
+                            fontSize = 13.sp,
+                            color = colors.onSurfaceVariant,
+                        )
+
+                        if (percent != null) {
+                            KomiText(
+                                text = "$percent%",
+                                role = KomiTextRole.Body,
+                                fontSize = 13.sp,
+                                uppercase = false,
+                                color = colors.onSurface,
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+
+                    KomiLinearProgress(
+                        progress = { (percent ?: 0) / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = colors.onSurfaceVariant,
+                    )
+
+                    Spacer(Modifier.height(6.dp))
+
+                    KomiText(
+                        text = downloadSizeLabel(download),
+                        role = KomiTextRole.Body,
+                        fontSize = 12.sp,
+                        uppercase = false,
+                        color = colors.onSurfaceVariant,
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    KomiButton(
+                        onClick = onResume,
+                        label = stringResource(Res.string.resume),
+                        variant = KomiButtonVariant.Primary,
+                        leadingIcon = Icons.Default.PlayArrow,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

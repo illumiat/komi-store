@@ -161,6 +161,9 @@
     <string name="open_repository">Open repository</string>
     <string name="open_in_browser">Open in browser</string>
     <string name="cancel_download">Cancel download</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="paused">Paused</string>
     <string name="show_install_options">Show install options</string>
 
     <string name="error_state_title_generic">Something went wrong</string>

@@ -15,6 +15,14 @@ import zed.rainxch.core.domain.system.DownloadProgressNotifier
 
 class AndroidDownloadProgressNotifier(
     private val context: Context,
+    /**
+     * Notification action labels, injected rather than hard-coded so a caller with a resource
+     * context can supply localized text. The matching resources (`pause` / `delete_download`) live
+     * in `core/presentation`, which `core/data` cannot depend on, so only the caller can pass them;
+     * the defaults preserve the previous English text for callers that cannot.
+     */
+    private val pauseLabel: String = "Pause",
+    private val deleteLabel: String = "Delete",
 ) : DownloadProgressNotifier {
     @SuppressLint("MissingPermission")
     override fun notifyProgress(
@@ -82,14 +90,14 @@ class AndroidDownloadProgressNotifier(
                 .addAction(
                     NotificationCompat.Action.Builder(
                         android.R.drawable.ic_media_pause,
-                        PAUSE_LABEL,
+                        pauseLabel,
                         pausePendingIntent,
                     ).build(),
                 )
                 .addAction(
                     NotificationCompat.Action.Builder(
                         android.R.drawable.ic_menu_delete,
-                        DELETE_LABEL,
+                        deleteLabel,
                         discardPendingIntent,
                     ).build(),
                 )
@@ -142,10 +150,6 @@ class AndroidDownloadProgressNotifier(
 
     private companion object {
         const val DOWNLOADS_CHANNEL_ID = "app_downloads"
-
-        const val PAUSE_LABEL = "Pause"
-
-        const val DELETE_LABEL = "Delete"
 
         const val NOTIFICATION_ID_BASE = 3000
     }

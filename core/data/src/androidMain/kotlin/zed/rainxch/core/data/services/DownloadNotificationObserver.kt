@@ -76,6 +76,7 @@ class DownloadNotificationObserver(
                     }
                 }
 
+                DownloadStage.Paused,
                 DownloadStage.Installing,
                 DownloadStage.AwaitingInstall,
                 DownloadStage.Completed,
