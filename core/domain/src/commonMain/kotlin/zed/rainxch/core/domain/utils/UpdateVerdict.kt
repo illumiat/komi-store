@@ -27,11 +27,18 @@ object UpdateVerdict {
         val assetSize: Long? = null,
     )
 
+    data class Bound(
+        val assetId: Long?,
+        val assetDigest: String?,
+        val releasePublishedAt: String?,
+    )
+
     fun decide(
         installed: Installed,
         stored: Stored,
         matched: Matched,
         skippedTag: String?,
+        bound: Bound? = null,
     ): Result {
         val reconcilable = VersionMath.versionsReconcilable(installed.tag, matched.tag)
         val codesAlreadyMatch =
@@ -100,9 +107,8 @@ object UpdateVerdict {
                 false
             }
 
-        val isUpdateAvailable =
+        val tagVerdict =
             when {
-                skipHolds -> false
                 usedTimestampLogic -> timestampWouldReport
                 codesAlreadyMatch -> false
                 !reconcilable -> false
@@ -110,6 +116,25 @@ object UpdateVerdict {
                     VersionMath.isVersionNewer(
                         candidate = matched.tag,
                         current = installed.tag,
+                    )
+            }
+
+        val isUpdateAvailable =
+            when {
+                skipHolds -> false
+                bound == null -> tagVerdict
+                else ->
+                    decideBound(
+                        sameFile =
+                            isSameFile(
+                                installedAssetId = bound.assetId,
+                                installedAssetDigest = bound.assetDigest,
+                                matchedAssetId = matched.assetId,
+                                matchedAssetDigest = matched.assetDigest,
+                            ),
+                        matchedPublishedAt = matched.publishedAt,
+                        installedReleasePublishedAt = bound.releasePublishedAt,
+                        fallback = tagVerdict,
                     )
             }
 

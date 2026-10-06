@@ -24,6 +24,7 @@ class UpdateVerdictTest {
         storedAssetId: Long? = null,
         matchedReleaseId: Long? = null,
         matchedAssetId: Long? = null,
+        bound: UpdateVerdict.Bound? = null,
     ): UpdateVerdict.Result =
         UpdateVerdict.decide(
             installed = UpdateVerdict.Installed(installedTag, installedVersionCode),
@@ -49,6 +50,7 @@ class UpdateVerdictTest {
                     assetSize = matchedAssetSize,
                 ),
             skippedTag = skippedTag,
+            bound = bound,
         )
 
     @Test
@@ -755,5 +757,71 @@ class UpdateVerdictTest {
                 fallback = false,
             ),
         )
+    }
+
+    @Test
+    fun a_skipped_release_stays_skipped_for_a_bound_record() {
+        val result =
+            decide(
+                installedTag = "1.0.0",
+                matchedTag = "1.1.0",
+                matchedPublishedAt = "2026-08-01T00:00:00Z",
+                matchedAssetId = 22L,
+                skippedTag = "1.1.0",
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 11L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-07-01T00:00:00Z",
+                    ),
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_bound_record_on_the_matched_file_is_up_to_date_whatever_the_tags_say() {
+        val unbound = decide(installedTag = "1.0.0", matchedTag = "1.1.0", matchedAssetId = 42L)
+        assertTrue(unbound.isUpdateAvailable)
+
+        val bound =
+            decide(
+                installedTag = "1.0.0",
+                matchedTag = "1.1.0",
+                matchedAssetId = 42L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 42L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-07-01T00:00:00Z",
+                    ),
+            )
+        assertFalse(bound.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_bound_record_reports_a_later_file_the_tags_cannot_tell_apart() {
+        val unbound =
+            decide(
+                installedTag = "26.09.8",
+                matchedTag = "26.09.8a",
+                matchedPublishedAt = "2026-09-08T12:00:00Z",
+                matchedAssetId = 22L,
+            )
+        assertFalse(unbound.isUpdateAvailable)
+
+        val bound =
+            decide(
+                installedTag = "26.09.8",
+                matchedTag = "26.09.8a",
+                matchedPublishedAt = "2026-09-08T12:00:00Z",
+                matchedAssetId = 22L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 11L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-09-08T00:00:00Z",
+                    ),
+            )
+        assertTrue(bound.isUpdateAvailable)
     }
 }

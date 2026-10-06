@@ -346,6 +346,20 @@ class InstalledAppsRepositoryImpl(
 
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
+            val bound =
+                if (app.installedAssetId != null || app.installedAssetDigest != null) {
+                    UpdateVerdict.Bound(
+                        assetId = app.installedAssetId,
+                        assetDigest = app.installedAssetDigest,
+                        releasePublishedAt =
+                            app.installedReleaseId?.let { id ->
+                                releases.firstOrNull { it.id == id }?.publishedAt
+                            },
+                    )
+                } else {
+                    null
+                }
+
             val verdict =
                 UpdateVerdict.decide(
                     installed =
@@ -375,50 +389,21 @@ class InstalledAppsRepositoryImpl(
                             assetSize = primaryAsset.size,
                         ),
                     skippedTag = app.skippedReleaseTag,
+                    bound = bound,
                 )
 
             if (verdict.skipBecameStale) {
                 installedAppsDao.setSkippedReleaseTag(packageName, null)
             }
 
-            // A record that carries an identity is decided by the file first: the same bytes are
-            // up to date whatever the tags say, and a changed file only counts when the matched
-            // release is newer than the one this install came from. Without an identity there is
-            // nothing to compare against, so today's verdict stands unchanged.
-            val hasIdentity = app.installedAssetId != null || app.installedAssetDigest != null
-            val installedReleasePublishedAt =
-                if (app.installedReleaseId == null) {
-                    null
-                } else {
-                    releases.firstOrNull { it.id == app.installedReleaseId }?.publishedAt
-                }
-            val sameFile =
-                hasIdentity &&
-                    UpdateVerdict.isSameFile(
-                        installedAssetId = app.installedAssetId,
-                        installedAssetDigest = app.installedAssetDigest,
-                        matchedAssetId = primaryAsset.id,
-                        matchedAssetDigest = primaryAsset.digest,
-                    )
-
-            val isUpdateAvailable =
-                if (!hasIdentity) {
-                    verdict.isUpdateAvailable
-                } else {
-                    UpdateVerdict.decideBound(
-                        sameFile = sameFile,
-                        matchedPublishedAt = matchedRelease.publishedAt,
-                        installedReleasePublishedAt = installedReleasePublishedAt,
-                        fallback = verdict.isUpdateAvailable,
-                    )
-                }
+            val isUpdateAvailable = verdict.isUpdateAvailable
 
             Logger.d {
                 "[UPDATE-CHECK] ${app.appName} $packageName " +
                         "installedTag=${app.installedVersion} matchedTag=${matchedRelease.tagName} " +
                         "storedPublishedAt=${app.latestReleasePublishedAt} " +
                         "matchedPublishedAt=${matchedRelease.publishedAt} " +
-                        "hasIdentity=$hasIdentity sameFile=$sameFile " +
+                        "bound=${bound != null} " +
                         "isUpdate=$isUpdateAvailable"
             }
 
