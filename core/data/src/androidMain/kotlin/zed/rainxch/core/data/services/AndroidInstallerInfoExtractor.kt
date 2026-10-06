@@ -8,6 +8,7 @@ import co.touchlab.kermit.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
+import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.system.InstallerInfoExtractor
 import java.io.File
 import java.security.MessageDigest
@@ -49,7 +50,7 @@ class AndroidInstallerInfoExtractor(
                 ApkPackageInfo(
                     appName = appName,
                     packageName = packageInfo.packageName,
-                    versionName = packageInfo.versionName ?: "unknown",
+                    versionName = packageInfo.versionName ?: SystemPackageInfo.UNKNOWN_VERSION_NAME,
                     versionCode = versionCode,
                     signingFingerprint = fingerprint,
                 )

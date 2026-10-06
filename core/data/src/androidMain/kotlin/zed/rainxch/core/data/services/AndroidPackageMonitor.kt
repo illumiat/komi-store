@@ -55,7 +55,7 @@ class AndroidPackageMonitor(
 
                 SystemPackageInfo(
                     packageName = packageInfo.packageName,
-                    versionName = packageInfo.versionName ?: "unknown",
+                    versionName = packageInfo.versionName ?: SystemPackageInfo.UNKNOWN_VERSION_NAME,
                     versionCode = versionCode,
                     isInstalled = true,
                     signingFingerprint = signingFingerprint,
