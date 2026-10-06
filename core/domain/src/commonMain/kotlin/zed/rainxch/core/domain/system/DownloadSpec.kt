@@ -17,4 +17,6 @@ data class DownloadSpec(
     val installPolicy: InstallPolicy,
 
     val releaseTag: String,
+
+    val releaseId: Long? = null,
 )

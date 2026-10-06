@@ -17,6 +17,8 @@ import kotlinx.coroutines.sync.withLock
 import zed.rainxch.core.data.data_source.TokenStore
 import zed.rainxch.core.data.network.GithubAssetAuth
 import zed.rainxch.core.domain.model.installation.DownloadProgress
+import zed.rainxch.core.domain.model.installation.markPending
+import zed.rainxch.core.domain.model.installation.withLatestSnapshot
 import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.network.Downloader
 import zed.rainxch.core.domain.network.SlowDownloadDetector
@@ -242,8 +244,10 @@ class DefaultDownloadOrchestrator(
         updateEntry(spec.packageName) { it.copy(stage = DownloadStage.Installing) }
         val ext = spec.asset.name.substringAfterLast('.', "").lowercase()
         var delegated = false
+        var parkedTarget = false
         try {
             installer.ensurePermissionsOrThrow(ext)
+            parkedTarget = parkTargetIdentity(spec, filePath)
             systemInstallSerializer.awaitFreeAndMarkPending(spec.packageName)
             val outcome = installer.install(filePath, ext)
             delegated = outcome == InstallOutcome.DELEGATED_TO_SYSTEM
@@ -278,8 +282,42 @@ class DefaultDownloadOrchestrator(
             throw e
         } catch (t: Throwable) {
             if (!delegated) systemInstallSerializer.markCompleted(spec.packageName)
+            if (parkedTarget) {
+                runCatching { installedAppsRepository.updatePendingStatus(spec.packageName, false) }
+                    .onFailure { Logger.w(it) { "Orchestrator: failed to clear pending for ${spec.packageName}" } }
+            }
             Logger.e(t) { "Orchestrator: install failed for ${spec.packageName}" }
             markFailed(spec.packageName, t.message)
+        }
+    }
+
+    // Only callers that pass a release hand the install record to the orchestrator; Details writes its own.
+    private suspend fun parkTargetIdentity(spec: DownloadSpec, filePath: String): Boolean {
+        val releaseId = spec.releaseId ?: return false
+        return try {
+            val app = installedAppsRepository.getAppByPackage(spec.packageName) ?: return false
+            val apkInfo = installer.getApkInfoExtractor().extractPackageInfo(filePath) ?: return false
+            if (apkInfo.packageName != spec.packageName) return false
+            installedAppsRepository.updateApp(
+                app
+                    .markPending(
+                        releaseId = releaseId,
+                        assetId = spec.asset.id,
+                        assetDigest = spec.asset.digest,
+                    ).withLatestSnapshot(
+                        version = spec.releaseTag,
+                        assetName = spec.asset.name,
+                        assetUrl = spec.asset.downloadUrl,
+                        versionName = apkInfo.versionName,
+                        versionCode = apkInfo.versionCode,
+                    ),
+            )
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Orchestrator: could not park install target for ${spec.packageName}" }
+            false
         }
     }
 

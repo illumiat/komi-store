@@ -1240,6 +1240,7 @@ class AppsViewModel(
                             displayAppName = app.appName,
                             installPolicy = policy,
                             releaseTag = latestRelease.tagName,
+                            releaseId = latestRelease.id,
                         ),
                     )
 
