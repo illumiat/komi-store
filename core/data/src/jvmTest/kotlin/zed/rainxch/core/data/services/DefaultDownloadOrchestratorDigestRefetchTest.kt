@@ -233,6 +233,13 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
             assetName: String?,
         ) = Unit
 
+        override suspend fun markAwaitingInstall(
+            packageName: String,
+            path: String,
+            version: String?,
+            assetName: String?,
+        ) = Unit
+
         override fun getAllInstalledApps(): Flow<List<InstalledApp>> = emptyFlow()
 
         override fun getAppsWithUpdates(): Flow<List<InstalledApp>> = emptyFlow()
