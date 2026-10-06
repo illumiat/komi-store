@@ -43,10 +43,9 @@ fun InstalledApp.confirmInstall(
         installedAssetUrl = assetUrl,
         installedVersionName = versionName,
         installedVersionCode = versionCode,
-        // From the install parameters, never from the latest* snapshot columns.
-        installedReleaseId = releaseId ?: installedReleaseId,
-        installedAssetId = assetId ?: installedAssetId,
-        installedAssetDigest = assetDigest ?: installedAssetDigest,
+        installedReleaseId = releaseId,
+        installedAssetId = assetId,
+        installedAssetDigest = assetDigest,
         isUpdateAvailable =
             when {
                 latestIsSkipped -> false

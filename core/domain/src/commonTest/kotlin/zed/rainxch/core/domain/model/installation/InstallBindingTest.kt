@@ -192,7 +192,7 @@ class InstallBindingTest {
     }
 
     @Test
-    fun confirmInstallKeepsAnIdentityItWasNotGiven() {
+    fun confirmInstallDropsAnIdentityItWasNotGiven() {
         val after =
             app().confirmInstall(
                 tag = "2.0.0",
@@ -203,8 +203,9 @@ class InstallBindingTest {
                 signingFingerprint = "AAAA",
                 at = 3000L,
             )
-        assertEquals(9001L, after.installedReleaseId)
-        assertEquals(9002L, after.installedAssetId)
+        assertEquals(null, after.installedReleaseId)
+        assertEquals(null, after.installedAssetId)
+        assertEquals(null, after.installedAssetDigest)
     }
 
     @Test
