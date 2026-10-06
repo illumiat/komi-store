@@ -209,15 +209,15 @@ class InstallBindingTest {
     }
 
     @Test
-    fun markPendingStartsUnbound() {
+    fun markPendingKeepsTheInstalledIdentityUntilTheBuildLands() {
         val after = app().markPending(
             releaseId = 7001L,
             assetId = 7002L,
             assetDigest = "sha256:aaa",
         )
-        assertEquals(null, after.installedReleaseId)
-        assertEquals(null, after.installedAssetId)
-        assertEquals(null, after.installedAssetDigest)
+        assertEquals(9001L, after.installedReleaseId)
+        assertEquals(9002L, after.installedAssetId)
+        assertEquals("sha256:old", after.installedAssetDigest)
     }
 
     @Test
@@ -230,9 +230,6 @@ class InstallBindingTest {
         assertEquals(7001L, after.pendingInstallReleaseId)
         assertEquals(7002L, after.pendingInstallAssetId)
         assertEquals("sha256:aaa", after.pendingInstallAssetDigest)
-        assertEquals(null, after.installedReleaseId)
-        assertEquals(null, after.installedAssetId)
-        assertEquals(null, after.installedAssetDigest)
     }
 
     @Test
@@ -296,6 +293,95 @@ class InstallBindingTest {
         assertEquals(null, after.installedReleaseId)
         assertEquals(null, after.installedAssetId)
         assertEquals(null, after.installedAssetDigest)
+        assertEquals(null, after.pendingInstallReleaseId)
+        assertEquals(null, after.pendingInstallAssetId)
+        assertEquals(null, after.pendingInstallAssetDigest)
+    }
+
+    @Test
+    fun resolvePendingKeepsTheInstalledIdentityWhenTheInstallWasCancelled() {
+        val parked = app().markPending(
+            releaseId = 7001L,
+            assetId = 7002L,
+            assetDigest = "sha256:aaa",
+        )
+
+        val after = parked.resolvePendingFromSystem(
+            resolvedTag = "1.0.0",
+            versionName = "1.0.0",
+            versionCode = 100L,
+        )
+
+        assertEquals(9001L, after.installedReleaseId)
+        assertEquals(9002L, after.installedAssetId)
+        assertEquals("sha256:old", after.installedAssetDigest)
+        assertEquals(null, after.pendingInstallReleaseId)
+    }
+
+    @Test
+    fun resolvePendingNeverPromotesAParkedIdentityWithoutAKnownTarget() {
+        val parked = app(latestVersionCode = null).markPending(
+            releaseId = 7001L,
+            assetId = 7002L,
+            assetDigest = "sha256:aaa",
+        )
+
+        val cancelled = parked.resolvePendingFromSystem(
+            resolvedTag = "1.0.0",
+            versionName = "1.0.0",
+            versionCode = 100L,
+        )
+        assertEquals(9001L, cancelled.installedReleaseId)
+        assertEquals(9002L, cancelled.installedAssetId)
+
+        val moved = parked.resolvePendingFromSystem(
+            resolvedTag = "1.0.0",
+            versionName = "2.0.0",
+            versionCode = 200L,
+        )
+        assertEquals(null, moved.installedReleaseId)
+        assertEquals(null, moved.installedAssetId)
+        assertEquals(null, moved.installedAssetDigest)
+    }
+
+    @Test
+    fun resolvePendingNeverBindsAParkedIdentityToADifferentBuild() {
+        val parked = app().markPending(
+            releaseId = 7001L,
+            assetId = 7002L,
+            assetDigest = "sha256:aaa",
+        )
+
+        val after = parked.resolvePendingFromSystem(
+            resolvedTag = "2.0.0",
+            versionName = "2.1.0",
+            versionCode = 210L,
+        )
+
+        assertEquals(null, after.installedReleaseId)
+        assertEquals(null, after.installedAssetId)
+        assertEquals(null, after.installedAssetDigest)
+    }
+
+    @Test
+    fun confirmInstallDropsAParkedTargetIdentity() {
+        val after =
+            app()
+                .markPending(releaseId = 7001L, assetId = 7002L, assetDigest = "sha256:aaa")
+                .confirmInstall(
+                    tag = "2.0.0",
+                    releaseId = 8001L,
+                    assetId = 8002L,
+                    assetDigest = "sha256:bbb",
+                    assetName = "app-2.0.0.apk",
+                    assetUrl = "https://dl/app-2.0.0.apk",
+                    versionName = "2.0.0",
+                    versionCode = 200L,
+                    signingFingerprint = "AAAA",
+                    at = 3000L,
+                    isPending = true,
+                )
+        assertEquals(8001L, after.installedReleaseId)
         assertEquals(null, after.pendingInstallReleaseId)
         assertEquals(null, after.pendingInstallAssetId)
         assertEquals(null, after.pendingInstallAssetDigest)

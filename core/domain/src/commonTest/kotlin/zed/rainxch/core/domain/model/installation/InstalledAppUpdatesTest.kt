@@ -390,7 +390,7 @@ class InstalledAppUpdatesTest {
     @Test
     fun resolvePendingFromSystemKeepsTheBindingWhenTheInstallLanded() {
         val result =
-            app(latestVersionCode = 200L)
+            app(installedVersionCode = 200L, latestVersionCode = 200L)
                 .copy(
                     installedReleaseId = 7001L,
                     installedAssetId = 7002L,

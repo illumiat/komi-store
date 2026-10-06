@@ -16,6 +16,7 @@ import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
 import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.model.installation.snapshotStillNamesNewerBuild
 import zed.rainxch.core.domain.model.installation.tagForObservedBuild
+import zed.rainxch.core.domain.model.installation.withSettledInstallIdentity
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
@@ -157,14 +158,13 @@ class PackageEventReceiver() :
                                 ?: app.latestVersion
                                 ?: systemInfo.versionName
                         if (wasActuallyUpdated) {
+                            val settled = app.withSettledInstallIdentity(systemInfo.versionCode)
                             repo.updateAppVersion(
                                 packageName = packageName,
                                 newTag = installedTag,
-                                // Confirming an install we started: carry the identity saved with
-                                // it, not the snapshot, which may have moved on since.
-                                newReleaseId = app.pendingInstallReleaseId ?: app.installedReleaseId,
-                                newAssetId = app.pendingInstallAssetId ?: app.installedAssetId,
-                                newAssetDigest = app.pendingInstallAssetDigest ?: app.installedAssetDigest,
+                                newReleaseId = settled.installedReleaseId,
+                                newAssetId = settled.installedAssetId,
+                                newAssetDigest = settled.installedAssetDigest,
                                 newAssetName = app.latestAssetName,
                                 newAssetUrl = app.latestAssetUrl,
                                 newVersionName = systemInfo.versionName,

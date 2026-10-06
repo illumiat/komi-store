@@ -62,9 +62,9 @@ fun InstalledApp.confirmInstall(
         pendingInstallFilePath = parkedFile,
         pendingInstallVersion = parkedVersion,
         pendingInstallAssetName = parkedAsset,
-        pendingInstallReleaseId = if (isPending) pendingInstallReleaseId else null,
-        pendingInstallAssetId = if (isPending) pendingInstallAssetId else null,
-        pendingInstallAssetDigest = if (isPending) pendingInstallAssetDigest else null,
+        pendingInstallReleaseId = null,
+        pendingInstallAssetId = null,
+        pendingInstallAssetDigest = null,
     )
 }
 
@@ -75,30 +75,49 @@ fun InstalledApp.resolvePendingFromSystem(
 ): InstalledApp {
     val targetCode = latestVersionCode ?: 0L
     val installReachedTarget = targetCode > 0L && versionCode >= targetCode
-    // An unknown target cannot be disproved, so the identity stands in that case.
-    val identityLands = targetCode <= 0L || installReachedTarget
     val adoptedTag =
         if (installReachedTarget) {
             pendingInstallVersion ?: resolvedTag
         } else {
             installedVersion
         }
-    return copy(
+    return withSettledInstallIdentity(versionCode).copy(
         isPendingInstall = false,
         installedVersion = adoptedTag,
         installedVersionName = versionName,
         installedVersionCode = versionCode,
-        // The identity recorded when the install started lands on the installed side only when the
-        // system proved the install reached that build; otherwise the record stops claiming a
-        // release it no longer matches and is rebound on the next install. A pending state that
-        // never carried a target identity (a parked file) keeps whatever installed* already said.
-        installedReleaseId = (pendingInstallReleaseId ?: installedReleaseId).takeIf { identityLands },
-        installedAssetId = (pendingInstallAssetId ?: installedAssetId).takeIf { identityLands },
-        installedAssetDigest = (pendingInstallAssetDigest ?: installedAssetDigest).takeIf { identityLands },
+        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
+    )
+}
+
+fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
+    val hasParkedIdentity =
+        pendingInstallReleaseId != null || pendingInstallAssetId != null || pendingInstallAssetDigest != null
+    val targetCode = latestVersionCode ?: 0L
+    val parkedBuildLanded = hasParkedIdentity && targetCode > 0L && versionCode == targetCode
+    val recordedBuildStands = !parkedBuildLanded && versionCode == installedVersionCode
+    return copy(
+        installedReleaseId =
+            when {
+                parkedBuildLanded -> pendingInstallReleaseId
+                recordedBuildStands -> installedReleaseId
+                else -> null
+            },
+        installedAssetId =
+            when {
+                parkedBuildLanded -> pendingInstallAssetId
+                recordedBuildStands -> installedAssetId
+                else -> null
+            },
+        installedAssetDigest =
+            when {
+                parkedBuildLanded -> pendingInstallAssetDigest
+                recordedBuildStands -> installedAssetDigest
+                else -> null
+            },
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
-        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
     )
 }
 
@@ -265,21 +284,12 @@ fun InstalledApp.observeExternalInstall(
     )
 }
 
-/**
- * Records the identity the install is aiming at, next to the parked file it will install from.
- * The installed side is cleared: while a pending install is in flight the record must not claim a
- * release the device is about to leave. [resolvePendingFromSystem] moves the identity across once
- * the system proves the install reached that build.
- */
 fun InstalledApp.markPending(
     releaseId: Long?,
     assetId: Long?,
     assetDigest: String?,
 ): InstalledApp = copy(
     isPendingInstall = true,
-    installedReleaseId = null,
-    installedAssetId = null,
-    installedAssetDigest = null,
     pendingInstallReleaseId = releaseId,
     pendingInstallAssetId = assetId,
     pendingInstallAssetDigest = assetDigest,
