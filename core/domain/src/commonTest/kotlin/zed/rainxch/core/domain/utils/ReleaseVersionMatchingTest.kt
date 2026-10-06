@@ -124,4 +124,13 @@ class ReleaseVersionMatchingTest {
         )
         assertEquals("Godot_v4.8-stable_android_editor.apk", picked?.name)
     }
+
+    @Test
+    fun aNameThatLengthensWhenLowercasedStillYieldsItsVariant() {
+        assertEquals("", AssetVariant.extract("İnstaller-1.2.3.apk", "1.2.3"))
+        assertEquals(
+            "arm64",
+            AssetVariant.fingerprintFromPickedAsset("İnstaller-1.2.3-arm64.apk", 2, "1.2.3")?.variant,
+        )
+    }
 }

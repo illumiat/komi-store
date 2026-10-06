@@ -285,7 +285,7 @@ object AssetVariant {
 
     fun extract(assetName: String, releaseTag: String? = null): String? {
         val withoutExt = assetName.substringBeforeLast('.')
-        val tagRange = tagVersion(releaseTag)?.let { releaseVersionRange(withoutExt.lowercase(), it) }
+        val tagRange = tagVersion(releaseTag)?.let { releaseVersionRange(withoutExt.lowercasePerChar(), it) }
         val tailStart =
             tagRange?.let { it.last + 1 }
                 ?: VERSION_SEGMENT.find(withoutExt)?.let { it.range.last + 1 }
@@ -304,6 +304,9 @@ object AssetVariant {
         }
         return tail
     }
+
+    // String.lowercase() can lengthen a name ('İ' becomes two chars), shifting indices into the original.
+    private fun String.lowercasePerChar(): String = String(CharArray(length) { this[it].lowercaseChar() })
 
     private val VERSION_SEGMENT =
         Regex("[-_ ]v?\\d+(?:\\.\\d+)+(?=[-_. ]|$)", RegexOption.IGNORE_CASE)
