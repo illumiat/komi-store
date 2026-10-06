@@ -222,7 +222,6 @@ private fun InstalledApp.signerDiffersFrom(local: SystemPackageInfo): Boolean {
         !localSign.equals(signingFingerprint, ignoreCase = true)
 }
 
-// Not our release, and which one it is is unknown.
 fun InstalledApp.observeExternalInstall(
     versionName: String?,
     versionCode: Long,

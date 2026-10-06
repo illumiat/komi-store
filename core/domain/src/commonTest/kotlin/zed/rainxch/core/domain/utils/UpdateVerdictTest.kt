@@ -738,9 +738,7 @@ class UpdateVerdictTest {
     }
 
     @Test
-    fun an_unbound_record_passes_the_fallback_through_untouched() {
-        // No identity means there is nothing to date against, so decideBound must hand back
-        // whatever the caller's verdict said — both directions.
+    fun an_installed_release_outside_the_window_falls_back_to_the_tag_verdict() {
         assertTrue(
             UpdateVerdict.decideBound(
                 sameFile = false,

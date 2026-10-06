@@ -203,8 +203,6 @@ class AutoUpdateWorker(
         if (currentApp != null) {
             installedAppsRepository.updateApp(
                 currentApp
-                    // This path resolves nothing newer than the stored snapshot, so the identity
-                    // recorded for the install can only come from that snapshot.
                     .markPending(
                         releaseId = currentApp.latestReleaseId,
                         assetId = currentApp.latestAssetId,

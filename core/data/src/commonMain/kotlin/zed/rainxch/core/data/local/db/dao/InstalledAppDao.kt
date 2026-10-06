@@ -209,16 +209,7 @@ interface InstalledAppDao {
     )
     suspend fun clearInstallBinding(packageName: String)
 
-    // The parked-file fields and the target identity have separate lifetimes.
-    //
-    // This call moves, updates or clears the *file location* — and a cleared location does not mean
-    // the install has a verdict. Installing is delegated to the system, which returns before the
-    // user has confirmed anything, so callers clear the path immediately while the confirmation
-    // broadcast is still on its way. Dropping the identity here would leave that broadcast with
-    // nothing to record, which is exactly the gap this PR exists to close.
-    //
-    // The identity is owned by the domain instead: `markPending` records it, `resolvePendingFromSystem`
-    // moves it across or drops it, and `clearPending` / `confirmInstall(isPending = false)` drop it.
+    // Must not touch the pending identity: callers clear the path before the system confirms the install.
     @Query(
         """
         UPDATE installed_apps

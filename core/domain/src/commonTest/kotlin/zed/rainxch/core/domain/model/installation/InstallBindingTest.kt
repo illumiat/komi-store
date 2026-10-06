@@ -37,9 +37,6 @@ class InstallBindingTest {
         latestReleaseId = latestReleaseId,
         latestAssetId = latestAssetId,
         latestAssetDigest = latestAssetDigest,
-        // This parameter used to be declared and then dropped: every test that set it silently got
-        // the InstalledApp default (null), so any assertion that depended on a *known* target code
-        // was really exercising the unknown-target path.
         latestVersionCode = latestVersionCode,
         appName = "App",
         installSource = InstallSource.THIS_APP,
@@ -408,15 +405,6 @@ class InstallBindingTest {
         assertNotEquals(a, b)
     }
 
-    // -----------------------------------------------------------------------------------------
-    // What a scan found, relative to the record.
-    //
-    // This classification used to be written inline in SyncInstalledAppsUseCase, which has no test
-    // file at all — so the signer-change case (the one this behaviour exists for) could only be
-    // "verified" by reproducing a debug-over-release install on a device. As a pure function it is
-    // decided here instead.
-    // -----------------------------------------------------------------------------------------
-
     @Test
     fun nothingToDoWhenTheDeviceStillMatchesTheRecord() {
         assertEquals(DeviceChange.NONE, app().deviceChangeAgainst(local()))
@@ -427,9 +415,6 @@ class InstallBindingTest {
         val change = app().deviceChangeAgainst(local(signingFingerprint = "BBBB"))
 
         assertEquals(DeviceChange.SIGNER_CHANGE, change)
-        // The convergence argument, asserted rather than asserted-in-prose: because a drifted
-        // signer is NOT "nothing to do", the next scan takes the write path and stores the key the
-        // device actually has. If this ever became NONE, the stored key would stay wrong forever.
         assertNotEquals(DeviceChange.NONE, change)
     }
 
