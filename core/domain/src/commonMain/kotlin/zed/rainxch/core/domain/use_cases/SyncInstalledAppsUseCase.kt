@@ -279,12 +279,6 @@ class SyncInstalledAppsUseCase(
                         "(DB v${app.installedVersionName}(${app.installedVersionCode}) vs " +
                         "System v${local.versionName}(${local.versionCode}))",
                 )
-                if (app.installedReleaseId != null ||
-                    app.installedAssetId != null ||
-                    app.installedAssetDigest != null
-                ) {
-                    installedAppsRepository.clearInstallBinding(app.packageName)
-                }
             }
 
             if (change != DeviceChange.NONE) {

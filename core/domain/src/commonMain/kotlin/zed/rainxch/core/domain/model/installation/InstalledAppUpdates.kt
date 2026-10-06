@@ -177,53 +177,8 @@ fun InstalledApp.tagForObservedBuild(
     return if (codeProvesSnapshot || nameProvesSnapshot) snapshotTag else installedVersion
 }
 
-sealed interface BindingStatus {
-    data object Intact : BindingStatus
-
-    data class Broken(val reason: BreakReason) : BindingStatus
-
-    enum class BreakReason {
-        PACKAGE_NAME,
-
-        VERSION_CODE,
-
-        VERSION_NAME,
-
-        SIGNING_FINGERPRINT,
-    }
-}
-
-/** What a scan of the device found relative to the record. */
-enum class DeviceChange {
-    /** Everything the record knows still matches: there is nothing to write. */
-    NONE,
-
-    DOWNGRADE,
-
-    /**
-     * Same version, different signer. The version fields cannot express this, and reporting it as
-     * an "update" names a version change that did not happen.
-     */
-    SIGNER_CHANGE,
-
-    VERSION_CHANGE,
-}
-
-/**
- * Compares the record against the device.
- *
- * A drift is only claimed when *both* sides carry a key — a value we do not have cannot disagree,
- * and guessing would turn every unknown into a false alarm.
- *
- * [SIGNER_CHANGE] is deliberately not [NONE]: a signer that differs from the recorded one has to
- * keep the record out of the "nothing to do" branch, or nothing would ever write the device's key
- * back and the same mismatch would be reported on every scan.
- */
 fun InstalledApp.deviceChangeAgainst(local: SystemPackageInfo): DeviceChange {
-    val signerDrifted =
-        !local.signingFingerprint.isNullOrBlank() &&
-            !signingFingerprint.isNullOrBlank() &&
-            !local.signingFingerprint.equals(signingFingerprint, ignoreCase = true)
+    val signerDrifted = signerDiffersFrom(local)
     val versionMatches =
         local.versionCode == installedVersionCode && local.versionName == installedVersionName
     return when {
@@ -253,16 +208,18 @@ fun InstalledApp.bindingStatusAgainst(local: SystemPackageInfo): BindingStatus {
         return BindingStatus.Broken(BindingStatus.BreakReason.VERSION_NAME)
     }
 
-    // The one criterion the version fields cannot express: a different signer is a different build.
-    val localSign = local.signingFingerprint
-    if (!localSign.isNullOrBlank() &&
-        !signingFingerprint.isNullOrBlank() &&
-        !localSign.equals(signingFingerprint, ignoreCase = true)
-    ) {
+    if (signerDiffersFrom(local)) {
         return BindingStatus.Broken(BindingStatus.BreakReason.SIGNING_FINGERPRINT)
     }
 
     return BindingStatus.Intact
+}
+
+private fun InstalledApp.signerDiffersFrom(local: SystemPackageInfo): Boolean {
+    val localSign = local.signingFingerprint
+    return !localSign.isNullOrBlank() &&
+        !signingFingerprint.isNullOrBlank() &&
+        !localSign.equals(signingFingerprint, ignoreCase = true)
 }
 
 // Not our release, and which one it is is unknown.
