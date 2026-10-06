@@ -126,6 +126,18 @@ class ReleaseVersionMatchingTest {
     }
 
     @Test
+    fun aVersionGluedToAWordIsNotTheReleaseVersion() {
+        assertEquals("android10-app-*.apk", AssetVariant.tagGlob("android10-app-v10.apk", "v10"))
+        assertNull(AssetVariant.tagGlob("android10-app.apk", "v10"))
+    }
+
+    @Test
+    fun aPinnedGlobSurvivesTheNextReleaseWhenTheVersionAlsoAppearsInAWord() {
+        val pin = AssetVariant.fingerprintFromPickedAsset("android10-app-v10-arm64.apk", 2, "v10")
+        assertEquals(AssetVariant.tagGlob("android10-app-v11-arm64.apk", "v11"), pin?.glob)
+    }
+
+    @Test
     fun aNameThatLengthensWhenLowercasedStillYieldsItsVariant() {
         assertEquals("", AssetVariant.extract("İnstaller-1.2.3.apk", "1.2.3"))
         assertEquals(

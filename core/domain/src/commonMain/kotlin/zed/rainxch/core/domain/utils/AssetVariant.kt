@@ -234,6 +234,7 @@ object AssetVariant {
     private fun startsCleanly(lower: String, at: Int): Boolean {
         val before = lower.getOrNull(at - 1) ?: return true
         if (before.isDigit()) return false
+        if (before.isLetter()) return hasVersionPrefix(lower, at)
         return !(before == '.' && lower.getOrNull(at - 2)?.isDigit() == true)
     }
 
