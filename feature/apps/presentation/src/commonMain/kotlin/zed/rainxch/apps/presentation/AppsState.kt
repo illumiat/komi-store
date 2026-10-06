@@ -49,6 +49,7 @@ data class AppsState(
     val repoValidationError: String? = null,
     val linkValidationStatus: String? = null,
     val linkInstallableAssets: ImmutableList<GithubAssetUi> = persistentListOf(),
+    val linkAssetsReleaseTag: String? = null,
     val linkSelectedAsset: GithubAssetUi? = null,
     val linkDownloadProgress: Int? = null,
     val fetchedRepoInfo: GithubRepoInfoUi? = null,

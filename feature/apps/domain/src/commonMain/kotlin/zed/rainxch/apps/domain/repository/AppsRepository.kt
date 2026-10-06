@@ -38,6 +38,8 @@ interface AppsRepository {
 
         pickedAssetSiblingCount: Int = 0,
 
+        pickedAssetReleaseTag: String? = null,
+
         preferredAssetVariant: String? = null,
 
         preferredAssetTokens: String? = null,

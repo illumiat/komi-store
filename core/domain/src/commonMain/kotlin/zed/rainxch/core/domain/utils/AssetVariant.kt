@@ -363,9 +363,10 @@ object AssetVariant {
     fun deriveFromPickedAsset(
         pickedAssetName: String,
         siblingAssetCount: Int,
+        releaseTag: String? = null,
     ): String? {
         if (siblingAssetCount <= 1) return null
-        val variant = extract(pickedAssetName) ?: return null
+        val variant = extract(pickedAssetName, releaseTag) ?: return null
         return variant.takeIf { it.isNotEmpty() }
     }
 

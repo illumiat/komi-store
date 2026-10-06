@@ -145,4 +145,12 @@ class ReleaseVersionMatchingTest {
             AssetVariant.fingerprintFromPickedAsset("İnstaller-1.2.3-arm64.apk", 2, "1.2.3")?.variant,
         )
     }
+
+    @Test
+    fun aVariantPickedOutsideDetailsUsesItsRelease() {
+        assertEquals(
+            "market-release",
+            AssetVariant.deriveFromPickedAsset("LibChecker-2.5.4.5696014-2671-market-release.apk", 2, "2.5.4"),
+        )
+    }
 }

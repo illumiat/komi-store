@@ -252,6 +252,7 @@ class AppsRepositoryImpl(
         fallbackToOlderReleases: Boolean,
         pickedAssetName: String?,
         pickedAssetSiblingCount: Int,
+        pickedAssetReleaseTag: String?,
         preferredAssetVariant: String?,
         preferredAssetTokens: String?,
         assetGlobPattern: String?,
@@ -265,12 +266,12 @@ class AppsRepositoryImpl(
         val derivedVariant =
             preferredAssetVariant?.trim()?.takeIf { it.isNotEmpty() }
                 ?: pickedAssetName?.let {
-                    AssetVariant.deriveFromPickedAsset(it, pickedAssetSiblingCount)
+                    AssetVariant.deriveFromPickedAsset(it, pickedAssetSiblingCount, pickedAssetReleaseTag)
                 }
 
         val freshFingerprint =
             if (preferredAssetTokens == null && assetGlobPattern == null && pickedAssetName != null) {
-                AssetVariant.fingerprintFromPickedAsset(pickedAssetName, pickedAssetSiblingCount)
+                AssetVariant.fingerprintFromPickedAsset(pickedAssetName, pickedAssetSiblingCount, pickedAssetReleaseTag)
             } else {
                 null
             }
