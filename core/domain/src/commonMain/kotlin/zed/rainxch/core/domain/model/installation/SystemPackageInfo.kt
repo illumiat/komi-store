@@ -6,6 +6,10 @@ data class SystemPackageInfo(
     val versionCode: Long,
     val isInstalled: Boolean,
     val signingFingerprint: String?,
+    // When the package manager last placed or replaced this package. The parked-file sweep needs
+    // it to prove an install happened after the parked file was written; null where the platform
+    // does not report it.
+    val lastUpdateTime: Long? = null,
 ) {
     companion object {
         // What core/data's monitors write where Android's PackageInfo.versionName is null. Shared
