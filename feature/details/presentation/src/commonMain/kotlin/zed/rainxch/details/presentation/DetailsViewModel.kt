@@ -120,6 +120,8 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock.System
 import kotlin.time.ExperimentalTime
 
+private const val RELEASES_REVALIDATE_MIN_AGE_MS = 5L * 60L * 1000L
+
 class DetailsViewModel(
     private val repositoryId: Long,
     private val ownerParam: String,
@@ -2639,7 +2641,7 @@ class DetailsViewModel(
                                 sourceHost = sourceHostParam,
                             )
                         if (cachedReleases != null) {
-                            return@async Triple(cachedReleases, false, true)
+                            return@async Triple(cachedReleases.releases, false, true)
                         }
                         try {
                             Triple(
@@ -2902,10 +2904,22 @@ class DetailsViewModel(
     // until the cache expired. When the load was served from the cache, quietly read the list
     // once more and converge to it; the pull-to-refresh stays as the way to force the
     // repository itself, not as the only way to see a rebuilt release.
+    @OptIn(ExperimentalTime::class)
     private fun revalidateReleases() {
         val repo = _state.value.repository ?: return
         viewModelScope.launch {
             try {
+                // Never re-read a list that was just read: the copy in front of the page is
+                // younger than the window, and the endpoint is shared with everything else.
+                val cached =
+                    detailsRepository.getCachedReleases(
+                        owner = repo.owner.login,
+                        repo = repo.name,
+                        sourceHost = sourceHostParam,
+                    ) ?: return@launch
+                val ageMs = System.now().toEpochMilliseconds() - cached.cachedAtEpochMs
+                if (ageMs < RELEASES_REVALIDATE_MIN_AGE_MS) return@launch
+
                 val freshReleases =
                     detailsRepository.getAllReleases(
                         owner = repo.owner.login,
