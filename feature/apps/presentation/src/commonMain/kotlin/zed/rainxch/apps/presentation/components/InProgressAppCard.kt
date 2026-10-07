@@ -1,6 +1,8 @@
 package zed.rainxch.apps.presentation.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,13 +27,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.stringResource
+import zed.rainxch.apps.presentation.AppsAction
 import zed.rainxch.apps.presentation.isVersionDowngrade
+import zed.rainxch.apps.presentation.model.AppItem
 import zed.rainxch.core.domain.system.DownloadStage
 import zed.rainxch.core.domain.system.OrchestratedDownload
 import zed.rainxch.core.presentation.components.GitHubStoreImage
 import zed.rainxch.core.presentation.components.InstalledAppIcon
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
+import zed.rainxch.core.presentation.components.icon.KomiIcon
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.progress.KomiLinearProgress
 import zed.rainxch.core.presentation.components.surfaces.KomiSurface
@@ -58,6 +63,8 @@ import zed.rainxch.githubstore.core.presentation.res.retry
 fun InProgressAppCard(
     download: OrchestratedDownload,
     installedVersion: String?,
+    rowItem: AppItem?,
+    onRowAction: (AppsAction) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onRetry: () -> Unit,
@@ -136,6 +143,62 @@ fun InProgressAppCard(
                 }
             }
 
+            // The same block in the same slot as the big card's; the row's copy covers a download
+            // that entered before the spec carried a description.
+            val description = download.repoDescription ?: rowItem?.installedApp?.repoDescription
+            if (description != null) {
+                Spacer(Modifier.height(8.dp))
+
+                KomiText(
+                    text = description,
+                    role = KomiTextRole.Body,
+                    uppercase = false,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            // The big card's management row, driven through the row it belongs to. Shown for every
+            // stage so the row neither appears nor vanishes depending on where the download is.
+            rowItem?.let { item ->
+                AppCardToolbar(
+                    appItem = item,
+                    onAdvancedSettingsClick = {
+                        onRowAction(AppsAction.OnOpenAdvancedSettings(item.installedApp))
+                    },
+                    onPickVariantClick = {
+                        onRowAction(
+                            AppsAction.OnOpenVariantPicker(
+                                app = item.installedApp,
+                                resumeUpdateAfterPick = false,
+                            ),
+                        )
+                    },
+                    onTogglePreReleases = { enabled ->
+                        onRowAction(
+                            AppsAction.OnTogglePreReleases(item.installedApp.packageName, enabled),
+                        )
+                    },
+                    onToggleUpdateCheck = { enabled ->
+                        onRowAction(
+                            AppsAction.OnToggleUpdateCheck(item.installedApp.packageName, enabled),
+                        )
+                    },
+                    onSkipVersionClick = {
+                        val tag =
+                            item.installedApp.latestVersion
+                                ?: item.installedApp.latestVersionName
+                        if (!tag.isNullOrBlank()) {
+                            onRowAction(AppsAction.OnSkipReleaseTag(item.installedApp.packageName, tag))
+                        }
+                    },
+                    onUnskipVersionClick = {
+                        onRowAction(AppsAction.OnUnskipReleaseTag(item.installedApp.packageName))
+                    },
+                )
+            }
+
             Spacer(Modifier.height(12.dp))
 
             when (download.stage) {
@@ -149,6 +212,7 @@ fun InProgressAppCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
                             onClick = onPause,
@@ -158,7 +222,7 @@ fun InProgressAppCard(
                             modifier = Modifier.weight(1f),
                         )
 
-                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                        DeleteTaskIcon(onClick = onDiscard)
                     }
                 }
 
@@ -172,6 +236,7 @@ fun InProgressAppCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
                             onClick = onResume,
@@ -181,7 +246,7 @@ fun InProgressAppCard(
                             modifier = Modifier.weight(1f),
                         )
 
-                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                        DeleteTaskIcon(onClick = onDiscard)
                     }
                 }
 
@@ -211,6 +276,7 @@ fun InProgressAppCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
                             onClick = onDismiss,
@@ -221,11 +287,7 @@ fun InProgressAppCard(
 
                         // Disabled: the installer is holding the file, so deleting the task now
                         // would pull it out from under a live install.
-                        DeleteTaskButton(
-                            onClick = onDiscard,
-                            enabled = false,
-                            modifier = Modifier.weight(1f),
-                        )
+                        DeleteTaskIcon(onClick = onDiscard, enabled = false)
                     }
                 }
 
@@ -233,6 +295,7 @@ fun InProgressAppCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
                             onClick = onInstall,
@@ -242,7 +305,7 @@ fun InProgressAppCard(
                             modifier = Modifier.weight(1f),
                         )
 
-                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                        DeleteTaskIcon(onClick = onDiscard)
                     }
                 }
 
@@ -264,6 +327,7 @@ fun InProgressAppCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
                             onClick = onRetry,
@@ -273,7 +337,7 @@ fun InProgressAppCard(
                             modifier = Modifier.weight(1f),
                         )
 
-                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                        DeleteTaskIcon(onClick = onDiscard)
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -412,22 +476,31 @@ private fun ProgressBody(
     )
 }
 
-// "Delete task" is not the trash glyph: that one belongs to uninstall. This drops the download and
-// its partial, never the installed app, and always carries its wording.
+// "Delete task" is not the trash glyph: that one belongs to uninstall. This drops the download
+// and its partial, never the installed app. The icon form and its slot match the pending card's
+// delete, so the control does not change shape when the file lands and this card becomes that one.
 @Composable
-private fun DeleteTaskButton(
+private fun DeleteTaskIcon(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    KomiButton(
-        onClick = onClick,
-        label = stringResource(Res.string.delete_task),
-        variant = KomiButtonVariant.Destructive,
-        enabled = enabled,
-        leadingIcon = Icons.Default.FileDownloadOff,
-        modifier = modifier,
-    )
+    val colors = LocalPersonality.current.colors
+    val deleteTaskDescription = stringResource(Res.string.delete_task)
+
+    Box(
+        modifier =
+            modifier
+                .size(48.dp)
+                .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        KomiIcon(
+            imageVector = Icons.Default.FileDownloadOff,
+            contentDescription = deleteTaskDescription,
+            tint = if (enabled) colors.onSurfaceVariant else colors.onSurfaceVariant.copy(alpha = 0.38f),
+        )
+    }
 }
 
 private fun downloadSizeLabel(download: OrchestratedDownload): String {
