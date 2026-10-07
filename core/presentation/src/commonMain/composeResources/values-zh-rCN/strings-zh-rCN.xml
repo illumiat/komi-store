@@ -885,6 +885,7 @@
     <string name="dhizuku_status_permission_needed">需要权限</string>
     <string name="dhizuku_status_ready">就绪</string>
     <string name="discard_pending_install">放弃</string>
+    <string name="delete_task">删除任务</string>
     <string name="error_state_go_back">返回</string>
     <string name="error_state_subtitle_generic">无法加载该仓库。请使用下方的重试按钮。</string>
     <string name="error_state_subtitle_not_found">仓库可能为私有、已重命名或已删除。</string>

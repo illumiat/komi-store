@@ -1075,6 +1075,7 @@
     <string name="apps_compact_status_updates_ignored">updates ignored</string>
     <string name="apps_ignore_updates">Ignore updates</string>
     <string name="discard_pending_install">Discard</string>
+    <string name="delete_task">Delete task</string>
     <string name="apps_updates_banner_title_one">1 update available</string>
     <string name="apps_updates_banner_title_other">%1$d updates available</string>
     <string name="apps_updates_banner_subtitle">Review or update everything at once.</string>
