@@ -330,6 +330,7 @@ class DetailsRepositoryImpl(
         sourceHost: String?,
         bypassCache: Boolean,
         allowStale: Boolean,
+        preferDirectSource: Boolean,
     ): List<GithubRelease> {
         if (sourceHost != null) return getForgejoAllReleases(owner, repo, sourceHost)
         val cacheKey = "details:releases:$owner/$repo"
@@ -341,6 +342,27 @@ class DetailsRepositoryImpl(
                     return cached
                 }
             }
+        }
+
+        // A read the user explicitly asked for can go to the repository host first: the host is
+        // where an edit lands, while the backend answers from a copy it keeps for an hour and
+        // offers nothing to force it. The backend stays next in line, so a host read that fails
+        // or comes back with nothing still lands on live data.
+        var triedDirect = false
+        if (preferDirectSource) {
+            triedDirect = true
+            val direct =
+                try {
+                    readReleasesFromGitHub(owner, repo, defaultBranch, cacheKey, allowStale)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (t: Throwable) {
+                    logger.debug(
+                        "Direct releases read failed for $owner/$repo (${t.message}), trying the backend",
+                    )
+                    emptyList()
+                }
+            if (direct.isNotEmpty()) return direct
         }
 
         val backendResult = backendApiClient.getReleases(owner, repo)
@@ -359,7 +381,8 @@ class DetailsRepositoryImpl(
                 return result
             },
             onFailure = { e ->
-                if (!shouldFallbackToGithubOrRethrow(e, isSignedIn())) {
+                // With the host read already tried first, there is nothing left to fall over to.
+                if (!shouldFallbackToGithubOrRethrow(e, isSignedIn()) || triedDirect) {
                     if (allowStale) {
                         cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
                             logger.debug("Backend 4xx for releases $owner/$repo, serving stale cache")
@@ -372,6 +395,18 @@ class DetailsRepositoryImpl(
             },
         )
 
+        return readReleasesFromGitHub(owner, repo, defaultBranch, cacheKey, allowStale)
+    }
+
+    // The repository-host read — the request the fallback path has always made, now shared with
+    // the refresh that goes to the host first.
+    private suspend fun readReleasesFromGitHub(
+        owner: String,
+        repo: String,
+        defaultBranch: String,
+        cacheKey: String,
+        allowStale: Boolean,
+    ): List<GithubRelease> {
         return try {
             val releases =
                 httpClient

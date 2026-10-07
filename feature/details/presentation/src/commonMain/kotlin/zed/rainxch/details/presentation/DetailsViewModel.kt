@@ -3042,6 +3042,9 @@ class DetailsViewModel(
                             sourceHost = sourceHostParam,
                             bypassCache = true,
                             allowStale = false,
+                            // The user asked for this read: go to the repository host, where an
+                            // edit lands, rather than a backend copy that can predate it.
+                            preferDirectSource = true,
                         )
                     } catch (e: CancellationException) {
                         throw e
