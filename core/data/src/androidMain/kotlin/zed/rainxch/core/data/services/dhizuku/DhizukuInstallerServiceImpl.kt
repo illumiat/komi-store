@@ -9,14 +9,20 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import zed.rainxch.core.data.services.installer.OrphanSessionReclaim
 
 class DhizukuInstallerServiceImpl() : IDhizukuInstallerService.Stub() {
 
     companion object {
         private const val TAG = "DhizukuService"
+
+        // Sessions the live process is currently driving. Anything else mySessions reports is an
+        // orphan left behind by a previous process death between createSession and commit.
+        private val activeSessionIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
         private const val STATUS_SUCCESS = 0
         private const val STATUS_FAILURE = -1
@@ -67,7 +73,9 @@ class DhizukuInstallerServiceImpl() : IDhizukuInstallerService.Stub() {
         var receiver: BroadcastReceiver? = null
         var committed = false
         return try {
+            reclaimOrphanSessions(installer)
             sessionId = installer.createSession(params)
+            activeSessionIds.add(sessionId)
             log("createSession() — sessionId=$sessionId")
             session = installer.openSession(sessionId)
 
@@ -143,6 +151,7 @@ class DhizukuInstallerServiceImpl() : IDhizukuInstallerService.Stub() {
             logE("installPackage() exception", e)
             STATUS_FAILURE
         } finally {
+            if (sessionId >= 0) activeSessionIds.remove(sessionId)
             if (!committed && sessionId >= 0) {
                 try { installer.abandonSession(sessionId) } catch (_: Exception) {}
             }
@@ -222,6 +231,19 @@ class DhizukuInstallerServiceImpl() : IDhizukuInstallerService.Stub() {
 
     override fun destroy() {
         log("destroy() — service being unbound")
+    }
+
+    private fun reclaimOrphanSessions(installer: PackageInstaller) {
+        val allSessions = try {
+            installer.mySessions.mapNotNull { runCatching { it.sessionId }.getOrNull() }
+        } catch (e: Exception) {
+            logW("orphan session sweep: could not list mySessions: ${e.message}")
+            return
+        }
+        val orphans = OrphanSessionReclaim.orphanedSessionIds(allSessions, activeSessionIds)
+        if (orphans.isEmpty()) return
+        val failed = OrphanSessionReclaim.abandonAll(orphans) { installer.abandonSession(it) }
+        log("orphan session sweep: abandoned ${orphans.size - failed.size}/${orphans.size}${if (failed.isEmpty()) "" else ", failed=$failed"}")
     }
 
     private fun verifyInstallSucceeded(
