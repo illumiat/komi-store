@@ -17,22 +17,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileDownloadOff
-import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.collections.immutable.toImmutableList
 import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.apps.presentation.model.AppItem
 import zed.rainxch.apps.presentation.model.UpdateState
@@ -40,21 +34,12 @@ import zed.rainxch.core.presentation.components.GitHubStoreImage
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
 import zed.rainxch.core.presentation.components.icon.KomiIcon
-import zed.rainxch.core.presentation.components.inputs.KomiCheckbox
-import zed.rainxch.core.presentation.components.overlays.KomiDropdown
-import zed.rainxch.core.presentation.components.overlays.KomiMenuItem
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.surfaces.KomiSurface
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.githubstore.core.presentation.res.Res
-import zed.rainxch.githubstore.core.presentation.res.advanced_settings_open
-import zed.rainxch.githubstore.core.presentation.res.apps_compact_more_actions
-import zed.rainxch.githubstore.core.presentation.res.apps_ignore_updates
-import zed.rainxch.githubstore.core.presentation.res.apps_menu_item_active
-import zed.rainxch.githubstore.core.presentation.res.apps_skip_version
-import zed.rainxch.githubstore.core.presentation.res.apps_skip_version_unskip
 import zed.rainxch.githubstore.core.presentation.res.checking
 import zed.rainxch.githubstore.core.presentation.res.delete_task
 import zed.rainxch.githubstore.core.presentation.res.error_with_message
@@ -62,13 +47,11 @@ import zed.rainxch.githubstore.core.presentation.res.install
 import zed.rainxch.githubstore.core.presentation.res.installing
 import zed.rainxch.githubstore.core.presentation.res.open
 import zed.rainxch.githubstore.core.presentation.res.pending_install
-import zed.rainxch.githubstore.core.presentation.res.pre_release_badge
 import zed.rainxch.githubstore.core.presentation.res.ready_to_install
 import zed.rainxch.githubstore.core.presentation.res.uninstall
 import zed.rainxch.githubstore.core.presentation.res.update
 import zed.rainxch.githubstore.core.presentation.res.updated_successfully
 import zed.rainxch.githubstore.core.presentation.res.variant_label_inline
-import zed.rainxch.githubstore.core.presentation.res.variant_picker_open
 import zed.rainxch.githubstore.core.presentation.res.variant_stale_hint
 
 @Composable
@@ -275,130 +258,15 @@ fun AppItemCard(
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val preReleaseString = stringResource(Res.string.pre_release_badge)
-                KomiText(
-                    text = preReleaseString,
-                    role = KomiTextRole.Body,
-                    fontSize = 13.sp,
-                    color = colors.onSurfaceVariant,
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val advancedFilterDescription =
-                        stringResource(Res.string.advanced_settings_open)
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clickable(enabled = !appItem.isBusy, onClick = onAdvancedSettingsClick)
-                            .semantics {
-                                contentDescription = advancedFilterDescription
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        KomiIcon(
-                            imageVector = Icons.Default.FilterAlt,
-                            contentDescription = null,
-                            tint =
-                                if (appItem.hasFilter) {
-                                    colors.primary
-                                } else {
-                                    colors.onSurfaceVariant
-                                },
-                        )
-                    }
-
-                    val pickVariantDescription =
-                        stringResource(Res.string.variant_picker_open)
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clickable(enabled = !appItem.isBusy, onClick = onPickVariantClick)
-                            .semantics {
-                                contentDescription = pickVariantDescription
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        KomiIcon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint =
-                                when {
-                                    app.preferredVariantStale -> colors.error
-                                    appItem.hasPin -> colors.primary
-                                    else -> colors.onSurfaceVariant
-                                },
-                        )
-                    }
-
-                    KomiCheckbox(
-                        checked = app.includePreReleases,
-                        onCheckedChange = onTogglePreReleases,
-                        enabled = !appItem.isBusy,
-                        modifier =
-                            Modifier.semantics {
-                                contentDescription = preReleaseString
-                            },
-                    )
-
-                    val moreActionsLabel =
-                        stringResource(Res.string.apps_compact_more_actions, app.appName)
-                    val ignoreUpdatesBase = stringResource(Res.string.apps_ignore_updates)
-                    val ignoreUpdatesActive =
-                        stringResource(Res.string.apps_menu_item_active, ignoreUpdatesBase)
-                    val unskipLabel = stringResource(Res.string.apps_skip_version_unskip)
-                    val skipLabel = stringResource(Res.string.apps_skip_version)
-                    val rowOverflowEntries = buildList {
-                        add(
-                            KomiMenuItem(
-                                id = "toggle_update_check",
-                                label = if (!app.updateCheckEnabled) ignoreUpdatesActive else ignoreUpdatesBase,
-                            ),
-                        )
-                        if (app.skippedReleaseTag != null) {
-                            add(KomiMenuItem(id = "unskip_version", label = unskipLabel))
-                        } else if (appItem.canSkipVersion) {
-                            add(KomiMenuItem(id = "skip_version", label = skipLabel))
-                        }
-                    }.toImmutableList()
-
-                    KomiDropdown(
-                        entries = rowOverflowEntries,
-                        onSelect = { item ->
-                            when (item.id) {
-                                "toggle_update_check" -> onToggleUpdateCheck(!app.updateCheckEnabled)
-                                "unskip_version" -> onUnskipVersionClick()
-                                "skip_version" -> onSkipVersionClick()
-                            }
-                        },
-                        trigger = { onClick ->
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clickable(enabled = !appItem.isBusy, onClick = onClick)
-                                    .semantics {
-                                        contentDescription = moreActionsLabel
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                KomiIcon(
-                                    imageVector = Icons.Outlined.MoreVert,
-                                    contentDescription = null,
-                                    tint = colors.onSurfaceVariant,
-                                )
-                            }
-                        },
-                    )
-                }
-            }
+            AppCardToolbar(
+                appItem = appItem,
+                onAdvancedSettingsClick = onAdvancedSettingsClick,
+                onPickVariantClick = onPickVariantClick,
+                onTogglePreReleases = onTogglePreReleases,
+                onToggleUpdateCheck = onToggleUpdateCheck,
+                onSkipVersionClick = onSkipVersionClick,
+                onUnskipVersionClick = onUnskipVersionClick,
+            )
 
             Spacer(Modifier.height(12.dp))
 

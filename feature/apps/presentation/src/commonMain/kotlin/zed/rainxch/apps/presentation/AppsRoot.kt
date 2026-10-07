@@ -412,11 +412,17 @@ fun AppsScreen(
                                             // key ("owner/name" for a not-yet-installed app), which
                                             // is what the actions are addressed by. A card for an
                                             // app with a row joins its installed version in for the
-                                            // downgrade line; a fresh install has no row, hence null.
+                                            // downgrade line and its row in for the management
+                                            // toolbar; a fresh install has no row, so both are off.
                                             InProgressAppCard(
                                                 download = download,
                                                 installedVersion =
                                                     installedVersions[download.packageName],
+                                                rowItem =
+                                                    state.apps.find {
+                                                        it.installedApp.packageName == download.packageName
+                                                    },
+                                                onRowAction = onAction,
                                                 onPause = {
                                                     onAction(
                                                         AppsAction.OnCancelInProgressDownload(
