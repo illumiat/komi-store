@@ -525,7 +525,19 @@ class DefaultDownloadOrchestrator(
     override suspend fun resume(packageName: String) {
         val entry = _downloads.value[packageName] ?: return
         if (entry.stage != DownloadStage.Paused) return
+        restart(entry)
+    }
 
+    override suspend fun retry(packageName: String) {
+        val entry = _downloads.value[packageName] ?: return
+        if (entry.stage != DownloadStage.Failed) return
+        restart(entry)
+    }
+
+    // Shared by resume and retry: both re-issue the transfer from the entry's own fields. enqueue
+    // treats a Paused or Failed entry as restartable, so the only difference is which stage is
+    // allowed in.
+    private suspend fun restart(entry: OrchestratedDownload) {
         val spec =
             DownloadSpec(
                 packageName = entry.packageName,
@@ -544,7 +556,6 @@ class DefaultDownloadOrchestrator(
                 installPolicy = entry.installPolicy,
                 releaseTag = entry.releaseTag,
             )
-        // enqueue treats a Paused entry as restartable, so this re-issues the transfer.
         enqueue(spec)
     }
 

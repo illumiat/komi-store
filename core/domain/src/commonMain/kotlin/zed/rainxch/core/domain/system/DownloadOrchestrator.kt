@@ -17,6 +17,8 @@ interface DownloadOrchestrator {
 
     suspend fun resume(packageName: String)
 
+    suspend fun retry(packageName: String)
+
     suspend fun discard(packageName: String)
 
     suspend fun installPending(packageName: String): InstallOutcome?
