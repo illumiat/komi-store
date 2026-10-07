@@ -329,6 +329,7 @@ class DetailsRepositoryImpl(
         defaultBranch: String,
         sourceHost: String?,
         bypassCache: Boolean,
+        allowStale: Boolean,
     ): List<GithubRelease> {
         if (sourceHost != null) return getForgejoAllReleases(owner, repo, sourceHost)
         val cacheKey = "details:releases:$owner/$repo"
@@ -359,9 +360,11 @@ class DetailsRepositoryImpl(
             },
             onFailure = { e ->
                 if (!shouldFallbackToGithubOrRethrow(e, isSignedIn())) {
-                    cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
-                        logger.debug("Backend 4xx for releases $owner/$repo, serving stale cache")
-                        return stale
+                    if (allowStale) {
+                        cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
+                            logger.debug("Backend 4xx for releases $owner/$repo, serving stale cache")
+                            return stale
+                        }
                     }
                     throw e
                 }
@@ -398,17 +401,21 @@ class DetailsRepositoryImpl(
         } catch (e: SerializationException) {
 
             logger.error("Failed to parse releases for $owner/$repo: ${e.message}", e)
-            cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
-                logger.debug("Serving stale cache for releases $owner/$repo after parse failure")
-                return stale
+            if (allowStale) {
+                cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
+                    logger.debug("Serving stale cache for releases $owner/$repo after parse failure")
+                    return stale
+                }
             }
             throw e
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
-                logger.debug("Network error, using stale cache for releases $owner/$repo")
-                return stale
+            if (allowStale) {
+                cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
+                    logger.debug("Network error, using stale cache for releases $owner/$repo")
+                    return stale
+                }
             }
             throw e
         }

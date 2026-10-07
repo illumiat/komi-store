@@ -31,12 +31,16 @@ interface DetailsRepository {
         sourceHost: String? = null,
     ): GithubRelease?
 
+    // bypassCache skips the stored copy on the way in; allowStale=false is for a read the user
+    // explicitly asked for — on failure it throws instead of quietly serving that stored copy,
+    // so the caller can say the read did not happen.
     suspend fun getAllReleases(
         owner: String,
         repo: String,
         defaultBranch: String,
         sourceHost: String? = null,
         bypassCache: Boolean = false,
+        allowStale: Boolean = true,
     ): List<GithubRelease>
 
     // The copy the details page can paint before any network read, with the moment it was
