@@ -3,6 +3,7 @@ package zed.rainxch.details.domain.repository
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.account.github.GithubRepoSummary
 import zed.rainxch.core.domain.model.account.github.GithubUserProfile
+import zed.rainxch.details.domain.model.CachedReleases
 import zed.rainxch.details.domain.model.RepoStats
 
 typealias ReadmeContent = String
@@ -38,13 +39,13 @@ interface DetailsRepository {
         bypassCache: Boolean = false,
     ): List<GithubRelease>
 
-    // The copy the details page can paint before any network read; null when only a read
-    // can tell what the list currently is.
+    // The copy the details page can paint before any network read, with the moment it was
+    // stored; null when only a read can tell what the list currently is.
     suspend fun getCachedReleases(
         owner: String,
         repo: String,
         sourceHost: String? = null,
-    ): List<GithubRelease>?
+    ): CachedReleases?
 
     suspend fun getReadme(
         owner: String,
