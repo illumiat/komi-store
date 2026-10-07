@@ -309,19 +309,32 @@ class DetailsRepositoryImpl(
         }
     }
 
+    override suspend fun getCachedReleases(
+        owner: String,
+        repo: String,
+        sourceHost: String?,
+    ): List<GithubRelease>? {
+        if (sourceHost != null) return null
+        val cached = cacheManager.get<List<GithubRelease>>("details:releases:$owner/$repo")
+        return cached?.takeIf { it.isNotEmpty() }
+    }
+
     override suspend fun getAllReleases(
         owner: String,
         repo: String,
         defaultBranch: String,
         sourceHost: String?,
+        bypassCache: Boolean,
     ): List<GithubRelease> {
         if (sourceHost != null) return getForgejoAllReleases(owner, repo, sourceHost)
         val cacheKey = "details:releases:$owner/$repo"
 
-        cacheManager.get<List<GithubRelease>>(cacheKey)?.let { cached ->
-            if (cached.isNotEmpty()) {
-                logger.debug("Cache hit for all releases $owner/$repo: ${cached.size} releases")
-                return cached
+        if (!bypassCache) {
+            cacheManager.get<List<GithubRelease>>(cacheKey)?.let { cached ->
+                if (cached.isNotEmpty()) {
+                    logger.debug("Cache hit for all releases $owner/$repo: ${cached.size} releases")
+                    return cached
+                }
             }
         }
 

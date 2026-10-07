@@ -35,7 +35,16 @@ interface DetailsRepository {
         repo: String,
         defaultBranch: String,
         sourceHost: String? = null,
+        bypassCache: Boolean = false,
     ): List<GithubRelease>
+
+    // The copy the details page can paint before any network read; null when only a read
+    // can tell what the list currently is.
+    suspend fun getCachedReleases(
+        owner: String,
+        repo: String,
+        sourceHost: String? = null,
+    ): List<GithubRelease>?
 
     suspend fun getReadme(
         owner: String,
