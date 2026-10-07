@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import zed.rainxch.core.domain.logging.KomiStoreLogger
+import zed.rainxch.core.domain.model.apk.ApkPackageInfo
 import zed.rainxch.core.domain.model.installation.DeviceApp
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
@@ -18,6 +19,7 @@ import zed.rainxch.core.domain.model.installation.testInstalledApp
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
+import zed.rainxch.core.domain.system.InstallerInfoExtractor
 import zed.rainxch.core.domain.system.PackageMonitor
 
 // What a fake discard call carried: the sync has to decide against the path it observed, so the
@@ -42,7 +44,7 @@ class SyncInstalledAppsUseCaseParkTest {
             systemInfo = systemInfo(parked.packageName, versionName = "1.0.0", versionCode = 100L),
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertTrue(repo.discardedPackages.isEmpty(), "the park must not be discarded")
         assertTrue(repo.updatedApps.isEmpty(), "the record must be left as it was")
@@ -57,7 +59,7 @@ class SyncInstalledAppsUseCaseParkTest {
         val repo = RecordingInstalledAppsRepository(listOf(parked))
         val monitor = FakePackageMonitor(packageName = parked.packageName, systemInfo = null)
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertTrue(repo.updatedApps.isEmpty())
         assertTrue(repo.discardedPackages.isEmpty())
@@ -74,7 +76,7 @@ class SyncInstalledAppsUseCaseParkTest {
             lookupFails = true,
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertTrue(repo.updatedApps.isEmpty())
         assertTrue(repo.discardedPackages.isEmpty())
@@ -90,7 +92,7 @@ class SyncInstalledAppsUseCaseParkTest {
             systemInfo = systemInfo(parked.packageName, versionName = "2.0.0", versionCode = 200L),
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertFalse(repo.updatedApps.single().isPendingInstall)
         assertFalse(repo.updatedApps.single().isUpdateAvailable)
@@ -111,7 +113,7 @@ class SyncInstalledAppsUseCaseParkTest {
             systemInfo = systemInfo(parked.packageName, versionName = "3.0.0", versionCode = 300L),
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertEquals(listOf(parked.packageName), repo.discardedPackages)
     }
@@ -125,7 +127,7 @@ class SyncInstalledAppsUseCaseParkTest {
             systemInfo = systemInfo(parked.packageName, versionName = "1.0.0", versionCode = 100L),
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertTrue(repo.updatedApps.isEmpty(), "the record must be left as it was")
         assertTrue(repo.discardedPackages.isEmpty(), "the park must not be discarded")
@@ -140,7 +142,7 @@ class SyncInstalledAppsUseCaseParkTest {
             systemInfo = systemInfo(parked.packageName, versionName = "2.0.0", versionCode = 100L),
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertEquals("2.0.0", repo.updatedApps.single().installedVersion)
         assertEquals(listOf(parked.packageName), repo.discardedPackages)
@@ -162,7 +164,7 @@ class SyncInstalledAppsUseCaseParkTest {
                 setOf(tracked.packageName) + (1..19).map { "com.example.filler$it" },
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         // One ordered sequence, with the path that was passed in and the commit in front: a
         // regression that drops the row first, discards a path the caller never saw, or runs the
@@ -189,7 +191,7 @@ class SyncInstalledAppsUseCaseParkTest {
             allPackageNames = (1..20).map { "com.example.filler$it" }.toSet(),
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertEquals(listOf(abandoned.packageName), repo.discardedPackages)
         assertTrue(
@@ -218,7 +220,7 @@ class SyncInstalledAppsUseCaseParkTest {
                 setOf(tracked.packageName) + (1..19).map { "com.example.filler$it" },
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         // Even a row that names no park goes through the discard first, so a park written between
         // the scan and the delete still stops the row from going.
@@ -240,7 +242,7 @@ class SyncInstalledAppsUseCaseParkTest {
                 setOf(ready.packageName) + (1..19).map { "com.example.filler$it" },
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertTrue(repo.discardedPackages.isEmpty(), "the file is still what the user needs")
         assertEquals("/data/parked.apk", repo.apps.single().pendingInstallFilePath)
@@ -257,7 +259,7 @@ class SyncInstalledAppsUseCaseParkTest {
                 setOf(ready.packageName) + (1..19).map { "com.example.filler$it" },
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         // The row only carries the file, so the park is discarded (file and pointer together)
         // and the row itself stays.
@@ -278,7 +280,7 @@ class SyncInstalledAppsUseCaseParkTest {
                 setOf(orphaned.packageName) + (1..19).map { "com.example.filler$it" },
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertEquals(listOf(orphaned.packageName to false), repo.pendingStatusWrites)
         assertTrue(repo.discardedPackages.isEmpty())
@@ -296,13 +298,124 @@ class SyncInstalledAppsUseCaseParkTest {
             allPackageNames = (1..20).map { "com.example.filler$it" }.toSet(),
         )
 
-        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+        SyncInstalledAppsUseCase(monitor, repo, NoApkInfoExtractor, Platform.ANDROID, NoOpLogger)()
 
         assertTrue(repo.discardedPackages.isEmpty())
         assertTrue(repo.deletedPackages.isEmpty())
         assertTrue(repo.updatedApps.isEmpty())
         assertTrue(repo.pendingStatusWrites.isEmpty())
     }
+
+    @Test
+    fun aStrandedParkedFileGoesWhenTheSystemAlreadyRunsItsBuild() = runBlocking {
+        // The stranded shape from the device: the flag was lowered by a resolution whose file
+        // delete failed, and the gate can no longer re-derive a proof (the target is a rolling
+        // tag, the name did not move, and a cleared check left no code). The parked file itself
+        // still says it is obsolete: the system runs its build and was installed after the file
+        // was written.
+        val stranded =
+            testInstalledApp(
+                packageName = "zed.rainxch.githubstore",
+                installedVersion = "testbuild-all-prs-20261007",
+                installedVersionName = "1.9.3",
+                installedVersionCode = 22L,
+                latestVersion = "testbuild-all-prs-20261007",
+                latestVersionCode = null,
+                pendingInstallFilePath = "/data/parked.apk",
+                pendingInstallVersion = "testbuild-all-prs-20261007",
+                isPendingInstall = false,
+                installedAt = 1_000L,
+            )
+        val repo = RecordingInstalledAppsRepository(listOf(stranded))
+        val monitor = FakePackageMonitor(
+            packageName = stranded.packageName,
+            systemInfo = systemInfo(
+                stranded.packageName,
+                versionName = "1.9.3",
+                versionCode = 22L,
+                lastUpdateTime = 2_000L,
+            ),
+            allPackageNames =
+                setOf(stranded.packageName) + (1..19).map { "com.example.filler$it" },
+        )
+        val extractor = FakeApkInfoExtractor(
+            apkFile(
+                versionCode = 22L,
+                fileAt = 1_000L,
+                packageName = "zed.rainxch.githubstore",
+            ),
+        )
+
+        SyncInstalledAppsUseCase(monitor, repo, extractor, Platform.ANDROID, NoOpLogger)()
+
+        assertEquals(
+            listOf(DiscardCall(stranded.packageName, "/data/parked.apk")),
+            repo.discardCalls,
+        )
+        assertTrue(repo.deletedPackages.isEmpty(), "only the park goes, not the row")
+    }
+
+    @Test
+    fun aStrandedParkedFileSurvivesWhileTheSystemRunsAnOlderBuild() = runBlocking {
+        // The failed-or-cancelled install: the file is still the user's next install, so the
+        // sweep must keep it even though the flag is down.
+        val ready = parked(isPendingInstall = false, latestVersionCode = null)
+        val repo = RecordingInstalledAppsRepository(listOf(ready))
+        val monitor = FakePackageMonitor(
+            packageName = ready.packageName,
+            systemInfo = systemInfo(
+                ready.packageName,
+                versionName = "1.0.0",
+                versionCode = 100L,
+                lastUpdateTime = 2_000L,
+            ),
+            allPackageNames =
+                setOf(ready.packageName) + (1..19).map { "com.example.filler$it" },
+        )
+        val extractor = FakeApkInfoExtractor(apkFile(versionCode = 200L, fileAt = 1_000L))
+
+        SyncInstalledAppsUseCase(monitor, repo, extractor, Platform.ANDROID, NoOpLogger)()
+
+        assertTrue(repo.discardedPackages.isEmpty(), "the file is still what the user needs")
+        assertEquals("/data/parked.apk", repo.apps.single().pendingInstallFilePath)
+    }
+
+    @Test
+    fun aStrandedParkedFileSurvivesWhenTheSystemsInstallPredatesIt() = runBlocking {
+        // Same build on both sides, but the system's install predates the download: this is an
+        // install the user has not taken yet, not a landed one.
+        val ready = parked(isPendingInstall = false, latestVersionCode = null)
+        val repo = RecordingInstalledAppsRepository(listOf(ready))
+        val monitor = FakePackageMonitor(
+            packageName = ready.packageName,
+            systemInfo = systemInfo(
+                ready.packageName,
+                versionName = "1.0.0",
+                versionCode = 200L,
+                lastUpdateTime = 500L,
+            ),
+            allPackageNames =
+                setOf(ready.packageName) + (1..19).map { "com.example.filler$it" },
+        )
+        val extractor = FakeApkInfoExtractor(apkFile(versionCode = 200L, fileAt = 1_000L))
+
+        SyncInstalledAppsUseCase(monitor, repo, extractor, Platform.ANDROID, NoOpLogger)()
+
+        assertTrue(repo.discardedPackages.isEmpty())
+    }
+
+    private fun apkFile(
+        versionCode: Long,
+        fileAt: Long?,
+        packageName: String = "com.example.app",
+    ): ApkPackageInfo = ApkPackageInfo(
+        packageName = packageName,
+        versionName = "1.9.3",
+        versionCode = versionCode,
+        appName = "App",
+        signingFingerprint = "SHA",
+        fileLastModified = fileAt,
+    )
 
     private fun parked(
         packageName: String = "com.example.app",
@@ -331,12 +444,14 @@ class SyncInstalledAppsUseCaseParkTest {
         packageName: String,
         versionName: String,
         versionCode: Long,
+        lastUpdateTime: Long? = null,
     ): SystemPackageInfo = SystemPackageInfo(
         packageName = packageName,
         versionName = versionName,
         versionCode = versionCode,
         isInstalled = true,
         signingFingerprint = "SHA",
+        lastUpdateTime = lastUpdateTime,
     )
 
     private class FakePackageMonitor(
@@ -367,6 +482,16 @@ class SyncInstalledAppsUseCaseParkTest {
         override fun warn(message: String) = Unit
 
         override fun error(message: String, throwable: Throwable?) = Unit
+    }
+
+    private object NoApkInfoExtractor : InstallerInfoExtractor {
+        override suspend fun extractPackageInfo(filePath: String): ApkPackageInfo? = null
+    }
+
+    private class FakeApkInfoExtractor(
+        private val info: ApkPackageInfo?,
+    ) : InstallerInfoExtractor {
+        override suspend fun extractPackageInfo(filePath: String): ApkPackageInfo? = info
     }
 
     private class RecordingInstalledAppsRepository(initial: List<InstalledApp>) :
