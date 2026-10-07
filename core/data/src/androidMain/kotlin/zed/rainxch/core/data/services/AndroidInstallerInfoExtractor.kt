@@ -53,6 +53,7 @@ class AndroidInstallerInfoExtractor(
                     versionName = packageInfo.versionName ?: SystemPackageInfo.UNKNOWN_VERSION_NAME,
                     versionCode = versionCode,
                     signingFingerprint = fingerprint,
+                    fileLastModified = File(filePath).lastModified().takeIf { it > 0L },
                 )
             } catch (e: Exception) {
                 Logger.e { "Failed to extract APK info: ${e.message}, file: $filePath" }
