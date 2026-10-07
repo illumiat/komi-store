@@ -52,5 +52,11 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
             }
         }
+
+        jvmTest {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
     }
 }
