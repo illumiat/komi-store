@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.FileDownloadOff
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.stringResource
+import zed.rainxch.apps.presentation.isVersionDowngrade
 import zed.rainxch.core.domain.system.DownloadStage
 import zed.rainxch.core.domain.system.OrchestratedDownload
 import zed.rainxch.core.presentation.components.buttons.KomiButton
@@ -33,19 +37,28 @@ import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.utils.formatFileSize
 import zed.rainxch.githubstore.core.presentation.res.Res
-import zed.rainxch.githubstore.core.presentation.res.cancel
+import zed.rainxch.githubstore.core.presentation.res.apps_version_update
+import zed.rainxch.githubstore.core.presentation.res.delete_task
 import zed.rainxch.githubstore.core.presentation.res.dismiss
 import zed.rainxch.githubstore.core.presentation.res.download_failed
 import zed.rainxch.githubstore.core.presentation.res.downloading
 import zed.rainxch.githubstore.core.presentation.res.error_with_message
 import zed.rainxch.githubstore.core.presentation.res.install
 import zed.rainxch.githubstore.core.presentation.res.installing
+import zed.rainxch.githubstore.core.presentation.res.pause
+import zed.rainxch.githubstore.core.presentation.res.paused
 import zed.rainxch.githubstore.core.presentation.res.ready_to_install
+import zed.rainxch.githubstore.core.presentation.res.resume
+import zed.rainxch.githubstore.core.presentation.res.retry
 
 @Composable
 fun InProgressAppCard(
     download: OrchestratedDownload,
-    onCancel: () -> Unit,
+    installedVersion: String?,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onRetry: () -> Unit,
+    onDiscard: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -90,63 +103,55 @@ fun InProgressAppCard(
                 overflow = TextOverflow.Ellipsis,
             )
 
+            VersionLine(installedVersion = installedVersion, targetVersion = download.releaseTag)
+
             Spacer(Modifier.height(12.dp))
 
             when (download.stage) {
                 DownloadStage.Queued,
                 DownloadStage.Downloading,
                 -> {
-                    val percent = download.progressPercent
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        KomiText(
-                            text = stringResource(Res.string.downloading),
-                            role = KomiTextRole.Body,
-                            fontSize = 13.sp,
-                            color = colors.onSurface,
-                        )
-
-                        if (percent != null) {
-                            KomiText(
-                                text = "$percent%",
-                                role = KomiTextRole.Body,
-                                fontSize = 13.sp,
-                                uppercase = false,
-                                color = colors.onSurface,
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    KomiLinearProgress(
-                        progress = { (percent ?: 0) / 100f },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = colors.primary,
-                    )
-
-                    Spacer(Modifier.height(6.dp))
-
-                    KomiText(
-                        text = downloadSizeLabel(download),
-                        role = KomiTextRole.Body,
-                        fontSize = 12.sp,
-                        uppercase = false,
-                        color = colors.onSurfaceVariant,
-                    )
+                    ProgressBody(download = download, paused = false)
 
                     Spacer(Modifier.height(12.dp))
 
-                    KomiButton(
-                        onClick = onCancel,
-                        label = stringResource(Res.string.cancel),
-                        variant = KomiButtonVariant.Destructive,
-                        leadingIcon = Icons.Default.Cancel,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        KomiButton(
+                            onClick = onPause,
+                            label = stringResource(Res.string.pause),
+                            variant = KomiButtonVariant.Primary,
+                            leadingIcon = Icons.Default.Pause,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                    }
+                }
+
+                // The bar holds the value it stopped at rather than clearing: resuming picks up from
+                // exactly there.
+                DownloadStage.Paused -> {
+                    ProgressBody(download = download, paused = true)
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        KomiButton(
+                            onClick = onResume,
+                            label = stringResource(Res.string.resume),
+                            variant = KomiButtonVariant.Primary,
+                            leadingIcon = Icons.Default.PlayArrow,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                    }
                 }
 
                 DownloadStage.Installing -> {
@@ -172,13 +177,25 @@ fun InProgressAppCard(
                     // sit here spinning for good once the transfer has already succeeded.
                     Spacer(Modifier.height(12.dp))
 
-                    KomiButton(
-                        onClick = onDismiss,
-                        label = stringResource(Res.string.dismiss),
-                        variant = KomiButtonVariant.Destructive,
-                        leadingIcon = Icons.Default.Cancel,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        KomiButton(
+                            onClick = onDismiss,
+                            label = stringResource(Res.string.dismiss),
+                            variant = KomiButtonVariant.Outline,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        // Disabled: the installer is holding the file, so deleting the task now
+                        // would pull it out from under a live install.
+                        DeleteTaskButton(
+                            onClick = onDiscard,
+                            enabled = false,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
 
                 DownloadStage.AwaitingInstall -> {
@@ -193,13 +210,20 @@ fun InProgressAppCard(
 
                     Spacer(Modifier.height(12.dp))
 
-                    KomiButton(
-                        onClick = onInstall,
-                        label = stringResource(Res.string.install),
-                        variant = KomiButtonVariant.Primary,
-                        leadingIcon = Icons.Default.Update,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        KomiButton(
+                            onClick = onInstall,
+                            label = stringResource(Res.string.install),
+                            variant = KomiButtonVariant.Primary,
+                            leadingIcon = Icons.Default.Update,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                    }
                 }
 
                 DownloadStage.Failed -> {
@@ -217,11 +241,29 @@ fun InProgressAppCard(
 
                     Spacer(Modifier.height(12.dp))
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        KomiButton(
+                            onClick = onRetry,
+                            label = stringResource(Res.string.retry),
+                            variant = KomiButtonVariant.Primary,
+                            leadingIcon = Icons.Default.Refresh,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        DeleteTaskButton(onClick = onDiscard, modifier = Modifier.weight(1f))
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Dismissing only clears the card from the list; it deletes nothing. Weak
+                    // on purpose next to retry and delete.
                     KomiButton(
                         onClick = onDismiss,
                         label = stringResource(Res.string.dismiss),
-                        variant = KomiButtonVariant.Destructive,
-                        leadingIcon = Icons.Default.Cancel,
+                        variant = KomiButtonVariant.Text,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -234,6 +276,98 @@ fun InProgressAppCard(
             }
         }
     }
+}
+
+@Composable
+private fun VersionLine(installedVersion: String?, targetVersion: String) {
+    val colors = LocalPersonality.current.colors
+    val isDowngrade = isVersionDowngrade(installedVersion, targetVersion)
+    val text =
+        if (installedVersion.isNullOrBlank()) {
+            targetVersion
+        } else {
+            stringResource(Res.string.apps_version_update, installedVersion, targetVersion)
+        }
+
+    Spacer(Modifier.height(2.dp))
+
+    KomiText(
+        text = text,
+        role = KomiTextRole.Body,
+        fontSize = 13.sp,
+        uppercase = false,
+        color = if (isDowngrade) DowngradeWarningColor else colors.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun ProgressBody(
+    download: OrchestratedDownload,
+    paused: Boolean,
+) {
+    val colors = LocalPersonality.current.colors
+    val percent = download.progressPercent
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        KomiText(
+            text = stringResource(if (paused) Res.string.paused else Res.string.downloading),
+            role = KomiTextRole.Body,
+            fontSize = 13.sp,
+            color = if (paused) colors.onSurfaceVariant else colors.onSurface,
+        )
+
+        if (percent != null) {
+            KomiText(
+                text = "$percent%",
+                role = KomiTextRole.Body,
+                fontSize = 13.sp,
+                uppercase = false,
+                color = colors.onSurface,
+            )
+        }
+    }
+
+    Spacer(Modifier.height(4.dp))
+
+    KomiLinearProgress(
+        progress = { (percent ?: 0) / 100f },
+        modifier = Modifier.fillMaxWidth(),
+        color = if (paused) colors.onSurfaceVariant else colors.primary,
+    )
+
+    Spacer(Modifier.height(6.dp))
+
+    KomiText(
+        text = downloadSizeLabel(download),
+        role = KomiTextRole.Body,
+        fontSize = 12.sp,
+        uppercase = false,
+        color = colors.onSurfaceVariant,
+    )
+}
+
+// "Delete task" is not the trash glyph: that one belongs to uninstall. This drops the download and
+// its partial, never the installed app, and always carries its wording.
+@Composable
+private fun DeleteTaskButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    KomiButton(
+        onClick = onClick,
+        label = stringResource(Res.string.delete_task),
+        variant = KomiButtonVariant.Destructive,
+        enabled = enabled,
+        leadingIcon = Icons.Default.FileDownloadOff,
+        modifier = modifier,
+    )
 }
 
 private fun downloadSizeLabel(download: OrchestratedDownload): String {

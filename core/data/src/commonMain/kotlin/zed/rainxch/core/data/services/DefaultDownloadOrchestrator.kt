@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import zed.rainxch.core.data.data_source.TokenStore
 import zed.rainxch.core.data.network.GithubAssetAuth
+import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.installation.DownloadProgress
 import zed.rainxch.core.domain.model.installation.markPending
 import zed.rainxch.core.domain.model.installation.withLatestSnapshot
@@ -72,7 +73,8 @@ class DefaultDownloadOrchestrator(
         stateMutex.withLock {
             val existing = _downloads.value[spec.packageName]
             if (existing != null && existing.stage != DownloadStage.Failed &&
-                existing.stage != DownloadStage.Cancelled
+                existing.stage != DownloadStage.Cancelled &&
+                existing.stage != DownloadStage.Paused
             ) {
                 if (existing.installPolicy != spec.installPolicy &&
                     existing.installPolicy.priority < spec.installPolicy.priority
@@ -95,6 +97,8 @@ class DefaultDownloadOrchestrator(
                 displayAppName = spec.displayAppName,
                 assetName = spec.asset.name,
                 assetSize = spec.asset.size,
+                assetId = spec.asset.id,
+                assetDigest = spec.asset.digest,
                 downloadUrl = spec.asset.downloadUrl,
                 releaseTag = spec.releaseTag,
                 filePath = null,
@@ -409,7 +413,7 @@ class DefaultDownloadOrchestrator(
         stateMutex.withLock {
             val existing = _downloads.value[packageName] ?: return
             when (existing.stage) {
-                DownloadStage.Queued, DownloadStage.Downloading -> {
+                DownloadStage.Queued, DownloadStage.Downloading, DownloadStage.Paused -> {
                     _downloads.update { state ->
                         state + (
                             packageName to existing.copy(
@@ -508,14 +512,61 @@ class DefaultDownloadOrchestrator(
             }
         }
 
+        // Do not remove the entry: Paused keeps the bytes, the progress and the file path so the
+        // user still sees the download and can continue it. [discard] is what removes it.
         stateMutex.withLock {
-            _downloads.update { it - packageName }
+            _downloads.update { state ->
+                val current = state[packageName] ?: return@update state
+                state + (packageName to current.copy(stage = DownloadStage.Paused))
+            }
         }
+    }
+
+    override suspend fun resume(packageName: String) {
+        val entry = _downloads.value[packageName] ?: return
+        if (entry.stage != DownloadStage.Paused) return
+        restart(entry)
+    }
+
+    override suspend fun retry(packageName: String) {
+        val entry = _downloads.value[packageName] ?: return
+        if (entry.stage != DownloadStage.Failed) return
+        restart(entry)
+    }
+
+    // Shared by resume and retry: both re-issue the transfer from the entry's own fields. enqueue
+    // treats a Paused or Failed entry as restartable, so the only difference is which stage is
+    // allowed in.
+    private suspend fun restart(entry: OrchestratedDownload) {
+        val spec =
+            DownloadSpec(
+                packageName = entry.packageName,
+                repoOwner = entry.repoOwner,
+                repoName = entry.repoName,
+                asset =
+                    GithubAsset(
+                        id = entry.assetId,
+                        name = entry.assetName,
+                        contentType = "",
+                        size = entry.assetSize,
+                        downloadUrl = entry.downloadUrl,
+                        digest = entry.assetDigest,
+                    ),
+                displayAppName = entry.displayAppName,
+                installPolicy = entry.installPolicy,
+                releaseTag = entry.releaseTag,
+            )
+        enqueue(spec)
     }
 
     override suspend fun discard(packageName: String) {
         val entry = _downloads.value[packageName]
+        // Keep the bytes: stop the transfer and clear the parked install.
         cancel(packageName)
+        // Only then forget the entry, which cancel deliberately no longer does.
+        stateMutex.withLock {
+            _downloads.update { it - packageName }
+        }
         if (entry != null) {
             val scopedName =
                 AssetFileName.scoped(entry.repoOwner, entry.repoName, entry.assetName)

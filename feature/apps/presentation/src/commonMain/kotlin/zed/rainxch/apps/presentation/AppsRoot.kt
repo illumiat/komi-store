@@ -369,6 +369,16 @@ fun AppsScreen(
                                 val appGridCells =
                                     rememberWidthCappedGridCells(contentPadding = appGridPadding)
 
+                                // Installed versions for the card's version line. A download with
+                                // no row is keyed "owner/name" and never matches, so it reads null
+                                // and the line shows just the target version.
+                                val installedVersions =
+                                    remember(state.apps) {
+                                        state.apps.associate {
+                                            it.installedApp.packageName to it.installedApp.installedVersion
+                                        }
+                                    }
+
                                 LazyVerticalGrid(
                                     columns = appGridCells,
                                     state = listState,
@@ -400,12 +410,37 @@ fun AppsScreen(
                                         ) { download ->
                                             // download.packageName is the orchestrator registry
                                             // key ("owner/name" for a not-yet-installed app), which
-                                            // is what the three actions are addressed by.
+                                            // is what the actions are addressed by. A card for an
+                                            // app with a row joins its installed version in for the
+                                            // downgrade line; a fresh install has no row, hence null.
                                             InProgressAppCard(
                                                 download = download,
-                                                onCancel = {
+                                                installedVersion =
+                                                    installedVersions[download.packageName],
+                                                onPause = {
                                                     onAction(
                                                         AppsAction.OnCancelInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onResume = {
+                                                    onAction(
+                                                        AppsAction.OnResumeInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onRetry = {
+                                                    onAction(
+                                                        AppsAction.OnRetryInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onDiscard = {
+                                                    onAction(
+                                                        AppsAction.OnDiscardInProgressDownload(
                                                             download.packageName,
                                                         ),
                                                     )
@@ -590,13 +625,6 @@ private fun AppItemCardWithActions(
                 )
             )
         },
-        onCancelClick = {
-            onAction(
-                AppsAction.OnCancelUpdate(
-                    appItem.installedApp.packageName
-                )
-            )
-        },
         onUninstallClick = {
             onAction(
                 AppsAction.OnUninstallApp(
@@ -716,7 +744,6 @@ private fun CompactAppRowWithActions(
             onAction(AppsAction.OnToggleUpdateCheck(app.packageName, enabled))
         },
         onUnskipVersionClick = { onAction(AppsAction.OnUnskipReleaseTag(app.packageName)) },
-        onCancelClick = { onAction(AppsAction.OnCancelUpdate(app.packageName)) },
         onRowClick = { onRowSelect(app) },
         framed = framed,
     )

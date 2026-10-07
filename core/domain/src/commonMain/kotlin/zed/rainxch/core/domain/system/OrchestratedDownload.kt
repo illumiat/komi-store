@@ -8,6 +8,10 @@ data class OrchestratedDownload(
     val displayAppName: String,
     val assetName: String,
     val assetSize: Long,
+
+    val assetId: Long = 0L,
+    val assetDigest: String? = null,
+
     val downloadUrl: String,
     val releaseTag: String,
 
