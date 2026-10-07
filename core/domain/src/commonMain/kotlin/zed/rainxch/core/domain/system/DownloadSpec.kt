@@ -10,6 +10,8 @@ data class DownloadSpec(
 
     val repoName: String,
 
+    val repoOwnerAvatarUrl: String? = null,
+
     val asset: GithubAsset,
 
     val displayAppName: String,

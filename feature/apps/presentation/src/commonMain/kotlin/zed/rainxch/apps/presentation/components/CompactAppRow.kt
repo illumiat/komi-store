@@ -131,6 +131,7 @@ fun CompactAppRow(
                     .size(48.dp)
                     .clip(RoundedCornerShape(shape.corner)),
             apkFilePath = app.pendingInstallFilePath,
+            avatarFallbackUrl = app.repoOwnerAvatarUrl,
         )
 
         Column(modifier = Modifier.weight(1f)) {
