@@ -2632,21 +2632,34 @@ class DetailsViewModel(
 
                 val allReleasesDeferred =
                     async {
-                        try {
-                            detailsRepository.getAllReleases(
+                        val cachedReleases =
+                            detailsRepository.getCachedReleases(
                                 owner = owner,
                                 repo = name,
-                                defaultBranch = repo.defaultBranch,
                                 sourceHost = sourceHostParam,
-                            ) to false
+                            )
+                        if (cachedReleases != null) {
+                            return@async Triple(cachedReleases, false, true)
+                        }
+                        try {
+                            Triple(
+                                detailsRepository.getAllReleases(
+                                    owner = owner,
+                                    repo = name,
+                                    defaultBranch = repo.defaultBranch,
+                                    sourceHost = sourceHostParam,
+                                ),
+                                false,
+                                false,
+                            )
                         } catch (_: RateLimitException) {
                             rateLimited.set(true)
-                            emptyList<GithubRelease>() to true
+                            Triple(emptyList<GithubRelease>(), true, false)
                         } catch (e: CancellationException) {
                             throw e
                         } catch (t: Throwable) {
                             logger.warn("Failed to load releases: ${t.message}")
-                            emptyList<GithubRelease>() to true
+                            Triple(emptyList<GithubRelease>(), true, false)
                         }
                     }
 
@@ -2737,7 +2750,7 @@ class DetailsViewModel(
                 val isObtainiumEnabled = platform == Platform.ANDROID
                 val isAppManagerEnabled = platform == Platform.ANDROID
 
-                val (allReleases, releasesFailed) = allReleasesDeferred.await()
+                val (allReleases, releasesFailed, releasesFromCache) = allReleasesDeferred.await()
                 val stats = statsDeferred.await()
                 val readme = readmeDeferred.await()
                 val userProfile = userProfileDeferred.await()
@@ -2842,6 +2855,10 @@ class DetailsViewModel(
                             insights.latestStableHasInstallableAsset,
                     )
 
+                if (releasesFromCache) {
+                    revalidateReleases()
+                }
+
                 observeInstalledApp(repo.id)
 
                 maybeAutoTranslate(
@@ -2876,6 +2893,76 @@ class DetailsViewModel(
                         isLoading = false,
                         errorMessage = t.message ?: getString(Res.string.failed_to_load_details),
                     )
+            }
+        }
+    }
+
+    // The first paint can come from a cached copy that is hours old — the release behind it may
+    // have been edited or rebuilt in that window, and the page would keep showing the old text
+    // until the cache expired. When the load was served from the cache, quietly read the list
+    // once more and converge to it; the pull-to-refresh stays as the way to force the
+    // repository itself, not as the only way to see a rebuilt release.
+    private fun revalidateReleases() {
+        val repo = _state.value.repository ?: return
+        viewModelScope.launch {
+            try {
+                val freshReleases =
+                    detailsRepository.getAllReleases(
+                        owner = repo.owner.login,
+                        repo = repo.name,
+                        defaultBranch = repo.defaultBranch,
+                        sourceHost = sourceHostParam,
+                        bypassCache = true,
+                    )
+                if (freshReleases.isEmpty()) return@launch
+
+                val previousSelected = _state.value.selectedRelease
+                val previousCategory = _state.value.selectedReleaseCategory
+                val carried =
+                    previousSelected?.let { prev ->
+                        freshReleases.firstOrNull { it.id == prev.id }
+                            ?: freshReleases.firstOrNull { it.tagName == prev.tagName }
+                    }
+                val selectedRelease =
+                    carried
+                        ?: freshReleases.firstInCategory(previousCategory)
+                        ?: freshReleases.firstOrNull { !it.isEffectivelyPreRelease() }
+                        ?: freshReleases.firstOrNull()
+
+                val resolvedCategory = when {
+                    carried != null -> previousCategory
+                    selectedRelease?.isEffectivelyPreRelease() == true -> ReleaseCategory.PRE_RELEASE
+                    selectedRelease != null -> ReleaseCategory.STABLE
+                    else -> previousCategory
+                }
+
+                val (installable, primary) = recomputeAssetsForRelease(
+                    selectedRelease,
+                    _state.value.installedApp,
+                )
+                val insights = computeReleaseInsights(freshReleases, _state.value.installedApp)
+
+                _state.update {
+                    it.copy(
+                        allReleases = freshReleases,
+                        releasePlatforms = platformsByRelease(freshReleases),
+                        deviceBuildReleaseIds = deviceBuildReleaseIds(freshReleases),
+                        releaseLines = releaseLines(freshReleases),
+                        selectedRelease = selectedRelease,
+                        selectedReleaseCategory = resolvedCategory,
+                        installableAssets = installable,
+                        primaryAsset = primary,
+                        stalledStableSinceDays = insights.stalledStableSinceDays,
+                        mergedChangelog = insights.mergedChangelog,
+                        mergedChangelogBaseTag = insights.mergedChangelogBaseTag,
+                        latestStableHasInstallableAsset =
+                            insights.latestStableHasInstallableAsset,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                logger.debug("Release re-read failed for ${repo.name}: ${t.message}")
             }
         }
     }
