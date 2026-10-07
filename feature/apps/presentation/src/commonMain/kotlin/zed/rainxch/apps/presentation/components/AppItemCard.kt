@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Update
@@ -44,7 +44,6 @@ import zed.rainxch.core.presentation.components.inputs.KomiCheckbox
 import zed.rainxch.core.presentation.components.overlays.KomiDropdown
 import zed.rainxch.core.presentation.components.overlays.KomiMenuItem
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
-import zed.rainxch.core.presentation.components.progress.KomiLinearProgress
 import zed.rainxch.core.presentation.components.surfaces.KomiSurface
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
@@ -56,10 +55,8 @@ import zed.rainxch.githubstore.core.presentation.res.apps_ignore_updates
 import zed.rainxch.githubstore.core.presentation.res.apps_menu_item_active
 import zed.rainxch.githubstore.core.presentation.res.apps_skip_version
 import zed.rainxch.githubstore.core.presentation.res.apps_skip_version_unskip
-import zed.rainxch.githubstore.core.presentation.res.cancel
 import zed.rainxch.githubstore.core.presentation.res.checking
-import zed.rainxch.githubstore.core.presentation.res.discard_pending_install
-import zed.rainxch.githubstore.core.presentation.res.downloading
+import zed.rainxch.githubstore.core.presentation.res.delete_task
 import zed.rainxch.githubstore.core.presentation.res.error_with_message
 import zed.rainxch.githubstore.core.presentation.res.install
 import zed.rainxch.githubstore.core.presentation.res.installing
@@ -79,7 +76,6 @@ fun AppItemCard(
     appItem: AppItem,
     onOpenClick: () -> Unit,
     onUpdateClick: () -> Unit,
-    onCancelClick: () -> Unit,
     onUninstallClick: () -> Unit,
     onRepoClick: () -> Unit,
     onTogglePreReleases: (Boolean) -> Unit,
@@ -385,39 +381,9 @@ fun AppItemCard(
             Spacer(Modifier.height(12.dp))
 
             when (val state = appItem.updateState) {
-                is UpdateState.Downloading -> {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            KomiText(
-                                text = stringResource(Res.string.downloading),
-                                role = KomiTextRole.Body,
-                                fontSize = 13.sp,
-                                color = colors.onSurface,
-                            )
-
-                            if (appItem.downloadProgress != null) {
-                                KomiText(
-                                    text = "${appItem.downloadProgress}%",
-                                    role = KomiTextRole.Body,
-                                    fontSize = 13.sp,
-                                    uppercase = false,
-                                    color = colors.onSurface,
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(4.dp))
-
-                        KomiLinearProgress(
-                            progress = { (appItem.downloadProgress ?: 0) / 100f },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = colors.primary,
-                        )
-                    }
-                }
+                // A running download lives on the "in progress" card, and this row is hidden while
+                // it does, so there is no progress to draw here any more.
+                is UpdateState.Downloading -> {}
 
                 is UpdateState.Installing -> {
                     Row(
@@ -512,68 +478,54 @@ fun AppItemCard(
                     }
                 }
 
-                when (appItem.updateState) {
-                    is UpdateState.Downloading, is UpdateState.Installing, is UpdateState.CheckingUpdate -> {
-                        KomiButton(
-                            onClick = onCancelClick,
-                            label = stringResource(Res.string.cancel),
-                            variant = KomiButtonVariant.Destructive,
-                            leadingIcon = Icons.Default.Cancel,
-                            modifier = Modifier.weight(1f),
+                if (app.pendingInstallFilePath != null) {
+                    KomiButton(
+                        onClick = onInstallPendingClick,
+                        label = stringResource(Res.string.install),
+                        variant = KomiButtonVariant.Primary,
+                        leadingIcon = Icons.Default.Update,
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    val deleteTaskDescription =
+                        stringResource(Res.string.delete_task)
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable(onClick = onDiscardPendingClick),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        KomiIcon(
+                            imageVector = Icons.Default.FileDownloadOff,
+                            contentDescription = deleteTaskDescription,
+                            tint = colors.onSurfaceVariant,
                         )
                     }
-
-                    else -> {
-                        if (app.pendingInstallFilePath != null) {
-                            KomiButton(
-                                onClick = onInstallPendingClick,
-                                label = stringResource(Res.string.install),
-                                variant = KomiButtonVariant.Primary,
-                                leadingIcon = Icons.Default.Update,
-                                modifier = Modifier.weight(1f),
-                            )
-
-                            val discardDescription =
-                                stringResource(Res.string.discard_pending_install)
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clickable(onClick = onDiscardPendingClick),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                KomiIcon(
-                                    imageVector = Icons.Default.Cancel,
-                                    contentDescription = discardDescription,
-                                    tint = colors.onSurfaceVariant,
-                                )
-                            }
-                        } else if (app.isUpdateAvailable && !app.isPendingInstall) {
-                            KomiButton(
-                                onClick = onUpdateClick,
-                                label = stringResource(Res.string.update),
-                                variant = KomiButtonVariant.Primary,
-                                leadingIcon = Icons.Default.Update,
-                                modifier = Modifier.weight(1f),
-                            )
-                        } else if (app.isPendingInstall) {
-                            KomiButton(
-                                onClick = onDiscardPendingClick,
-                                label = stringResource(Res.string.discard_pending_install),
-                                variant = KomiButtonVariant.Destructive,
-                                leadingIcon = Icons.Default.Cancel,
-                                modifier = Modifier.weight(1f),
-                            )
-                        } else {
-                            KomiButton(
-                                onClick = onOpenClick,
-                                label = stringResource(Res.string.open),
-                                variant = KomiButtonVariant.Primary,
-                                leadingIcon = Icons.AutoMirrored.Filled.OpenInNew,
-                                enabled = !appItem.isBusy,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
+                } else if (app.isUpdateAvailable && !app.isPendingInstall) {
+                    KomiButton(
+                        onClick = onUpdateClick,
+                        label = stringResource(Res.string.update),
+                        variant = KomiButtonVariant.Primary,
+                        leadingIcon = Icons.Default.Update,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else if (app.isPendingInstall) {
+                    KomiButton(
+                        onClick = onDiscardPendingClick,
+                        label = stringResource(Res.string.delete_task),
+                        variant = KomiButtonVariant.Destructive,
+                        leadingIcon = Icons.Default.FileDownloadOff,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    KomiButton(
+                        onClick = onOpenClick,
+                        label = stringResource(Res.string.open),
+                        variant = KomiButtonVariant.Primary,
+                        leadingIcon = Icons.AutoMirrored.Filled.OpenInNew,
+                        enabled = !appItem.isBusy,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
