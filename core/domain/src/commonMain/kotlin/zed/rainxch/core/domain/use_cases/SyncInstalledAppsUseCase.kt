@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import zed.rainxch.core.domain.logging.KomiStoreLogger
+import zed.rainxch.core.domain.model.apk.ApkPackageInfo
 import zed.rainxch.core.domain.model.installation.BindingStatus
 import zed.rainxch.core.domain.model.installation.DeviceChange
 import zed.rainxch.core.domain.model.installation.InstalledApp
@@ -19,11 +20,32 @@ import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.model.installation.withMigratedVersionInfo
 import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
+import zed.rainxch.core.domain.system.InstallerInfoExtractor
 import zed.rainxch.core.domain.system.PackageMonitor
+
+// The surviving proof for a stale parked file, next to the resolution gate the row's park was
+// admitted under: the system running the file's build (or a newer one), installed after the file
+// finished writing, means the download has served its purpose — the bytes are on the device as an
+// app, not just on disk as a file. A file whose build is newer than the system, or that predates
+// the system's last install, is still what the user may install, so it stays.
+internal fun parkedFileSuperseded(
+    packageName: String,
+    file: ApkPackageInfo,
+    system: SystemPackageInfo?,
+): Boolean {
+    if (system == null || !system.isInstalled) return false
+    if (file.packageName != packageName) return false
+    if (file.versionCode <= 0L || system.versionCode <= 0L) return false
+    if (system.versionCode < file.versionCode) return false
+    val installedAt = system.lastUpdateTime ?: return false
+    val fileAt = file.fileLastModified ?: return false
+    return installedAt >= fileAt
+}
 
 class SyncInstalledAppsUseCase(
     private val packageMonitor: PackageMonitor,
     private val installedAppsRepository: InstalledAppsRepository,
+    private val apkInfoExtractor: InstallerInfoExtractor,
     private val platform: Platform,
     private val logger: KomiStoreLogger,
 ) {
@@ -166,7 +188,16 @@ class SyncInstalledAppsUseCase(
             // the pointer, and the UI still shows the file as ready to install), so the file only
             // goes when the system proves the target build already landed there.
             val resolution = app.pendingInstallResolution(systemInfoByPackage[app.packageName])
-            if (resolution !is PendingInstallResolution.Reached) {
+            val landed = resolution is PendingInstallResolution.Reached
+            // The gate's proof is re-derived from data that can stop existing: the version name
+            // did not move, the target is a rolling tag no name can match, and a cleared check
+            // can leave no code behind either. A landing that was already proven once must not
+            // strand its file just because the proof cannot be written twice: the parked file
+            // itself still shows the system now runs its build, installed after it was written.
+            val superseded =
+                !landed &&
+                    parkedFileSupersededBySystem(app, systemInfoByPackage[app.packageName])
+            if (!landed && !superseded) {
                 logger.info(
                     "Kept parked file for ${app.packageName}: the target is not proven on the system",
                 )
@@ -176,7 +207,7 @@ class SyncInstalledAppsUseCase(
                 packageName = app.packageName,
                 expectedPath = app.pendingInstallFilePath,
                 deleteRow = false,
-                reason = "stale parked file",
+                reason = if (landed) "stale parked file" else "superseded parked file",
             )
             logger.info("Queued stale parked install for discard: ${app.packageName}")
         }
@@ -222,6 +253,23 @@ class SyncInstalledAppsUseCase(
                 "${toSyncVersions.size} version-checked, " +
                 "${toClearStaleParkedFile.size} stale parked files checked",
         )
+    }
+
+    private suspend fun parkedFileSupersededBySystem(
+        app: InstalledApp,
+        systemInfo: SystemPackageInfo?,
+    ): Boolean {
+        val path = app.pendingInstallFilePath ?: return false
+        val fileInfo =
+            try {
+                apkInfoExtractor.extractPackageInfo(path)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn("Could not inspect the parked file for ${app.packageName}: ${e.message}")
+                null
+            } ?: return false
+        return parkedFileSuperseded(app.packageName, fileInfo, systemInfo)
     }
 
     private fun guardUntrustworthyScan(
