@@ -94,6 +94,7 @@ class DefaultDownloadOrchestrator(
                 packageName = spec.packageName,
                 repoOwner = spec.repoOwner,
                 repoName = spec.repoName,
+                repoOwnerAvatarUrl = spec.repoOwnerAvatarUrl,
                 displayAppName = spec.displayAppName,
                 assetName = spec.asset.name,
                 assetSize = spec.asset.size,
@@ -543,6 +544,7 @@ class DefaultDownloadOrchestrator(
                 packageName = entry.packageName,
                 repoOwner = entry.repoOwner,
                 repoName = entry.repoName,
+                repoOwnerAvatarUrl = entry.repoOwnerAvatarUrl,
                 asset =
                     GithubAsset(
                         id = entry.assetId,

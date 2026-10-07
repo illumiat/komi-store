@@ -115,6 +115,7 @@ fun AppItemCard(
                             .size(64.dp)
                             .clip(RoundedCornerShape(shape.corner)),
                     apkFilePath = app.pendingInstallFilePath,
+                    avatarFallbackUrl = app.repoOwnerAvatarUrl,
                 )
 
                 Column(modifier = Modifier.weight(1f).fillMaxWidth()) {

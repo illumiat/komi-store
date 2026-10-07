@@ -27,6 +27,7 @@ import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.apps.presentation.isVersionDowngrade
 import zed.rainxch.core.domain.system.DownloadStage
 import zed.rainxch.core.domain.system.OrchestratedDownload
+import zed.rainxch.core.presentation.components.InstalledAppIcon
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
@@ -73,35 +74,54 @@ fun InProgressAppCard(
                     .clip(RoundedCornerShape(shape.corner))
                     .padding(16.dp),
         ) {
-            KomiText(
-                text = download.displayAppName,
-                role = KomiTextRole.Title,
-                color = colors.onSurface,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                uppercase = false,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                InstalledAppIcon(
+                    packageName = download.packageName,
+                    appName = download.displayAppName,
+                    modifier =
+                        Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(shape.corner)),
+                    apkFilePath = download.filePath,
+                    avatarFallbackUrl = download.repoOwnerAvatarUrl,
+                )
 
-            KomiText(
-                text = "${download.repoOwner}/${download.repoName}",
-                role = KomiTextRole.Body,
-                fontSize = 13.sp,
-                uppercase = false,
-                color = colors.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+                Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    KomiText(
+                        text = download.displayAppName,
+                        role = KomiTextRole.Title,
+                        color = colors.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        uppercase = false,
+                    )
 
-            KomiText(
-                text = download.assetName,
-                role = KomiTextRole.Body,
-                fontSize = 13.sp,
-                uppercase = false,
-                color = colors.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+                    KomiText(
+                        text = "${download.repoOwner}/${download.repoName}",
+                        role = KomiTextRole.Body,
+                        fontSize = 13.sp,
+                        uppercase = false,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    KomiText(
+                        text = download.assetName,
+                        role = KomiTextRole.Body,
+                        fontSize = 13.sp,
+                        uppercase = false,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
 
             VersionLine(installedVersion = installedVersion, targetVersion = download.releaseTag)
 
