@@ -93,6 +93,10 @@ fun CompactAppRow(
     val shape = LocalPersonality.current.shape
     val rowShape = RoundedCornerShape(shape.corner)
 
+    // A parked row shows "installed → parked target" so a rollback reads clearly; every other row
+    // keeps its installed version exactly as before.
+    val showVersionMigration = app.isPendingInstall && appItem.versionTargetVersion != null
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -149,10 +153,15 @@ fun CompactAppRow(
                 app.sourceHost?.let { SourceChip(host = it) }
 
                 KomiText(
-                    text = app.installedVersion,
+                    text = if (showVersionMigration) appItem.versionLabel else app.installedVersion,
                     role = KomiTextRole.Body,
                     fontSize = 13.sp,
-                    color = colors.onSurfaceVariant,
+                    color =
+                        if (showVersionMigration && appItem.isVersionDowngrade) {
+                            DowngradeWarningColor
+                        } else {
+                            colors.onSurfaceVariant
+                        },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),

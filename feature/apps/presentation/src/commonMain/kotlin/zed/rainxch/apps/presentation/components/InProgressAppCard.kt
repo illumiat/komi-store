@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,11 +50,6 @@ import zed.rainxch.githubstore.core.presentation.res.paused
 import zed.rainxch.githubstore.core.presentation.res.ready_to_install
 import zed.rainxch.githubstore.core.presentation.res.resume
 import zed.rainxch.githubstore.core.presentation.res.retry
-
-// A warning colour for a download that moves the app backwards. Deliberately not the personality's
-// error colour: the theme and personality swap the palette, and this signal has to read the same
-// in all of them.
-private val DowngradeWarningColor = Color(0xFFD32F2F)
 
 @Composable
 fun InProgressAppCard(
