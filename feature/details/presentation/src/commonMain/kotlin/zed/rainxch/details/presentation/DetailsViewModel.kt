@@ -2984,24 +2984,17 @@ class DetailsViewModel(
     @OptIn(ExperimentalTime::class)
     private fun refresh() {
         if (_state.value.isRefreshing) return
-        val nowMs = System.now().toEpochMilliseconds()
-        _state.value.refreshCooldownUntilEpochMs?.let { cooldownUntil ->
-            if (cooldownUntil > nowMs) {
-                val remaining = ((cooldownUntil - nowMs + 999) / 1000)
-                viewModelScope.launch {
-                    _events.send(
-                        DetailsEvent.OnRefreshError(
-                            kind = RefreshError.COOLDOWN,
-                            retryAfterSeconds = remaining,
-                        ),
-                    )
-                }
-                return
-            }
-        }
         val repo = _state.value.repository ?: return
         val owner = repo.owner.login
         val name = repo.name
+
+        // The user asked for a read, so it must end in one of two ways: the list on screen is
+        // the repository's, or the user is told the read did not happen. The backend re-poll
+        // (cooldown- and budget-gated) is best-effort: it can only skip refreshing the
+        // repository block itself, never the releases.
+        val nowMs = System.now().toEpochMilliseconds()
+        val cooledDown =
+            _state.value.refreshCooldownUntilEpochMs?.let { it > nowMs } == true
 
         _state.update { it.copy(isRefreshing = true) }
         viewModelScope.launch {
@@ -3013,8 +3006,32 @@ class DetailsViewModel(
                         name = name,
                         sourceHost = sourceHostParam,
                     )
+                } else if (cooledDown) {
+                    repo
                 } else {
-                    detailsRepository.refreshRepository(owner, name)
+                    try {
+                        detailsRepository.refreshRepository(owner, name)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: RefreshException) {
+                        logger.warn("Refresh: repository re-poll failed (${e.kind}): ${e.message}")
+                        val cooldownUntil = e.retryAfterSeconds?.let { sec ->
+                            nowMs + sec * 1000L
+                        }
+                        _state.update {
+                            it.copy(
+                                refreshCooldownUntilEpochMs =
+                                    if (e.kind == RefreshError.COOLDOWN ||
+                                        e.kind == RefreshError.BUDGET_EXHAUSTED
+                                    ) {
+                                        cooldownUntil ?: it.refreshCooldownUntilEpochMs
+                                    } else {
+                                        it.refreshCooldownUntilEpochMs
+                                    },
+                            )
+                        }
+                        repo
+                    }
                 }
                 val releasesDeferred = async {
                     try {
@@ -3023,6 +3040,8 @@ class DetailsViewModel(
                             repo = name,
                             defaultBranch = refreshed.defaultBranch,
                             sourceHost = sourceHostParam,
+                            bypassCache = true,
+                            allowStale = false,
                         )
                     } catch (e: CancellationException) {
                         throw e
