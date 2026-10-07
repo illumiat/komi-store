@@ -1,6 +1,7 @@
 package zed.rainxch.core.domain.utils
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -26,6 +27,7 @@ class UpdateVerdictTest {
         matchedReleaseId: Long? = null,
         matchedAssetId: Long? = null,
         bound: UpdateVerdict.Bound? = null,
+        selfAttestedDigest: String? = null,
     ): UpdateVerdict.Result =
         UpdateVerdict.decide(
             installed = UpdateVerdict.Installed(installedTag, installedVersionCode, installedVersionName),
@@ -52,6 +54,7 @@ class UpdateVerdictTest {
                 ),
             skippedTag = skippedTag,
             bound = bound,
+            selfAttestedDigest = selfAttestedDigest,
         )
 
     // com.yunx.app: v1.2.8 was offered, the install was blocked for want of installer
@@ -1010,6 +1013,32 @@ class UpdateVerdictTest {
         assertTrue(result.isUpdateAvailable)
     }
 
+    // The gate leans on shapes, not on parsing quirks: a tag that is not a version at all leaves
+    // version math with nothing to stand on, while a semantic version keeps the bytes out of it.
+    @Test
+    fun attested_gate_follows_the_tag_scheme() {
+        assertEquals(
+            VersionMath.Scheme.Unknown,
+            VersionMath.detectScheme("testbuild-all-prs-20261007"),
+        )
+        assertEquals(VersionMath.Scheme.SemVer, VersionMath.detectScheme("1.0.0"))
+    }
+
+    // A rolling tag reuses one tag string across builds and version math cannot reconcile the
+    // pair, so without an install binding only the installed file itself can tell whether the
+    // release still offers something the device does not run.
+    @Test
+    fun attested_bytes_report_a_rebuilt_rolling_tag() {
+        val result =
+            decide(
+                installedTag = "testbuild-all-prs-20261007",
+                matchedTag = "testbuild-all-prs-20261007",
+                matchedAssetDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                selfAttestedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            )
+        assertTrue(result.isUpdateAvailable)
+    }
+
     @Test
     fun a_blank_digest_is_no_evidence_rather_than_a_different_value() {
         // A blank string is not a digest. Reading it as one would compare "" against a real value,
@@ -1039,6 +1068,25 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun attested_same_bytes_keep_the_rebuild_quiet_even_when_the_window_moved() {
+        // The stored side alone would report — published moved on since the last check. The
+        // installed bytes decide instead: they already are that build.
+        val result =
+            decide(
+                installedTag = "testbuild-all-prs-20261007",
+                matchedTag = "testbuild-all-prs-20261007",
+                matchedPublishedAt = "2026-10-08T00:00:00Z",
+                storedPublishedAt = "2026-10-07T00:00:00Z",
+                wasUpdateAvailable = true,
+                storedLatestTag = "testbuild-all-prs-20261007",
+                storedAssetDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                matchedAssetDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                selfAttestedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
     fun the_same_digest_written_two_ways_is_the_same_digest() {
         // GitHub hands back `sha256:<hex>`; a row written by an older build may hold the bare hex.
         // Those are the same value, so the bytes agree and the changed object id must not report.
@@ -1061,6 +1109,18 @@ class UpdateVerdictTest {
                 matchedReleaseId = 700L,
                 storedAssetId = 801L,
                 matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun attested_digest_spellings_are_folded_before_comparing() {
+        val result =
+            decide(
+                installedTag = "testbuild-all-prs-20261007",
+                matchedTag = "testbuild-all-prs-20261007",
+                matchedAssetDigest = "sha256:ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789",
+                selfAttestedDigest = "SHA256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
             )
         assertFalse(result.isUpdateAvailable)
     }
@@ -1095,6 +1155,19 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun attested_evidence_stays_out_of_reconcilable_tags() {
+        // Same semver string: version math already speaks, the bytes are not consulted.
+        val result =
+            decide(
+                installedTag = "1.0.0",
+                matchedTag = "1.0.0",
+                matchedAssetDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                selfAttestedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
     fun a_digest_of_nothing_but_the_prefix_is_no_evidence_either() {
         // "sha256:" with no hex behind it is the blank case reached one step later, and it has to be
         // treated the same way: reading it as a value compares it against a real digest, reports a
@@ -1122,5 +1195,18 @@ class UpdateVerdictTest {
             )
         assertFalse(result.isUpdateAvailable)
         assertFalse(result.skipBecameStale)
+    }
+
+    @Test
+    fun a_skipped_tag_outranks_attested_difference() {
+        val result =
+            decide(
+                installedTag = "testbuild-all-prs-20261007",
+                matchedTag = "testbuild-all-prs-20261007",
+                matchedAssetDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                selfAttestedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                skippedTag = "testbuild-all-prs-20261007",
+            )
+        assertFalse(result.isUpdateAvailable)
     }
 }

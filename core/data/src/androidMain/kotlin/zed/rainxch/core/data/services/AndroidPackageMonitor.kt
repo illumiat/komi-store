@@ -60,6 +60,7 @@ class AndroidPackageMonitor(
                     isInstalled = true,
                     signingFingerprint = signingFingerprint,
                     lastUpdateTime = packageInfo.lastUpdateTime,
+                    apkPath = packageInfo.applicationInfo?.sourceDir,
                 )
             }.getOrElse { e ->
                 // null means ONLY "positively not installed" (NameNotFoundException). Any other

@@ -10,6 +10,9 @@ data class SystemPackageInfo(
     // it to prove an install happened after the parked file was written; null where the platform
     // does not report it.
     val lastUpdateTime: Long? = null,
+    // Where the installed APK lives on disk, for reads that must hash the bytes themselves.
+    // Null where the platform cannot say (desktop has no such file).
+    val apkPath: String? = null,
 ) {
     companion object {
         // What core/data's monitors write where Android's PackageInfo.versionName is null. Shared

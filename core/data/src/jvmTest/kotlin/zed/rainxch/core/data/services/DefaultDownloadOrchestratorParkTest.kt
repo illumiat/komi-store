@@ -308,6 +308,9 @@ class DefaultDownloadOrchestratorParkTest {
 
     private object FakeDigestVerifier : DigestVerifier {
         override suspend fun verify(filePath: String, expectedDigest: String): String? = null
+
+        override suspend fun computeSha256(filePath: String): String? =
+            error("the park path never hashes an installed file")
     }
 
     private object FakeInstaller : Installer {
