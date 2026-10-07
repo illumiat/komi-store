@@ -46,6 +46,7 @@ import zed.rainxch.core.domain.model.error.RefreshException
 import zed.rainxch.core.domain.utils.RepoIdCodec
 import zed.rainxch.details.data.utils.ReadmeLocalizationHelper
 import zed.rainxch.details.data.utils.preprocessMarkdown
+import zed.rainxch.details.domain.model.CachedReleases
 import zed.rainxch.details.domain.model.RepoStats
 import zed.rainxch.details.domain.repository.DetailsRepository
 import kotlin.coroutines.cancellation.CancellationException
@@ -313,10 +314,13 @@ class DetailsRepositoryImpl(
         owner: String,
         repo: String,
         sourceHost: String?,
-    ): List<GithubRelease>? {
+    ): CachedReleases? {
         if (sourceHost != null) return null
-        val cached = cacheManager.get<List<GithubRelease>>("details:releases:$owner/$repo")
-        return cached?.takeIf { it.isNotEmpty() }
+        val cacheKey = "details:releases:$owner/$repo"
+        val cached = cacheManager.get<List<GithubRelease>>(cacheKey) ?: return null
+        if (cached.isEmpty()) return null
+        val cachedAt = cacheManager.getCachedAt(cacheKey) ?: return null
+        return CachedReleases(releases = cached, cachedAtEpochMs = cachedAt)
     }
 
     override suspend fun getAllReleases(
