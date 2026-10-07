@@ -6,6 +6,7 @@ data class OrchestratedDownload(
     val repoOwner: String,
     val repoName: String,
     val repoOwnerAvatarUrl: String? = null,
+    val repoDescription: String? = null,
     val displayAppName: String,
     val assetName: String,
     val assetSize: Long,

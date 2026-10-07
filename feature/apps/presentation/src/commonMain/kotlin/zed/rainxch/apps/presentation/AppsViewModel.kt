@@ -1290,6 +1290,7 @@ class AppsViewModel(
                             repoOwner = app.repoOwner,
                             repoName = app.repoName,
                             repoOwnerAvatarUrl = app.repoOwnerAvatarUrl,
+                            repoDescription = app.repoDescription,
                             asset = primaryAsset,
                             displayAppName = app.appName,
                             installPolicy = policy,
