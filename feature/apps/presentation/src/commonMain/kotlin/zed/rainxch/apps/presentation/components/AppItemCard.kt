@@ -170,6 +170,27 @@ fun AppItemCard(
                                 color = colors.primary,
                                 fontWeight = FontWeight.SemiBold,
                             )
+
+                            // The parked file's version, not the store's latest: a pending install
+                            // can be a rollback, and the line's direction has to be visible.
+                            if (appItem.versionTargetVersion != null) {
+                                Spacer(Modifier.height(2.dp))
+
+                                KomiText(
+                                    text = appItem.versionLabel,
+                                    role = KomiTextRole.Body,
+                                    fontSize = 13.sp,
+                                    uppercase = false,
+                                    color =
+                                        if (appItem.isVersionDowngrade) {
+                                            DowngradeWarningColor
+                                        } else {
+                                            colors.primary
+                                        },
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
 
                         app.isPendingInstall -> {
