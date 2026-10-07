@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownloadOff
@@ -27,6 +28,7 @@ import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.apps.presentation.isVersionDowngrade
 import zed.rainxch.core.domain.system.DownloadStage
 import zed.rainxch.core.domain.system.OrchestratedDownload
+import zed.rainxch.core.presentation.components.GitHubStoreImage
 import zed.rainxch.core.presentation.components.InstalledAppIcon
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
@@ -101,29 +103,38 @@ fun InProgressAppCard(
                         uppercase = false,
                     )
 
-                    KomiText(
-                        text = "${download.repoOwner}/${download.repoName}",
-                        role = KomiTextRole.Body,
-                        fontSize = 13.sp,
-                        uppercase = false,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // The same identity lines as the big library card: the handoff from this card
+                    // to that one has to read as the same object changing its status zone, not as
+                    // a swap to a different widget.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        GitHubStoreImage(
+                            imageModel = { download.repoOwnerAvatarUrl },
+                            modifier =
+                                Modifier
+                                    .size(18.dp)
+                                    .clip(RoundedCornerShape(shape.cornerSmall)),
+                        )
 
-                    KomiText(
-                        text = download.assetName,
-                        role = KomiTextRole.Body,
-                        fontSize = 13.sp,
-                        uppercase = false,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                        Spacer(Modifier.width(6.dp))
+
+                        KomiText(
+                            text = download.repoOwner,
+                            role = KomiTextRole.Body,
+                            fontSize = 13.sp,
+                            uppercase = false,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+
+                    StageLine(download = download, installedVersion = installedVersion)
                 }
             }
-
-            VersionLine(installedVersion = installedVersion, targetVersion = download.releaseTag)
 
             Spacer(Modifier.height(12.dp))
 
@@ -219,17 +230,6 @@ fun InProgressAppCard(
                 }
 
                 DownloadStage.AwaitingInstall -> {
-                    KomiText(
-                        text = stringResource(Res.string.ready_to_install),
-                        role = KomiTextRole.Body,
-                        fontSize = 13.sp,
-                        uppercase = false,
-                        color = colors.primary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -296,6 +296,32 @@ fun InProgressAppCard(
             }
         }
     }
+}
+
+// The identity column's third line, kept in the same slot and shape as the big library card's:
+// an awaiting download shows "ready to install" exactly where the pending card shows it, and
+// every other stage shows the version line the same card keeps underneath.
+@Composable
+private fun StageLine(
+    download: OrchestratedDownload,
+    installedVersion: String?,
+) {
+    val colors = LocalPersonality.current.colors
+
+    if (download.stage == DownloadStage.AwaitingInstall) {
+        KomiText(
+            text = stringResource(Res.string.ready_to_install),
+            role = KomiTextRole.Body,
+            fontSize = 13.sp,
+            uppercase = false,
+            color = colors.primary,
+            fontWeight = FontWeight.SemiBold,
+        )
+
+        Spacer(Modifier.height(2.dp))
+    }
+
+    VersionLine(installedVersion = installedVersion, targetVersion = download.releaseTag)
 }
 
 @Composable
@@ -369,6 +395,20 @@ private fun ProgressBody(
         fontSize = 12.sp,
         uppercase = false,
         color = colors.onSurfaceVariant,
+    )
+
+    Spacer(Modifier.height(2.dp))
+
+    // The asset belongs to the transfer, not the identity: the big card this hands off to has no
+    // such line, so it moves down here with the numbers instead of changing the top block.
+    KomiText(
+        text = download.assetName,
+        role = KomiTextRole.Body,
+        fontSize = 12.sp,
+        uppercase = false,
+        color = colors.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
