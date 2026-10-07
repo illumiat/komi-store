@@ -3193,6 +3193,12 @@ class DetailsViewModel(
                 val freshReleases = releasesDeferred.await()
                 val freshStats = statsDeferred.await()
 
+                if (freshReleases == null) {
+                    // The previous list stays on screen; say so, rather than letting a failed
+                    // re-read look like a refresh that found nothing new.
+                    _events.send(DetailsEvent.OnRefreshError(kind = RefreshError.UPSTREAM))
+                }
+
                 val previousSelected = _state.value.selectedRelease
                 val previousCategory = _state.value.selectedReleaseCategory
                 val carried = freshReleases?.let { list ->
