@@ -550,6 +550,8 @@ class DefaultDownloadOrchestrator(
                 packageName = entry.packageName,
                 repoOwner = entry.repoOwner,
                 repoName = entry.repoName,
+                repoId = entry.repoId,
+                sourceHost = entry.sourceHost,
                 repoOwnerAvatarUrl = entry.repoOwnerAvatarUrl,
                 repoDescription = entry.repoDescription,
                 asset =

@@ -80,7 +80,8 @@ fun InProgressAppCard(
     val shape = LocalPersonality.current.shape
 
     KomiSurface(
-        modifier = if (onOpenRepo != null) modifier.clickable(onClick = onOpenRepo) else modifier,
+        onClick = onOpenRepo,
+        modifier = modifier,
     ) {
         Column(
             modifier =
@@ -169,6 +170,11 @@ fun InProgressAppCard(
             rowItem?.let { item ->
                 AppCardToolbar(
                     appItem = item,
+                    // The card is busy by definition, so the row's gate would keep every control
+                    // dead for the card's whole life; the controls stay live here. The one
+                    // risky follow-up — re-running the update after a variant pick — is already
+                    // covered: this call passes resumeUpdateAfterPick = false.
+                    controlsEnabled = true,
                     onAdvancedSettingsClick = {
                         onRowAction(AppsAction.OnOpenAdvancedSettings(item.installedApp))
                     },
