@@ -247,7 +247,7 @@ class DefaultDownloadOrchestrator(
             )
         }
 
-        val filePath =
+        var filePath =
             downloader.getDownloadedFilePath(scopedName)
                 ?: throw IllegalStateException("Downloaded file missing: $scopedName")
 
@@ -259,13 +259,59 @@ class DefaultDownloadOrchestrator(
         if (expectedDigest != null) {
             val mismatch = digestVerifier.verify(filePath, expectedDigest)
             if (mismatch != null) {
-                Logger.w { "Orchestrator: digest mismatch for ${spec.asset.name}: $mismatch" }
+                // The bytes did not match, and the mirror is the first suspect — not the
+                // release: a mirror that answers 200 with corrupted bytes streams to the end
+                // without ever throwing, so the fallback above never sees it, and the download
+                // used to die here accusing the file of tampering. Re-fetch straight from the
+                // source and check once more; only bytes that fail the direct fetch too are
+                // treated as an integrity failure.
+                Logger.w {
+                    "Orchestrator: digest mismatch for ${spec.asset.name} ($mismatch); " +
+                        "re-fetching from the source"
+                }
                 runCatching { java.io.File(filePath).delete() }
-                markFailed(
-                    spec.packageName,
-                    "Checksum mismatch — file may have been tampered with",
-                )
-                return
+                runCatching { downloader.discardPartial(scopedName) }
+                updateEntry(spec.packageName) {
+                    it.copy(progressPercent = 0, bytesDownloaded = 0L)
+                }
+                val sourceUrl = authenticatedGithubAssetUrl(spec) ?: spec.asset.downloadUrl
+                try {
+                    streamProgress(
+                        downloader.download(
+                            sourceUrl,
+                            scopedName,
+                            bypassMirror = true,
+                            identity = identity,
+                        ),
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (t: Throwable) {
+                    Logger.e(t) { "Orchestrator: source re-fetch failed for ${spec.asset.name}" }
+                    markFailed(spec.packageName, t.message)
+                    return
+                }
+                filePath =
+                    downloader.getDownloadedFilePath(scopedName)
+                        ?: throw IllegalStateException(
+                            "Downloaded file missing after re-fetch: $scopedName",
+                        )
+                val stillMismatched = digestVerifier.verify(filePath, expectedDigest)
+                if (stillMismatched != null) {
+                    Logger.w {
+                        "Orchestrator: digest still mismatched after the source re-fetch for " +
+                            "${spec.asset.name}: $stillMismatched"
+                    }
+                    runCatching { java.io.File(filePath).delete() }
+                    markFailed(
+                        spec.packageName,
+                        "Checksum mismatch — file may have been tampered with",
+                    )
+                    return
+                }
+                updateEntry(spec.packageName) {
+                    it.copy(filePath = filePath, progressPercent = 100)
+                }
             }
         } else {
             Logger.i { "No digest for ${spec.asset.name}, skipping SHA-256 verification" }
