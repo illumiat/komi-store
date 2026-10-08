@@ -414,6 +414,24 @@ fun AppsScreen(
                                             // app with a row joins its installed version in for the
                                             // downgrade line and its row in for the management
                                             // toolbar; a fresh install has no row, so both are off.
+                                            //
+                                            // Tapping the card opens the repo it stands for; a
+                                            // download with no repository behind it has no id to
+                                            // open, so the card stays inert.
+                                            val openRepo =
+                                                download.repoId?.let { repoId ->
+                                                    {
+                                                        onAction(
+                                                            AppsAction.OnNavigateToRepo(
+                                                                repoId = repoId,
+                                                                sourceHost = download.sourceHost,
+                                                                owner = download.repoOwner,
+                                                                repo = download.repoName,
+                                                                packageName = download.packageName,
+                                                            ),
+                                                        )
+                                                    }
+                                                }
                                             InProgressAppCard(
                                                 download = download,
                                                 installedVersion =
@@ -422,6 +440,7 @@ fun AppsScreen(
                                                     state.apps.find {
                                                         it.installedApp.packageName == download.packageName
                                                     },
+                                                onOpenRepo = openRepo,
                                                 onRowAction = onAction,
                                                 onPause = {
                                                     onAction(

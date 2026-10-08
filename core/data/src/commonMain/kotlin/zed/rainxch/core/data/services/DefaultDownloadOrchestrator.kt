@@ -94,6 +94,8 @@ class DefaultDownloadOrchestrator(
                 packageName = spec.packageName,
                 repoOwner = spec.repoOwner,
                 repoName = spec.repoName,
+                repoId = spec.repoId,
+                sourceHost = spec.sourceHost,
                 repoOwnerAvatarUrl = spec.repoOwnerAvatarUrl,
                 repoDescription = spec.repoDescription,
                 displayAppName = spec.displayAppName,
