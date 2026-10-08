@@ -71,12 +71,17 @@ fun InProgressAppCard(
     onDiscard: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
+    // Tapping the card leads back to the repo it stands for, the move the library card makes.
+    // Null for a download with no repository behind it: the card stays inert.
+    onOpenRepo: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val shape = LocalPersonality.current.shape
 
-    KomiSurface(modifier = modifier) {
+    KomiSurface(
+        modifier = if (onOpenRepo != null) modifier.clickable(onClick = onOpenRepo) else modifier,
+    ) {
         Column(
             modifier =
                 Modifier
