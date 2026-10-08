@@ -94,6 +94,8 @@ class DefaultDownloadOrchestrator(
                 packageName = spec.packageName,
                 repoOwner = spec.repoOwner,
                 repoName = spec.repoName,
+                repoId = spec.repoId,
+                sourceHost = spec.sourceHost,
                 repoOwnerAvatarUrl = spec.repoOwnerAvatarUrl,
                 repoDescription = spec.repoDescription,
                 displayAppName = spec.displayAppName,
@@ -545,6 +547,8 @@ class DefaultDownloadOrchestrator(
                 packageName = entry.packageName,
                 repoOwner = entry.repoOwner,
                 repoName = entry.repoName,
+                repoId = entry.repoId,
+                sourceHost = entry.sourceHost,
                 repoOwnerAvatarUrl = entry.repoOwnerAvatarUrl,
                 repoDescription = entry.repoDescription,
                 asset =
