@@ -51,6 +51,10 @@ internal fun AppCardToolbar(
     onToggleUpdateCheck: (Boolean) -> Unit,
     onSkipVersionClick: () -> Unit,
     onUnskipVersionClick: () -> Unit,
+    // The row's busy gate is the default — a pending-install row keeps its controls locked.
+    // The in-progress card passes true: the card is busy for its whole life by definition, and
+    // a toolbar disabled for that entire life is not a lock, it is a dead control.
+    controlsEnabled: Boolean = !appItem.isBusy,
 ) {
     val colors = LocalPersonality.current.colors
     val app = appItem.installedApp
@@ -78,7 +82,7 @@ internal fun AppCardToolbar(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clickable(enabled = !appItem.isBusy, onClick = onAdvancedSettingsClick)
+                    .clickable(enabled = controlsEnabled, onClick = onAdvancedSettingsClick)
                     .semantics {
                         contentDescription = advancedFilterDescription
                     },
@@ -101,7 +105,7 @@ internal fun AppCardToolbar(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clickable(enabled = !appItem.isBusy, onClick = onPickVariantClick)
+                    .clickable(enabled = controlsEnabled, onClick = onPickVariantClick)
                     .semantics {
                         contentDescription = pickVariantDescription
                     },
@@ -122,7 +126,7 @@ internal fun AppCardToolbar(
             KomiCheckbox(
                 checked = app.includePreReleases,
                 onCheckedChange = onTogglePreReleases,
-                enabled = !appItem.isBusy,
+                enabled = controlsEnabled,
                 modifier =
                     Modifier.semantics {
                         contentDescription = preReleaseString
@@ -163,7 +167,7 @@ internal fun AppCardToolbar(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clickable(enabled = !appItem.isBusy, onClick = onClick)
+                            .clickable(enabled = controlsEnabled, onClick = onClick)
                             .semantics {
                                 contentDescription = moreActionsLabel
                             },

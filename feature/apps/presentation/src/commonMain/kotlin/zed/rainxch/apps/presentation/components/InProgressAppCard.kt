@@ -71,12 +71,18 @@ fun InProgressAppCard(
     onDiscard: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
+    // Tapping the card leads back to the repo it stands for, the move the library card makes.
+    // Null for a download with no repository behind it: the card stays inert.
+    onOpenRepo: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val shape = LocalPersonality.current.shape
 
-    KomiSurface(modifier = modifier) {
+    KomiSurface(
+        onClick = onOpenRepo,
+        modifier = modifier,
+    ) {
         Column(
             modifier =
                 Modifier
@@ -164,6 +170,11 @@ fun InProgressAppCard(
             rowItem?.let { item ->
                 AppCardToolbar(
                     appItem = item,
+                    // The card is busy by definition, so the row's gate would keep every control
+                    // dead for the card's whole life; the controls stay live here. The one
+                    // risky follow-up — re-running the update after a variant pick — is already
+                    // covered: this call passes resumeUpdateAfterPick = false.
+                    controlsEnabled = true,
                     onAdvancedSettingsClick = {
                         onRowAction(AppsAction.OnOpenAdvancedSettings(item.installedApp))
                     },
