@@ -21,6 +21,7 @@ import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.InstallerInfoExtractor
 import zed.rainxch.core.domain.system.PackageMonitor
+import zed.rainxch.core.domain.utils.ResolvedRelease
 
 // What a fake discard call carried: the sync has to decide against the path it observed, so the
 // fake records path and package together instead of just the package name.
@@ -575,6 +576,8 @@ class SyncInstalledAppsUseCaseParkTest {
         }
 
         override suspend fun checkForUpdates(packageName: String): Boolean = false
+
+        override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease? = null
 
         override suspend fun checkAllForUpdates() = Unit
 

@@ -33,6 +33,7 @@ import zed.rainxch.core.domain.system.InstallerInfoExtractor
 import zed.rainxch.core.domain.system.MultiSourceDownloader
 import zed.rainxch.core.domain.system.PendingInstallNotifier
 import zed.rainxch.core.domain.system.SystemInstallSerializer
+import zed.rainxch.core.domain.utils.ResolvedRelease
 
 // A mirror that answers 200 with corrupted bytes streams to completion without ever throwing —
 // the fallback inside the multi-source downloader cannot see it, and before this change the
@@ -278,6 +279,8 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
         override suspend fun deleteInstalledApp(packageName: String) = Unit
 
         override suspend fun checkForUpdates(packageName: String): Boolean = false
+
+        override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease? = null
 
         override suspend fun checkAllForUpdates() = Unit
 
