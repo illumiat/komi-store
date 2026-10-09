@@ -108,11 +108,8 @@ object UpdateVerdict {
                 false
             }
 
-        // What the device reports as its own version is exact evidence, unlike the stored tag:
-        // an external install leaves the tag stale until the release window is refreshed, and
-        // comparing that stale tag reports an update the device has already taken.
         val deviceRunsMatchedRelease =
-            VersionMath.isExactSameVersion(installed.versionName, matched.tag)
+            !timestampTracked && VersionMath.isExactSameVersion(installed.versionName, matched.tag)
 
         val tagVerdict =
             when {
@@ -150,6 +147,7 @@ object UpdateVerdict {
             isUpdateAvailable = isUpdateAvailable,
             skipBecameStale = skipBecameStale,
             codesAlreadyMatch = codesAlreadyMatch,
+            deviceRunsMatchedRelease = deviceRunsMatchedRelease,
         )
     }
 
@@ -157,7 +155,8 @@ object UpdateVerdict {
         codesAlreadyMatch: Boolean,
         installedTag: String?,
         matchedTag: String,
-    ): Boolean = installedTag != matchedTag && codesAlreadyMatch
+        deviceRunsMatchedRelease: Boolean = false,
+    ): Boolean = installedTag != matchedTag && (codesAlreadyMatch || deviceRunsMatchedRelease)
 
     fun isSameFile(
         installedAssetId: Long?,
@@ -186,5 +185,6 @@ object UpdateVerdict {
         val isUpdateAvailable: Boolean,
         val skipBecameStale: Boolean,
         val codesAlreadyMatch: Boolean,
+        val deviceRunsMatchedRelease: Boolean,
     )
 }

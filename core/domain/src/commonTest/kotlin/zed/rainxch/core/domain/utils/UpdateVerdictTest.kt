@@ -147,6 +147,61 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun the_stale_tag_is_adopted_when_the_device_runs_the_matched_release() {
+        val result =
+            decide(
+                installedTag = "1.2.6",
+                installedVersionCode = 12L,
+                installedVersionName = "1.2.8",
+                storedLatestTag = "v1.2.8",
+                matchedTag = "v1.2.8",
+                matchedPublishedAt = "2026-10-03T11:38:10Z",
+            )
+        assertTrue(result.deviceRunsMatchedRelease)
+        assertTrue(
+            UpdateVerdict.shouldAdoptMatchedTag(
+                codesAlreadyMatch = result.codesAlreadyMatch,
+                installedTag = "1.2.6",
+                matchedTag = "v1.2.8",
+                deviceRunsMatchedRelease = result.deviceRunsMatchedRelease,
+            ),
+        )
+    }
+
+    @Test
+    fun a_rolling_tag_rebuild_is_an_update_even_when_the_name_matches_the_tag() {
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionName = "nightly",
+                matchedTag = "nightly",
+                storedLatestTag = "nightly",
+                storedPublishedAt = "2026-08-01T00:00:00Z",
+                matchedPublishedAt = "2026-08-02T00:00:00Z",
+                matchedIsPrerelease = true,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertFalse(result.deviceRunsMatchedRelease)
+    }
+
+    @Test
+    fun a_rolling_tag_reupload_is_an_update_even_when_the_name_matches_the_tag() {
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionName = "nightly",
+                matchedTag = "nightly",
+                storedLatestTag = "nightly",
+                storedPublishedAt = "2026-08-01T00:00:00Z",
+                matchedPublishedAt = "2026-08-01T00:00:00Z",
+                storedAssetDigest = "sha256:aaa",
+                matchedAssetDigest = "sha256:bbb",
+                matchedIsPrerelease = true,
+            )
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
     fun semver_newer_reports_update() {
         val result = decide(installedTag = "1.0.0", matchedTag = "1.1.0")
         assertTrue(result.isUpdateAvailable)

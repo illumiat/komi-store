@@ -431,6 +431,7 @@ class InstalledAppsRepositoryImpl(
                     codesAlreadyMatch = verdict.codesAlreadyMatch,
                     installedTag = app.installedVersion,
                     matchedTag = matchedRelease.tagName,
+                    deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
                 )
             if (shouldRewriteTag) {
                 adoptMatchedTag(
