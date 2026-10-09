@@ -286,13 +286,23 @@ class DefaultDownloadOrchestrator(
                             digest = refetched.asset.digest,
                             size = refetched.asset.size,
                         )
-                    streamProgress(
-                        multiSourceDownloader.download(
-                            refetched.asset.downloadUrl,
-                            scopedName,
-                            identity = identity,
-                        ),
-                    )
+                    try {
+                        streamProgress(
+                            multiSourceDownloader.download(
+                                refetched.asset.downloadUrl,
+                                scopedName,
+                                identity = identity,
+                            ),
+                        )
+                    } catch (retry: CancellationException) {
+                        throw retry
+                    } catch (retry: Throwable) {
+                        // The replacement retry deserves the same fallback every other failure on
+                        // this path gets — and only the fresh spec can give it: the authenticated
+                        // asset API it builds from must point at the asset that exists now, not the
+                        // dead one the original spec carries.
+                        retryViaAuthenticatedAssetApi(retry, refetched)
+                    }
                 }
             } catch (e: Throwable) {
                 retryViaAuthenticatedAssetApi(e, spec)

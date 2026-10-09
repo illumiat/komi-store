@@ -19,10 +19,8 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
 import zed.rainxch.core.domain.model.installation.DownloadProgress
 import zed.rainxch.core.domain.model.installation.InstalledApp
-import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 import zed.rainxch.core.domain.model.system.SystemArchitecture
-import zed.rainxch.core.domain.network.AssetIdentity
 import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.network.Downloader
 import zed.rainxch.core.domain.network.SlowDownloadDetector
@@ -36,7 +34,6 @@ import zed.rainxch.core.domain.system.InstallerInfoExtractor
 import zed.rainxch.core.domain.system.MultiSourceDownloader
 import zed.rainxch.core.domain.system.PendingInstallNotifier
 import zed.rainxch.core.domain.system.SystemInstallSerializer
-import zed.rainxch.core.domain.utils.ResolvedRelease
 
 // A download that was resolved from a cached release can be handed an asset URL that no longer
 // exists: the release was replaced, or the asset re-uploaded, since the resolution was taken.
@@ -253,11 +250,7 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
     private class ThrowingOnceMultiSource : MultiSourceDownloader {
         val calls = mutableListOf<String>()
 
-        override fun download(
-            githubUrl: String,
-            suggestedFileName: String?,
-            identity: AssetIdentity?,
-        ): Flow<DownloadProgress> {
+        override fun download(githubUrl: String, suggestedFileName: String?): Flow<DownloadProgress> {
             calls += githubUrl
             if (githubUrl == OLD_URL) {
                 throw AssetSourceGoneException(404)
@@ -284,8 +277,6 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             expectedDigests += expectedDigest
             return null
         }
-
-        override suspend fun computeSha256(filePath: String): String? = null
     }
 
     private class TrackingDownloader : Downloader {
@@ -293,7 +284,6 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             url: String,
             suggestedFileName: String?,
             bypassMirror: Boolean,
-            identity: AssetIdentity?,
         ): Flow<DownloadProgress> = error("the direct fallback is not part of these paths")
 
         override suspend fun saveToFile(url: String, suggestedFileName: String?): String =
@@ -303,10 +293,6 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             "/tmp/komi-refetch-test/$fileName"
 
         override suspend fun cancelDownload(fileName: String): Boolean = false
-
-        override suspend fun discardPartial(fileName: String): Boolean = false
-
-        override suspend fun reclaimOrphanedPartials(claimedNames: Set<String>): Int = 0
     }
 
     private class RecordingInstalledAppsRepository : InstalledAppsRepository {
@@ -320,22 +306,6 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         ) {
             pendingPathVersion = version
         }
-
-        override suspend fun markAwaitingInstall(
-            packageName: String,
-            path: String,
-            version: String?,
-            assetName: String?,
-        ) {
-            pendingPathVersion = version
-        }
-
-        override suspend fun discardParkedInstall(
-            packageName: String,
-            expectedPath: String?,
-        ): ParkedInstallDisposal = ParkedInstallDisposal.Discarded
-
-        override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease? = null
 
         override fun getAllInstalledApps(): Flow<List<InstalledApp>> = emptyFlow()
 
@@ -360,11 +330,6 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         override suspend fun deleteInstalledApp(packageName: String) = Unit
 
         override suspend fun checkForUpdates(packageName: String): Boolean = false
-
-        override suspend fun checkForUpdatesWithReleases(
-            packageName: String,
-            releases: List<GithubRelease>,
-        ): Boolean = false
 
         override suspend fun checkAllForUpdates() = Unit
 

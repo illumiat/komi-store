@@ -35,7 +35,19 @@ class DefaultAssetSourceRefetcher(
                             header(HttpHeaders.Accept, "application/vnd.github+json")
                             parameter("per_page", RELEASE_WINDOW)
                         }
-                    }.getOrNull()
+                    }
+                    // executeRequest folds ordinary failures (HTTP error, IO, serialization)
+                    // into the Result instead of throwing — only rate limiting and cancellation
+                    // reach the catch below. Logging the failure before the elvis keeps the
+                    // refetch diagnosable: this read decides whether the whole recovery
+                    // engages, so a silent null here would strand stale resolutions with no
+                    // trace.
+                    .onFailure { e ->
+                        logger.error(
+                            "Asset refetch failed for ${spec.repoOwner}/${spec.repoName}: ${e.message}",
+                        )
+                    }
+                    .getOrNull()
                     ?: return null
             } catch (e: CancellationException) {
                 throw e
