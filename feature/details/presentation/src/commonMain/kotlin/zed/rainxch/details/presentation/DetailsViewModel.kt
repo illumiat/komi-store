@@ -3000,6 +3000,10 @@ class DetailsViewModel(
                             insights.latestStableHasInstallableAsset,
                     )
                 }
+
+                freshReleases
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { syncLibraryUpdateState(it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RefreshException) {
@@ -3035,6 +3039,28 @@ class DetailsViewModel(
                     DetailsEvent.OnRefreshError(kind = RefreshError.GENERIC),
                 )
             }
+        }
+    }
+
+    // The read the user just asked for is the freshest thing this app knows about the
+    // repository's releases; the library must not keep a verdict that read just outdated. The
+    // sync is the same update check the library runs, only judged from this window, for every
+    // installed app of the repository. Best-effort: a failure here must not fail the refresh.
+    private suspend fun syncLibraryUpdateState(freshReleases: List<GithubRelease>) {
+        val installed = _state.value.installedApp ?: return
+        try {
+            installedAppsRepository
+                .getAppsByRepoId(installed.repoId)
+                .forEach { app ->
+                    installedAppsRepository.checkForUpdatesWithReleases(
+                        packageName = app.packageName,
+                        releases = freshReleases,
+                    )
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            logger.warn("Refresh: library update sync failed: ${t.message}")
         }
     }
 
