@@ -896,6 +896,123 @@ class UpdateVerdictTest {
         assertTrue(bound.isUpdateAvailable)
     }
 
+    @Test
+    fun an_asset_replaced_in_place_with_identical_bytes_is_not_a_new_build() {
+        // The cell this file was missing. A delete-and-reupload of the same bytes (`--clobber`)
+        // yields a new asset id for identical content, and an asset's bytes cannot change without
+        // a new upload. With a digest on both sides, therefore, the bytes settle it: the object was
+        // replaced, the build was not. Reading the ids first made this report an update for a
+        // program that had not changed — which is what a re-run of a nightly job looks like.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_skip_survives_an_in_place_replacement_of_identical_bytes() {
+        // The same cell through the skip gate. The user asked not to be told about this build; a
+        // re-upload of the very same bytes does not produce a different build, so the skip has
+        // nothing to be released by and must hold. Before, the new asset id released it and the
+        // update came back — the user's "skip" undone by an upload that changed nothing they can
+        // install.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                skippedTag = "nightly",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+        assertFalse(result.skipBecameStale)
+    }
+
+    @Test
+    fun a_skip_is_still_released_when_the_bytes_actually_change() {
+        // The other direction, so the two tests above cannot be satisfied by simply never releasing
+        // a skip: a genuine byte change must still release it and report.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                skippedTag = "nightly",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:bbbb",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 801L,
+            )
+        assertTrue(result.isUpdateAvailable)
+        assertTrue(result.skipBecameStale)
+    }
+
+    @Test
+    fun a_one_sided_digest_falls_back_to_object_ids() {
+        // The mixed cell: the stored row predates digest capture (the column defaults to NULL), so
+        // only the matched side has one. The bytes cannot be compared, so the ids remain the
+        // evidence and a swapped object must still be reported.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = null,
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertTrue(result.isUpdateAvailable)
+    }
+
     // The gate leans on shapes, not on parsing quirks: a tag that is not a version at all leaves
     // version math with nothing to stand on, while a semantic version keeps the bytes out of it.
     @Test
@@ -923,6 +1040,34 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun a_blank_digest_is_no_evidence_rather_than_a_different_value() {
+        // A blank string is not a digest. Reading it as one would compare "" against a real value,
+        // call the build changed, and report an update for a release whose bytes and object ids are
+        // both unchanged — the phantom update this whole function exists to prevent.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 801L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
     fun attested_same_bytes_keep_the_rebuild_quiet_even_when_the_window_moved() {
         // The stored side alone would report — published moved on since the last check. The
         // installed bytes decide instead: they already are that build.
@@ -942,6 +1087,33 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun the_same_digest_written_two_ways_is_the_same_digest() {
+        // GitHub hands back `sha256:<hex>`; a row written by an older build may hold the bare hex.
+        // Those are the same value, so the bytes agree and the changed object id must not report.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:AAAA",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
     fun attested_digest_spellings_are_folded_before_comparing() {
         val result =
             decide(
@@ -949,6 +1121,35 @@ class UpdateVerdictTest {
                 matchedTag = "testbuild-all-prs-20261007",
                 matchedAssetDigest = "sha256:ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789",
                 selfAttestedDigest = "SHA256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun the_digest_prefix_is_case_insensitive_too() {
+        // "SHA256:" and "sha256:" are the same prefix, so they have to be folded together before
+        // anything is stripped. Stripping the prefix first leaves an upper-case spelling intact, and
+        // the identical value then reads as different — the same phantom update, reached through the
+        // helper that was added to remove it.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "SHA256:aaaa",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 901L,
             )
         assertFalse(result.isUpdateAvailable)
     }
@@ -964,6 +1165,36 @@ class UpdateVerdictTest {
                 selfAttestedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             )
         assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_digest_of_nothing_but_the_prefix_is_no_evidence_either() {
+        // "sha256:" with no hex behind it is the blank case reached one step later, and it has to be
+        // treated the same way: reading it as a value compares it against a real digest, reports a
+        // release whose bytes and object ids are unchanged, and releases the user's skip.
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                wasUpdateAvailable = false,
+                skippedTag = "nightly",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedAssetDigest = "sha256:",
+                storedAssetSize = 70_543_755L,
+                matchedAssetDigest = "sha256:aaaa",
+                matchedAssetSize = 70_543_755L,
+                storedReleaseId = 700L,
+                matchedReleaseId = 700L,
+                storedAssetId = 801L,
+                matchedAssetId = 801L,
+            )
+        assertFalse(result.isUpdateAvailable)
+        assertFalse(result.skipBecameStale)
     }
 
     @Test
