@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import zed.rainxch.core.data.data_source.TokenStore
+import zed.rainxch.core.data.download.AssetSourceRefetcher
 import zed.rainxch.core.data.dto.GithubDeviceTokenSuccessDto
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
@@ -81,6 +82,7 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
         appScope = scope,
         systemInstallSerializer = StubInstallSerializer,
         tokenStore = StubTokenStore,
+        assetSourceRefetcher = NoopRefetcher,
     )
 
     @Test
@@ -386,5 +388,11 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
         override suspend fun clear() = Unit
 
         override suspend fun isTokenExpired(): Boolean = false
+    }
+
+    // The digest-refetch paths never meet a gone asset; the collaborator is required by the
+    // orchestrator, not by these paths.
+    private object NoopRefetcher : AssetSourceRefetcher {
+        override suspend fun refetch(spec: DownloadSpec): DownloadSpec? = null
     }
 }

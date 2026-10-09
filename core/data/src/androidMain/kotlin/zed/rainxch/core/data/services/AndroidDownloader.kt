@@ -17,6 +17,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import zed.rainxch.core.data.data_source.TokenStore
+import zed.rainxch.core.data.download.AssetSourceGoneException
 import zed.rainxch.core.data.download.FinishedFileReuse
 import zed.rainxch.core.data.download.OrphanPolicy
 import zed.rainxch.core.data.download.OrphanVerdict
@@ -293,6 +294,11 @@ class AndroidDownloader(
                     throw PartialRestart()
                 }
                 if (decision == RangeDecision.UNEXPECTED) {
+                    if (AssetSourceGoneException.isGoneCode(response.code)) {
+                        partFile.delete()
+                        metaFile.delete()
+                        throw AssetSourceGoneException(response.code)
+                    }
                     if (PartialDisposal.shouldDiscardPartial(response.code, explicitDiscard = false)) {
                         partFile.delete()
                         metaFile.delete()
