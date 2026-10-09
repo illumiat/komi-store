@@ -21,7 +21,6 @@
     <ID>CyclomaticComplexMethod:DhizukuInstallerServiceImpl.kt$DhizukuInstallerServiceImpl$override fun installPackage( pfd: ParcelFileDescriptor, fileSize: Long, expectedPackageName: String?, expectedVersionCode: Long, installerPackageName: String?, ): Int</ID>
     <ID>CyclomaticComplexMethod:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$override suspend fun resolveMatches(candidates: List&lt;ExternalAppCandidate&gt;): List&lt;RepoMatchResult&gt;</ID>
     <ID>CyclomaticComplexMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun checkForUpdates(packageName: String): Boolean</ID>
-    <ID>CyclomaticComplexMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private fun resolveTrackedRelease( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, ): ResolvedRelease?</ID>
     <ID>CyclomaticComplexMethod:ProxyRepositoryImpl.kt$ProxyRepositoryImpl$private suspend fun migrateIfNeeded()</ID>
     <ID>CyclomaticComplexMethod:RateLimitInterceptor.kt$RateLimitInterceptor.Plugin$private fun parseRateLimitFromHeaders(headers: Headers): RateLimitInfo?</ID>
     <ID>CyclomaticComplexMethod:StarredRepositoryImpl.kt$StarredRepositoryImpl$override suspend fun fetchStarredForUsername( username: String, ): Result&lt;List&lt;zed.rainxch.core.domain.model.repository.StarredRepository&gt;&gt;</ID>
@@ -53,9 +52,7 @@
     <ID>LongMethod:DesktopInstaller.kt$DesktopInstaller$private fun runCommandInTerminal( command: String, terminals: List&lt;LinuxTerminal&gt;, )</ID>
     <ID>LongMethod:DhizukuInstallerServiceImpl.kt$DhizukuInstallerServiceImpl$override fun installPackage( pfd: ParcelFileDescriptor, fileSize: Long, expectedPackageName: String?, expectedVersionCode: Long, installerPackageName: String?, ): Int</ID>
     <ID>LongMethod:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$override suspend fun resolveMatches(candidates: List&lt;ExternalAppCandidate&gt;): List&lt;RepoMatchResult&gt;</ID>
-    <ID>LongMethod:HttpClientFactory.kt$fun createGitHubHttpClient( tokenStore: TokenStore, rateLimitRepository: RateLimitRepository, userSessionRepository: UserSessionRepository? = null, proxyConfig: ProxyConfig = ProxyConfig.System, ): HttpClient</ID>
     <ID>LongMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun checkForUpdates(packageName: String): Boolean</ID>
-    <ID>LongMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private fun resolveTrackedRelease( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, ): ResolvedRelease?</ID>
     <ID>LongMethod:PackageEventReceiver.kt$PackageEventReceiver$private suspend fun handleExternalInstall( packageName: String, app: zed.rainxch.core.domain.model.installation.InstalledApp, repo: InstalledAppsRepository, monitor: PackageMonitor, )</ID>
     <ID>LongMethod:PackageEventReceiver.kt$PackageEventReceiver$private suspend fun onPackageInstalled(packageName: String)</ID>
     <ID>LongMethod:ProxyRepositoryImpl.kt$ProxyRepositoryImpl$private suspend fun migrateIfNeeded()</ID>
@@ -70,10 +67,8 @@
     <ID>LongParameterList:InstalledAppDao.kt$InstalledAppDao$( packageName: String, available: Boolean, version: String?, assetName: String?, assetUrl: String?, assetSize: Long?, releaseId: Long?, assetId: Long?, assetDigest: String?, releaseNotes: String?, timestamp: Long, latestVersionName: String?, latestVersionCode: Long?, latestReleasePublishedAt: String?, )</ID>
     <ID>LongParameterList:InstalledAppDao.kt$InstalledAppDao$( packageName: String, variant: String?, tokens: String?, glob: String?, pickedIndex: Int?, siblingCount: Int?, )</ID>
     <ID>LongParameterList:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$( private val database: AppDatabase, private val installedAppsDao: InstalledAppDao, private val historyDao: UpdateHistoryDao, private val installer: Installer, private val clientProvider: GitHubClientProvider, private val backendApiClient: zed.rainxch.core.data.network.BackendApiClient, private val forgejoClientRegistry: zed.rainxch.core.data.network.ForgejoClientRegistry, )</ID>
-    <ID>LongParameterList:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, )</ID>
     <ID>LongParameterList:SilentInstallerDispatcher.kt$SilentInstallerDispatcher$( private val androidContext: Context, private val androidInstaller: Installer, private val shizukuServiceManager: ShizukuServiceManager, private val dhizukuServiceManager: DhizukuServiceManager, private val rootServiceManager: RootServiceManager, private val tweaksRepository: TweaksRepository, private val scope: CoroutineScope, )</ID>
     <ID>LoopWithTooManyJumpStatements:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$while</ID>
-    <ID>LoopWithTooManyJumpStatements:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$for</ID>
     <ID>LoopWithTooManyJumpStatements:ManifestHintExtractor.kt$ManifestHintExtractor$for</ID>
     <ID>LoopWithTooManyJumpStatements:PartialDownload.kt$PartialIdentity.Companion$for</ID>
     <ID>LoopWithTooManyJumpStatements:StarredRepositoryImpl.kt$StarredRepositoryImpl$while</ID>
@@ -213,10 +208,9 @@
     <ID>ReturnCount:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$private suspend fun migrateLegacyInitialScanFlag()</ID>
     <ID>ReturnCount:GithubAssetAuth.kt$GithubAssetAuth$fun isGithubHost(url: String): Boolean</ID>
     <ID>ReturnCount:HttpClientFactory.android.kt$internal fun resolveAndroidSystemProxy(): Proxy</ID>
-    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$fun belongsElsewhere( asset: GithubAsset, releaseTag: String, releaseAssets: List&lt;GithubAsset&gt;, ): Boolean</ID>
     <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun checkForUpdates(packageName: String): Boolean</ID>
     <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun previewMatchingAssets( owner: String, repo: String, regex: String?, includePreReleases: Boolean, fallbackToOlderReleases: Boolean, ): MatchingPreview</ID>
-    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private fun resolveTrackedRelease( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, ): ResolvedRelease?</ID>
+    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease?</ID>
     <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private suspend fun fetchReleaseWindow( owner: String, repo: String, includePreReleases: Boolean, sourceHost: String? = null, ): List&lt;GithubRelease&gt;</ID>
     <ID>ReturnCount:InstallerSourceClassifier.kt$InstallerSourceClassifier$fun classify( packageName: String, applicationInfo: ApplicationInfo?, ): InstallerKind</ID>
     <ID>ReturnCount:ManifestHintExtractor.kt$ManifestHintExtractor$fun extract(metaData: Bundle?): ManifestHint?</ID>
@@ -321,7 +315,6 @@
     <ID>TooManyFunctions:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl : ExternalImportRepository</ID>
     <ID>TooManyFunctions:InstalledAppDao.kt$InstalledAppDao</ID>
     <ID>TooManyFunctions:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl : InstalledAppsRepository</ID>
-    <ID>TooManyFunctions:MirrorRepositoryImpl.kt$MirrorRepositoryImpl : MirrorRepository</ID>
     <ID>TooManyFunctions:PackageEventReceiver.kt$PackageEventReceiver : BroadcastReceiverKoinComponent</ID>
     <ID>TooManyFunctions:ProxyRepositoryImpl.kt$ProxyRepositoryImpl : ProxyRepository</ID>
     <ID>TooManyFunctions:RootServiceManager.kt$RootServiceManager</ID>
