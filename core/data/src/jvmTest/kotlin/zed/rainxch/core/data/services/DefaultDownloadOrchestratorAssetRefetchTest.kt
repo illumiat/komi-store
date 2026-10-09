@@ -361,6 +361,11 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
 
         override suspend fun checkForUpdates(packageName: String): Boolean = false
 
+        override suspend fun checkForUpdatesWithReleases(
+            packageName: String,
+            releases: List<GithubRelease>,
+        ): Boolean = false
+
         override suspend fun checkAllForUpdates() = Unit
 
         override suspend fun updateAppVersion(

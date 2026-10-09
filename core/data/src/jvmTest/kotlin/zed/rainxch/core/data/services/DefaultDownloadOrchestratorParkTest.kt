@@ -14,6 +14,7 @@ import zed.rainxch.core.data.data_source.TokenStore
 import zed.rainxch.core.data.download.AssetSourceRefetcher
 import zed.rainxch.core.data.dto.GithubDeviceTokenSuccessDto
 import zed.rainxch.core.domain.model.account.github.GithubAsset
+import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
 import zed.rainxch.core.domain.model.installation.DownloadProgress
 import zed.rainxch.core.domain.model.installation.InstallSource
@@ -315,6 +316,11 @@ class DefaultDownloadOrchestratorParkTest {
         override suspend fun deleteInstalledApp(packageName: String) = Unit
 
         override suspend fun checkForUpdates(packageName: String): Boolean = false
+
+        override suspend fun checkForUpdatesWithReleases(
+            packageName: String,
+            releases: List<GithubRelease>,
+        ): Boolean = false
 
         override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease? = null
 

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
 import zed.rainxch.core.domain.model.installation.DeviceApp
@@ -576,6 +577,11 @@ class SyncInstalledAppsUseCaseParkTest {
         }
 
         override suspend fun checkForUpdates(packageName: String): Boolean = false
+
+        override suspend fun checkForUpdatesWithReleases(
+            packageName: String,
+            releases: List<GithubRelease>,
+        ): Boolean = false
 
         override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease? = null
 
