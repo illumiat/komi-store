@@ -13,6 +13,7 @@ import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.installation.PendingInstallResolution
 import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.bindingStatusAgainst
+import zed.rainxch.core.domain.model.installation.clearPending
 import zed.rainxch.core.domain.model.installation.deviceChangeAgainst
 import zed.rainxch.core.domain.model.installation.observeExternalInstall
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
@@ -311,6 +312,22 @@ class SyncInstalledAppsUseCase(
                     // pending group forever (the untrackable path resolves this shape too).
                     installedAppsRepository.updatePendingStatus(app.packageName, false)
                     logger.info("Resolved pending install without a parked file: ${app.packageName}")
+                } else if (parkedFileSupersededBySystem(app, systemInfo)) {
+                    // The gate's proof can be gone for good while the flag is still up: the
+                    // version name did not move and the target is a rolling tag no name can
+                    // match, so a successful self-update would pin its card forever. The parked
+                    // file carries the re-proof the stale-file sweep already trusts — the system
+                    // runs its build, installed after the file was written. The install's own run
+                    // already recorded the version row, so settling the pending state is all that
+                    // is left; the file goes through the shared discard queue.
+                    installedAppsRepository.updateApp(app.clearPending())
+                    logger.info("Resolved pending install by superseded parked file: ${app.packageName}")
+                    parkedCleanups += ParkedCleanup(
+                        packageName = app.packageName,
+                        expectedPath = app.pendingInstallFilePath,
+                        deleteRow = false,
+                        reason = "superseded parked install",
+                    )
                 } else {
                     // No answer or no proof it landed: the file on disk is still what the user
                     // needs, so the park stands. Clearing the pointer would fall the card back to

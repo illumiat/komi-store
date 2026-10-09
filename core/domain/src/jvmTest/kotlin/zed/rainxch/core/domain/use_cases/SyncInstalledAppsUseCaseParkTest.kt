@@ -309,6 +309,98 @@ class SyncInstalledAppsUseCaseParkTest {
     }
 
     @Test
+    fun aPendingParkSettlesWhenTheParkedFileProvesTheSystemAlreadyRunsItsBuild() = runBlocking {
+        // The same device shape as the stranded file below, with the flag still up: the
+        // install succeeded (its run wrote the optimistic version) and the flag was never
+        // lowered, but the gate can never mint — the target is a rolling tag, the name did not
+        // move, and no code was recorded. The parked file carries the re-proof the sweep
+        // trusts, so the pending state must settle instead of pinning the card forever.
+        val pending =
+            testInstalledApp(
+                packageName = "zed.rainxch.githubstore",
+                installedVersion = "testbuild-all-prs-20261009b",
+                installedVersionName = "1.9.3",
+                installedVersionCode = 22L,
+                latestVersion = "testbuild-all-prs-20261009b",
+                latestVersionCode = null,
+                pendingInstallFilePath = "/data/parked.apk",
+                pendingInstallVersion = "testbuild-all-prs-20261009b",
+                isPendingInstall = true,
+                installedAt = 1_000L,
+            )
+        val repo = RecordingInstalledAppsRepository(listOf(pending))
+        val monitor = FakePackageMonitor(
+            packageName = pending.packageName,
+            systemInfo = systemInfo(
+                pending.packageName,
+                versionName = "1.9.3",
+                versionCode = 22L,
+                lastUpdateTime = 2_000L,
+            ),
+            allPackageNames = setOf(pending.packageName) + (1..19).map { "com.example.filler$it" },
+        )
+        val extractor = FakeApkInfoExtractor(
+            apkFile(
+                versionCode = 22L,
+                fileAt = 1_000L,
+                packageName = "zed.rainxch.githubstore",
+            ),
+        )
+
+        SyncInstalledAppsUseCase(monitor, repo, extractor, Platform.ANDROID, NoOpLogger)()
+
+        assertFalse(repo.updatedApps.single().isPendingInstall, "the pending state must settle")
+        assertEquals(
+            listOf(DiscardCall(pending.packageName, "/data/parked.apk")),
+            repo.discardCalls,
+        )
+        assertTrue(repo.deletedPackages.isEmpty(), "only the park goes, not the row")
+    }
+
+    @Test
+    fun aPendingParkSurvivesWhenTheParkedFileIsNewerThanTheSystemBuild() = runBlocking {
+        // The inverse guard: a file written after the system's install is not superseded — it is
+        // still the user's next install, and the settle must not clear it.
+        val pending =
+            testInstalledApp(
+                packageName = "zed.rainxch.githubstore",
+                installedVersion = "testbuild-all-prs-20261009b",
+                installedVersionName = "1.9.3",
+                installedVersionCode = 22L,
+                latestVersion = "testbuild-all-prs-20261009b",
+                latestVersionCode = null,
+                pendingInstallFilePath = "/data/parked.apk",
+                pendingInstallVersion = "testbuild-all-prs-20261009b",
+                isPendingInstall = true,
+                installedAt = 1_000L,
+            )
+        val repo = RecordingInstalledAppsRepository(listOf(pending))
+        val monitor = FakePackageMonitor(
+            packageName = pending.packageName,
+            systemInfo = systemInfo(
+                pending.packageName,
+                versionName = "1.9.3",
+                versionCode = 22L,
+                lastUpdateTime = 2_000L,
+            ),
+            allPackageNames = setOf(pending.packageName) + (1..19).map { "com.example.filler$it" },
+        )
+        val extractor = FakeApkInfoExtractor(
+            apkFile(
+                versionCode = 22L,
+                fileAt = 3_000L,
+                packageName = "zed.rainxch.githubstore",
+            ),
+        )
+
+        SyncInstalledAppsUseCase(monitor, repo, extractor, Platform.ANDROID, NoOpLogger)()
+
+        assertTrue(repo.updatedApps.isEmpty(), "nothing may be written while the target is unproven")
+        assertTrue(repo.discardedPackages.isEmpty(), "the park must stay")
+        assertTrue(repo.pendingPathWrites.isEmpty(), "the pointer must not be cleared")
+    }
+
+    @Test
     fun aStrandedParkedFileGoesWhenTheSystemAlreadyRunsItsBuild() = runBlocking {
         // The stranded shape from the device: the flag was lowered by a resolution whose file
         // delete failed, and the gate can no longer re-derive a proof (the target is a rolling
