@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import zed.rainxch.core.data.data_source.TokenStore
 import zed.rainxch.core.data.download.AssetSourceGoneException
 import zed.rainxch.core.data.download.AssetSourceRefetcher
@@ -58,13 +60,16 @@ class DefaultDownloadOrchestrator(
 ) : DownloadOrchestrator {
     private companion object {
         private const val DEFAULT_MAX_CONCURRENT = 3
-        private const val QUEUE_POLL_DELAY_MS = 200L
     }
 
     private val _downloads = MutableStateFlow<Map<String, OrchestratedDownload>>(emptyMap())
     override val downloads: StateFlow<Map<String, OrchestratedDownload>> = _downloads.asStateFlow()
 
     private val stateMutex = Mutex()
+
+    // One permit per concurrency slot. Acquiring a permit atomically admits a download; releasing
+    // it on every exit path hands the slot to the next queued download.
+    private val slotPermits = Semaphore(DEFAULT_MAX_CONCURRENT)
 
     private val activeJobs = mutableMapOf<String, Job>()
 
@@ -180,206 +185,204 @@ class DefaultDownloadOrchestrator(
     }
 
     private suspend fun runDownload(spec: DownloadSpec) {
-        while (true) {
-            val activeNow =
-                stateMutex.withLock {
-                    _downloads.value.values.count { it.stage == DownloadStage.Downloading }
-                }
-            if (activeNow < DEFAULT_MAX_CONCURRENT) break
-            kotlinx.coroutines.delay(QUEUE_POLL_DELAY_MS)
-        }
+        // A permit is a concurrency slot: acquiring it atomically admits this download while the
+        // entry is still Queued, and releasing it on every exit path (success, failure,
+        // cancellation, exception) hands the slot to the next queued download. The previous
+        // read-count-then-set-stage dance was not atomic, so a burst of enqueues could all observe
+        // a stale count and over-admit. Waiting downloads stay Queued until a permit is granted.
+        slotPermits.withPermit {
+            val scopedName =
+                AssetFileName.scoped(
+                    owner = spec.repoOwner,
+                    repo = spec.repoName,
+                    originalName = spec.asset.name,
+                )
 
-        val scopedName =
-            AssetFileName.scoped(
-                owner = spec.repoOwner,
-                repo = spec.repoName,
-                originalName = spec.asset.name,
-            )
+            updateEntry(spec.packageName) {
+                it.copy(
+                    stage = DownloadStage.Downloading,
+                    bytesDownloaded = 0L,
+                    totalBytes = spec.asset.size.takeIf { size -> size > 0 },
+                )
+            }
 
-        updateEntry(spec.packageName) {
-            it.copy(
-                stage = DownloadStage.Downloading,
-                bytesDownloaded = 0L,
-                totalBytes = spec.asset.size.takeIf { size -> size > 0 },
-            )
-        }
-
-        suspend fun streamProgress(flow: Flow<DownloadProgress>) {
-            flow.collect { progress ->
-                if (progress.restart) {
-                    slowDownloadDetector.reset()
-                }
-                slowDownloadDetector.onProgress(progress)
-                updateEntry(spec.packageName) {
-                    it.copy(
-                        progressPercent = progress.percent,
-                        bytesDownloaded = progress.bytesDownloaded,
-                        totalBytes = progress.totalBytes ?: it.totalBytes,
-                    )
+            suspend fun streamProgress(flow: Flow<DownloadProgress>) {
+                flow.collect { progress ->
+                    if (progress.restart) {
+                        slowDownloadDetector.reset()
+                    }
+                    slowDownloadDetector.onProgress(progress)
+                    updateEntry(spec.packageName) {
+                        it.copy(
+                            progressPercent = progress.percent,
+                            bytesDownloaded = progress.bytesDownloaded,
+                            totalBytes = progress.totalBytes ?: it.totalBytes,
+                        )
+                    }
                 }
             }
-        }
 
-        var identity =
-            AssetIdentity(
-                assetId = spec.asset.id,
-                digest = spec.asset.digest,
-                size = spec.asset.size,
-            )
-        var effectiveSpec = spec
-        suspend fun retryViaAuthenticatedAssetApi(failure: Throwable, failedSpec: DownloadSpec) {
-            val apiUrl = authenticatedGithubAssetUrl(failedSpec)
-                ?: throw failure
-            Logger.w(failure) {
-                "Orchestrator: primary download failed for ${failedSpec.asset.name}, " +
-                    "retrying via authenticated GitHub asset API"
-            }
-            slowDownloadDetector.reset()
-            streamProgress(
-                downloader.download(apiUrl, scopedName, bypassMirror = true, identity = identity),
-            )
-        }
-
-        try {
-            streamProgress(
-                multiSourceDownloader.download(
-                    spec.asset.downloadUrl,
-                    scopedName,
-                    identity = identity,
-                ),
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: AssetSourceGoneException) {
-            // The URL this download was handed is gone. That is the shape a stale resolution
-            // leaves behind — an asset re-uploaded, or the release replaced, since the spec was
-            // built — so ask the repository host directly what carries the asset now and repeat
-            // the download there. Only when nothing moved does the failure stand, exactly as it
-            // would have without this branch.
-            val refetched = assetSourceRefetcher.refetch(spec)
-            if (refetched == null) {
-                retryViaAuthenticatedAssetApi(e, spec)
-            } else {
-                Logger.w(e) {
-                    "Orchestrator: ${spec.asset.name} is no longer at ${spec.releaseTag}; " +
-                        "the repository now offers it at ${refetched.releaseTag}, retrying"
-                }
-                // The entry carries the URL every later retry rebuilds from: leaving the dead
-                // one there would make each retry walk into the same 404 before refetching
-                // again. With the replacement recorded, the next retry starts from truth.
-                updateEntry(spec.packageName) {
-                    it.copy(
-                        bytesDownloaded = 0L,
-                        progressPercent = 0,
-                        downloadUrl = refetched.asset.downloadUrl,
-                        assetSize = refetched.asset.size,
-                        releaseTag = refetched.releaseTag,
-                    )
+            var identity =
+                AssetIdentity(
+                    assetId = spec.asset.id,
+                    digest = spec.asset.digest,
+                    size = spec.asset.size,
+                )
+            var effectiveSpec = spec
+            suspend fun retryViaAuthenticatedAssetApi(failure: Throwable, failedSpec: DownloadSpec) {
+                val apiUrl = authenticatedGithubAssetUrl(failedSpec)
+                    ?: throw failure
+                Logger.w(failure) {
+                    "Orchestrator: primary download failed for ${failedSpec.asset.name}, " +
+                        "retrying via authenticated GitHub asset API"
                 }
                 slowDownloadDetector.reset()
-                effectiveSpec = refetched
-                identity =
-                    AssetIdentity(
-                        assetId = refetched.asset.id,
-                        digest = refetched.asset.digest,
-                        size = refetched.asset.size,
-                    )
+                streamProgress(
+                    downloader.download(apiUrl, scopedName, bypassMirror = true, identity = identity),
+                )
+            }
+
+            try {
                 streamProgress(
                     multiSourceDownloader.download(
-                        refetched.asset.downloadUrl,
+                        spec.asset.downloadUrl,
                         scopedName,
                         identity = identity,
                     ),
                 )
-            }
-        } catch (e: Throwable) {
-            retryViaAuthenticatedAssetApi(e, spec)
-        }
-
-        var filePath =
-            downloader.getDownloadedFilePath(scopedName)
-                ?: throw IllegalStateException("Downloaded file missing: $scopedName")
-
-        updateEntry(spec.packageName) {
-            it.copy(filePath = filePath, progressPercent = 100)
-        }
-
-        val expectedDigest = effectiveSpec.asset.digest
-        if (expectedDigest != null) {
-            val mismatch = digestVerifier.verify(filePath, expectedDigest)
-            if (mismatch != null) {
-                // The bytes did not match, and the mirror is the first suspect — not the
-                // release: a mirror that answers 200 with corrupted bytes streams to the end
-                // without ever throwing, so the fallback above never sees it, and the download
-                // used to die here accusing the file of tampering. Re-fetch straight from the
-                // source and check once more; only bytes that fail the direct fetch too are
-                // treated as an integrity failure.
-                Logger.w {
-                    "Orchestrator: digest mismatch for ${effectiveSpec.asset.name} ($mismatch); " +
-                        "re-fetching from the source"
-                }
-                runCatching { java.io.File(filePath).delete() }
-                runCatching { downloader.discardPartial(scopedName) }
-                updateEntry(spec.packageName) {
-                    it.copy(progressPercent = 0, bytesDownloaded = 0L)
-                }
-                val sourceUrl = authenticatedGithubAssetUrl(effectiveSpec)
-                    ?: effectiveSpec.asset.downloadUrl
-                try {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AssetSourceGoneException) {
+                // The URL this download was handed is gone. That is the shape a stale resolution
+                // leaves behind — an asset re-uploaded, or the release replaced, since the spec was
+                // built — so ask the repository host directly what carries the asset now and repeat
+                // the download there. Only when nothing moved does the failure stand, exactly as it
+                // would have without this branch.
+                val refetched = assetSourceRefetcher.refetch(spec)
+                if (refetched == null) {
+                    retryViaAuthenticatedAssetApi(e, spec)
+                } else {
+                    Logger.w(e) {
+                        "Orchestrator: ${spec.asset.name} is no longer at ${spec.releaseTag}; " +
+                            "the repository now offers it at ${refetched.releaseTag}, retrying"
+                    }
+                    // The entry carries the URL every later retry rebuilds from: leaving the dead
+                    // one there would make each retry walk into the same 404 before refetching
+                    // again. With the replacement recorded, the next retry starts from truth.
+                    updateEntry(spec.packageName) {
+                        it.copy(
+                            bytesDownloaded = 0L,
+                            progressPercent = 0,
+                            downloadUrl = refetched.asset.downloadUrl,
+                            assetSize = refetched.asset.size,
+                            releaseTag = refetched.releaseTag,
+                        )
+                    }
+                    slowDownloadDetector.reset()
+                    effectiveSpec = refetched
+                    identity =
+                        AssetIdentity(
+                            assetId = refetched.asset.id,
+                            digest = refetched.asset.digest,
+                            size = refetched.asset.size,
+                        )
                     streamProgress(
-                        downloader.download(
-                            sourceUrl,
+                        multiSourceDownloader.download(
+                            refetched.asset.downloadUrl,
                             scopedName,
-                            bypassMirror = true,
                             identity = identity,
                         ),
                     )
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (t: Throwable) {
-                    Logger.e(t) {
-                        "Orchestrator: source re-fetch failed for ${effectiveSpec.asset.name}"
-                    }
-                    markFailed(spec.packageName, t.message)
-                    return
                 }
-                filePath =
-                    downloader.getDownloadedFilePath(scopedName)
-                        ?: throw IllegalStateException(
-                            "Downloaded file missing after re-fetch: $scopedName",
-                        )
-                val stillMismatched = digestVerifier.verify(filePath, expectedDigest)
-                if (stillMismatched != null) {
+            } catch (e: Throwable) {
+                retryViaAuthenticatedAssetApi(e, spec)
+            }
+
+            var filePath =
+                downloader.getDownloadedFilePath(scopedName)
+                    ?: throw IllegalStateException("Downloaded file missing: $scopedName")
+
+            updateEntry(spec.packageName) {
+                it.copy(filePath = filePath, progressPercent = 100)
+            }
+
+            val expectedDigest = effectiveSpec.asset.digest
+            if (expectedDigest != null) {
+                val mismatch = digestVerifier.verify(filePath, expectedDigest)
+                if (mismatch != null) {
+                    // The bytes did not match, and the mirror is the first suspect — not the
+                    // release: a mirror that answers 200 with corrupted bytes streams to the end
+                    // without ever throwing, so the fallback above never sees it, and the download
+                    // used to die here accusing the file of tampering. Re-fetch straight from the
+                    // source and check once more; only bytes that fail the direct fetch too are
+                    // treated as an integrity failure.
                     Logger.w {
-                        "Orchestrator: digest still mismatched after the source re-fetch for " +
-                            "${effectiveSpec.asset.name}: $stillMismatched"
+                        "Orchestrator: digest mismatch for ${effectiveSpec.asset.name} ($mismatch); " +
+                            "re-fetching from the source"
                     }
                     runCatching { java.io.File(filePath).delete() }
-                    markFailed(
-                        spec.packageName,
-                        "Checksum mismatch — file may have been tampered with",
-                    )
-                    return
+                    runCatching { downloader.discardPartial(scopedName) }
+                    updateEntry(spec.packageName) {
+                        it.copy(progressPercent = 0, bytesDownloaded = 0L)
+                    }
+                    val sourceUrl = authenticatedGithubAssetUrl(effectiveSpec)
+                        ?: effectiveSpec.asset.downloadUrl
+                    try {
+                        streamProgress(
+                            downloader.download(
+                                sourceUrl,
+                                scopedName,
+                                bypassMirror = true,
+                                identity = identity,
+                            ),
+                        )
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (t: Throwable) {
+                        Logger.e(t) {
+                            "Orchestrator: source re-fetch failed for ${effectiveSpec.asset.name}"
+                        }
+                        markFailed(spec.packageName, t.message)
+                        return
+                    }
+                    filePath =
+                        downloader.getDownloadedFilePath(scopedName)
+                            ?: throw IllegalStateException(
+                                "Downloaded file missing after re-fetch: $scopedName",
+                            )
+                    val stillMismatched = digestVerifier.verify(filePath, expectedDigest)
+                    if (stillMismatched != null) {
+                        Logger.w {
+                            "Orchestrator: digest still mismatched after the source re-fetch for " +
+                                "${effectiveSpec.asset.name}: $stillMismatched"
+                        }
+                        runCatching { java.io.File(filePath).delete() }
+                        markFailed(
+                            spec.packageName,
+                            "Checksum mismatch — file may have been tampered with",
+                        )
+                        return
+                    }
+                    updateEntry(spec.packageName) {
+                        it.copy(filePath = filePath, progressPercent = 100)
+                    }
                 }
-                updateEntry(spec.packageName) {
-                    it.copy(filePath = filePath, progressPercent = 100)
+            } else {
+                Logger.i { "No digest for ${effectiveSpec.asset.name}, skipping SHA-256 verification" }
+            }
+
+            val effectivePolicy =
+                stateMutex.withLock {
+                    _downloads.value[spec.packageName]?.installPolicy ?: spec.installPolicy
                 }
+
+            when (effectivePolicy) {
+                InstallPolicy.AlwaysInstall -> runInstall(effectiveSpec, filePath)
+
+                InstallPolicy.InstallWhileForeground -> parkForUser(effectiveSpec, filePath, notify = false)
+
+                InstallPolicy.DeferUntilUserAction -> parkForUser(effectiveSpec, filePath, notify = true)
             }
-        } else {
-            Logger.i { "No digest for ${effectiveSpec.asset.name}, skipping SHA-256 verification" }
-        }
-
-        val effectivePolicy =
-            stateMutex.withLock {
-                _downloads.value[spec.packageName]?.installPolicy ?: spec.installPolicy
-            }
-
-        when (effectivePolicy) {
-            InstallPolicy.AlwaysInstall -> runInstall(effectiveSpec, filePath)
-
-            InstallPolicy.InstallWhileForeground -> parkForUser(effectiveSpec, filePath, notify = false)
-
-            InstallPolicy.DeferUntilUserAction -> parkForUser(effectiveSpec, filePath, notify = true)
         }
     }
 
