@@ -156,45 +156,6 @@ object VersionMath {
         return candidateInstant > baselineInstant
     }
 
-    /**
-     * A digest as it is worth comparing. The `sha256:` prefix and the letter case are how the value
-     * is written down, not what it is, and the two places that read a digest already disagree about
-     * the form: GitHub hands back `sha256:<hex>`, while the verifiers strip the prefix and lowercase
-     * before comparing. Comparing the raw strings here would call a build changed whenever the same
-     * value arrived in two spellings. A blank string is treated as nothing at all — a row carrying
-     * one carries no evidence, and letting it through the "both sides present" gate would compare it
-     * against a real digest and report a build that never changed.
-     */
-    private fun comparableDigest(raw: String?): String? =
-        raw
-            ?.takeIf { it.isNotBlank() }
-            // Fold the case first: `removePrefix` matches exactly, so stripping before folding would
-            // leave "SHA256:…" intact and the same value would then read as a different one.
-            ?.lowercase()
-            ?.removePrefix("sha256:")
-            // A prefix with no hex behind it is not a digest either — same reason as a blank string,
-            // reached one step later.
-            ?.takeIf { it.isNotEmpty() }
-
-    /**
-     * Whether the build behind the matched release is a different one from the build stored.
-     *
-     * Byte content decides whenever both sides can produce it. An asset's bytes are immutable: the
-     * object id changes when the same bytes are re-uploaded (a delete-and-reupload, which is what
-     * `--clobber` does), so **an id change on its own is not evidence of a new build** — the object
-     * was replaced, the program was not. Reading the ids first inverted that: a release re-uploaded
-     * byte-for-byte looked like a fresh build, which is exactly the case a rolling tag hits when
-     * someone re-runs a nightly job without changing the code.
-     *
-     * Without a digest on both sides the ids are the only evidence available, and they are used
-     * instead, with size after them — size survives neither of the two ways a build can really
-     * change, and it is the one comparison that cannot be fooled by a re-upload of identical bytes.
-     *
-     * The digest comparison itself lives in [assetIdentityChanged] and is delegated to, so the
-     * "same bytes" rule has one implementation rather than one per call path. The fallback is
-     * spelled out as ids-then-size rather than delegated, because the digest branch of that
-     * function cannot be reached from here and a reader should not have to work that out.
-     */
     fun assetBuildChanged(
         matchedReleaseId: Long?,
         matchedAssetId: Long?,
@@ -205,29 +166,20 @@ object VersionMath {
         storedDigest: String?,
         storedSize: Long?,
     ): Boolean {
-        // The bytes can only settle it when both sides actually carry one; a blank side is a side
-        // with no evidence, and belongs in the fallback with the ids rather than in this branch.
-        if (comparableDigest(matchedDigest) != null && comparableDigest(storedDigest) != null) {
-            return assetIdentityChanged(
-                matchedDigest = matchedDigest,
-                matchedSize = matchedSize,
-                storedDigest = storedDigest,
-                storedSize = storedSize,
-            )
-        }
+        if (matchedDigest != null && storedDigest != null) return matchedDigest != storedDigest
         return releaseObjectChanged(
             matchedReleaseId = matchedReleaseId,
             matchedAssetId = matchedAssetId,
             storedReleaseId = storedReleaseId,
             storedAssetId = storedAssetId,
-        ) || sizeChanged(matchedSize = matchedSize, storedSize = storedSize)
+        ) ||
+            assetIdentityChanged(
+                matchedDigest = matchedDigest,
+                matchedSize = matchedSize,
+                storedDigest = storedDigest,
+                storedSize = storedSize,
+            )
     }
-
-    /** A size difference is real evidence; a size match is not. */
-    private fun sizeChanged(
-        matchedSize: Long?,
-        storedSize: Long?,
-    ): Boolean = matchedSize != null && storedSize != null && matchedSize != storedSize
 
     fun releaseObjectChanged(
         matchedReleaseId: Long?,
@@ -244,21 +196,15 @@ object VersionMath {
         return false
     }
 
-    /**
-     * The one digest comparison. Also the size fallback, which is what remains when the bytes cannot
-     * be compared directly — a re-upload of identical bytes cannot change the size, so a size
-     * difference is real evidence even though a size match is not.
-     */
     fun assetIdentityChanged(
         matchedDigest: String?,
         matchedSize: Long?,
         storedDigest: String?,
         storedSize: Long?,
     ): Boolean {
-        val matched = comparableDigest(matchedDigest)
-        val stored = comparableDigest(storedDigest)
-        if (matched != null && stored != null) return matched != stored
-        return sizeChanged(matchedSize = matchedSize, storedSize = storedSize)
+        if (matchedDigest != null && storedDigest != null) return matchedDigest != storedDigest
+        if (matchedSize != null && storedSize != null) return matchedSize != storedSize
+        return false
     }
 
     fun shouldReportTimestampUpdate(
@@ -281,8 +227,6 @@ object VersionMath {
             return !isExactSameVersion(matchedTag, installedTag)
         }
         val newerByTimestamp = isPublishedAtAfter(matchedPublishedAt, previousLatestPublishedAt)
-        // One decision, not two ORed together: see [assetBuildChanged] for why the bytes have to be
-        // consulted before the object ids rather than beside them.
         val newerByBuild =
             assetBuildChanged(
                 matchedReleaseId = matchedReleaseId,
