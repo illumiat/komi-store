@@ -59,6 +59,31 @@ class UpdateCheckWindowTest {
     }
 
     @Test
+    fun the_cap_counts_raw_entries_like_the_fetch_path_not_filtered_ones() {
+        // The fetch path's per_page caps the raw window server-side, before any pre-release
+        // filter: a window of mostly pre-releases must not reach past the cap for the stable
+        // entries the fetch-driven check can never see.
+        val oldestStable = release(id = 1L, tag = "1.0.0", publishedAt = "2026-09-01T00:00:00Z")
+        val newestStable = release(id = 2L, tag = "2.0.0", publishedAt = "2026-09-05T00:00:00Z")
+        val preReleases =
+            (10..12).map { index ->
+                release(
+                    id = index.toLong(),
+                    tag = "$index.0.0-beta",
+                    publishedAt = "2026-10-0${index - 9}T00:00:00Z",
+                    isPrerelease = true,
+                )
+            }
+
+        val window =
+            (preReleases + oldestStable + newestStable)
+                .toUpdateCheckWindow(includePreReleases = false, limit = 3)
+
+        assertTrue(window.none { it.isPrerelease }, "pre-releases stay filtered out")
+        assertEquals(emptyList(), window.map { it.id }, "the raw cap can leave nothing judgeable")
+    }
+
+    @Test
     fun an_empty_list_stays_empty() {
         assertTrue(
             emptyList<GithubRelease>()

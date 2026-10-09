@@ -43,6 +43,7 @@ import zed.rainxch.core.domain.utils.AssetFilter
 import zed.rainxch.core.domain.utils.AssetVariant
 import zed.rainxch.core.domain.utils.ResolvedRelease
 import zed.rainxch.core.domain.utils.TrackedReleaseResolver
+import zed.rainxch.core.domain.utils.UpdateCheckWindow
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
 
@@ -63,7 +64,7 @@ class InstalledAppsRepositoryImpl(
 
     private companion object {
 
-        const val RELEASE_WINDOW = 50
+        const val RELEASE_WINDOW = UpdateCheckWindow.Size
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =

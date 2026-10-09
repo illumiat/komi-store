@@ -14,14 +14,16 @@ fun List<ReleaseNetwork>.toReleaseWindow(includePreReleases: Boolean): List<Gith
 
 // The window a check judges from when the list was fetched by someone else: the details
 // refresh holds the repository host's own answer, and the check must not pay for a second
-// read. Newest first, with the same pre-release filter and the same cap as the fetch path,
-// so a longer list cannot widen the decision.
+// read. Newest first, capped before the pre-release filter — the fetch path's cap is the
+// server-side per_page over the raw window, so filtering first would let a longer list reach
+// releases the fetch-driven check can never see — and the same pre-release filter as that
+// path, so the two cannot disagree about what is judgeable.
 fun List<GithubRelease>.toUpdateCheckWindow(
     includePreReleases: Boolean,
     limit: Int,
 ): List<GithubRelease> =
     asSequence()
         .sortedByDescending { it.publishedAt }
-        .filter { includePreReleases || !it.isEffectivelyPreRelease() }
         .take(limit)
+        .filter { includePreReleases || !it.isEffectivelyPreRelease() }
         .toList()
