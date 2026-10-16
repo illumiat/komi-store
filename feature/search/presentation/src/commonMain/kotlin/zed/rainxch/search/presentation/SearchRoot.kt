@@ -298,25 +298,30 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(listState.layoutInfo.totalItemsCount, listState.layoutInfo.viewportEndOffset) {
-        val layoutInfo = listState.layoutInfo
-        val visibleItems = layoutInfo.visibleItemsInfo
-        val lastVisible = visibleItems.maxByOrNull { it.index }
+    val hasEmptySpaceAtBottom by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            val lastVisible = visibleItems.maxByOrNull { it.index }
 
-        if (lastVisible != null &&
-            layoutInfo.totalItemsCount > 0 &&
-            !state.isLoadingMore &&
-            !state.isLoading &&
-            state.hasMorePages
-        ) {
-            val hasEmptySpace =
-                lastVisible.index == layoutInfo.totalItemsCount - 1 &&
-                        lastVisible.offset.y + lastVisible.size.height < layoutInfo.viewportEndOffset
-
-            if (hasEmptySpace) {
-                delay(100.milliseconds)
-                currentOnAction(SearchAction.LoadMore)
+            if (lastVisible == null ||
+                layoutInfo.totalItemsCount <= 0 ||
+                state.isLoadingMore ||
+                state.isLoading ||
+                !state.hasMorePages
+            ) {
+                return@derivedStateOf false
             }
+
+            lastVisible.index == layoutInfo.totalItemsCount - 1 &&
+                lastVisible.offset.y + lastVisible.size.height < layoutInfo.viewportEndOffset
+        }
+    }
+
+    LaunchedEffect(hasEmptySpaceAtBottom) {
+        if (hasEmptySpaceAtBottom) {
+            delay(100.milliseconds)
+            currentOnAction(SearchAction.LoadMore)
         }
     }
 
