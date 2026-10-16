@@ -1,6 +1,5 @@
 package zed.rainxch.githubstore.app.navigation
 
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,11 +47,9 @@ import zed.rainxch.core.domain.model.repository.DiscoveryPlatform
 import zed.rainxch.core.presentation.components.adaptive.AdaptiveDetailArgs
 import zed.rainxch.core.presentation.components.adaptive.AdaptiveListDetailScaffold
 import zed.rainxch.core.presentation.components.adaptive.rememberAdaptiveListDetailState
-import zed.rainxch.core.presentation.locals.LocalAnimatedVisibilityScope
 import zed.rainxch.core.presentation.locals.LocalContentWidth
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
-import zed.rainxch.core.presentation.locals.LocalSharedTransitionScope
 import zed.rainxch.details.presentation.DetailsRoot
 import zed.rainxch.details.presentation.about.AboutRoot
 import zed.rainxch.details.presentation.markdownviewer.MarkdownViewerRoot
@@ -152,7 +149,7 @@ fun AppNavigation(
                                 .allowedScreens()
                                 .any { it.screen::class == currentScreen::class }
 
-                    SharedTransitionLayout(
+                    Box(
                         modifier =
                             Modifier
                                 .padding(
@@ -205,97 +202,87 @@ fun AppNavigation(
                             },
                         ) {
                             composable<GithubStoreGraph.ExploreScreen> {
-                                CompositionLocalProvider(
-                                    LocalSharedTransitionScope provides this@SharedTransitionLayout,
-                                    LocalAnimatedVisibilityScope provides this@composable,
-                                ) {
-                                    val listDetailState = rememberAdaptiveListDetailState()
+                                val listDetailState = rememberAdaptiveListDetailState()
 
-                                    AdaptiveListDetailScaffold(
-                                        state = listDetailState,
-                                        emptyPaneTitle = stringResource(Res.string.adaptive_pick_repo_title),
-                                        emptyPaneSubtitle = stringResource(Res.string.adaptive_pick_repo_subtitle),
-                                        list = { isExpanded ->
-                                            FeedRoot(
-                                                onNavigateToDetails = { repoId ->
-                                                    if (isExpanded) {
-                                                        listDetailState.select(
-                                                            AdaptiveDetailArgs(repositoryId = repoId),
-                                                        )
-                                                    } else {
-                                                        navController.navigate(
-                                                            GithubStoreGraph.DetailsScreen(
-                                                                repositoryId = repoId,
-                                                            ),
-                                                        )
-                                                    }
-                                                },
-                                                onNavigateToSearch = {
-                                                    navController.navigate(GithubStoreGraph.SearchScreen())
-                                                },
-                                                onNavigateToProfile = {
-                                                    navController.navigate(GithubStoreGraph.ProfileGraph.ProfileScreen)
-                                                },
-                                            )
-                                        },
-                                        detail = { args ->
-                                            AdaptiveDetailPaneContent(
-                                                args = args,
-                                                navController = navController,
-                                                onCrossNavToRepo = { newArgs ->
+                                AdaptiveListDetailScaffold(
+                                    state = listDetailState,
+                                    emptyPaneTitle = stringResource(Res.string.adaptive_pick_repo_title),
+                                    emptyPaneSubtitle = stringResource(Res.string.adaptive_pick_repo_subtitle),
+                                    list = { isExpanded ->
+                                        FeedRoot(
+                                            onNavigateToDetails = { repoId ->
+                                                if (isExpanded) {
                                                     listDetailState.select(
-                                                        newArgs,
+                                                        AdaptiveDetailArgs(repositoryId = repoId),
                                                     )
-                                                },
-                                                onClearPane = { listDetailState.clear() },
-                                            )
-                                        },
-                                    )
-                                }
+                                                } else {
+                                                    navController.navigate(
+                                                        GithubStoreGraph.DetailsScreen(
+                                                            repositoryId = repoId,
+                                                        ),
+                                                    )
+                                                }
+                                            },
+                                            onNavigateToSearch = {
+                                                navController.navigate(GithubStoreGraph.SearchScreen())
+                                            },
+                                            onNavigateToProfile = {
+                                                navController.navigate(GithubStoreGraph.ProfileGraph.ProfileScreen)
+                                            },
+                                        )
+                                    },
+                                    detail = { args ->
+                                        AdaptiveDetailPaneContent(
+                                            args = args,
+                                            navController = navController,
+                                            onCrossNavToRepo = { newArgs ->
+                                                listDetailState.select(
+                                                    newArgs,
+                                                )
+                                            },
+                                            onClearPane = { listDetailState.clear() },
+                                        )
+                                    },
+                                )
                             }
 
                             composable<GithubStoreGraph.ChartsScreen> {
-                                CompositionLocalProvider(
-                                    LocalSharedTransitionScope provides this@SharedTransitionLayout,
-                                    LocalAnimatedVisibilityScope provides this@composable,
-                                ) {
-                                    val listDetailState = rememberAdaptiveListDetailState()
+                                val listDetailState = rememberAdaptiveListDetailState()
 
-                                    AdaptiveListDetailScaffold(
-                                        state = listDetailState,
-                                        emptyPaneTitle = stringResource(Res.string.adaptive_pick_repo_title),
-                                        emptyPaneSubtitle = stringResource(Res.string.adaptive_pick_repo_subtitle),
-                                        list = { isExpanded ->
-                                            HomeRoot(
-                                                onNavigateToDetails = { repoId ->
-                                                    if (isExpanded) {
-                                                        listDetailState.select(
-                                                            AdaptiveDetailArgs(repositoryId = repoId),
-                                                        )
-                                                    } else {
-                                                        navController.navigate(
-                                                            GithubStoreGraph.DetailsScreen(
-                                                                repositoryId = repoId,
-                                                            ),
-                                                        )
-                                                    }
-                                                },
-                                            )
-                                        },
-                                        detail = { args ->
-                                            AdaptiveDetailPaneContent(
-                                                args = args,
-                                                navController = navController,
-                                                onCrossNavToRepo = { newArgs ->
+                                AdaptiveListDetailScaffold(
+                                    state = listDetailState,
+                                    emptyPaneTitle = stringResource(Res.string.adaptive_pick_repo_title),
+                                    emptyPaneSubtitle = stringResource(Res.string.adaptive_pick_repo_subtitle),
+                                    list = { isExpanded ->
+                                        HomeRoot(
+                                            onNavigateToDetails = { repoId ->
+                                                if (isExpanded) {
                                                     listDetailState.select(
-                                                        newArgs,
+                                                        AdaptiveDetailArgs(repositoryId = repoId),
                                                     )
-                                                },
-                                                onClearPane = { listDetailState.clear() },
-                                            )
-                                        },
-                                    )
-                                }
+                                                } else {
+                                                    navController.navigate(
+                                                        GithubStoreGraph.DetailsScreen(
+                                                            repositoryId = repoId,
+                                                        ),
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    },
+                                    detail = { args ->
+                                        AdaptiveDetailPaneContent(
+                                            args = args,
+                                            navController = navController,
+                                            onCrossNavToRepo = { newArgs ->
+                                                listDetailState.select(
+                                                    newArgs,
+                                                )
+                                            },
+                                            onClearPane = { listDetailState.clear() },
+                                        )
+                                    },
+                                )
                             }
 
                             composable<GithubStoreGraph.CategoryListScreen> { backStackEntry ->
@@ -407,88 +394,82 @@ fun AppNavigation(
                             }
 
                             composable<GithubStoreGraph.DetailsScreen> { backStackEntry ->
-                                val animatedScope = this
-                                CompositionLocalProvider(
-                                    LocalSharedTransitionScope provides this@SharedTransitionLayout,
-                                    LocalAnimatedVisibilityScope provides animatedScope,
-                                ) {
-                                    val args =
-                                        backStackEntry.toRoute<GithubStoreGraph.DetailsScreen>()
-                                    DetailsRoot(
-                                        onNavigateBack = {
-                                            navController.navigateUp()
-                                        },
-                                        onOpenRepositoryInApp = { repoId ->
-                                            navController.navigate(
-                                                GithubStoreGraph.DetailsScreen(
-                                                    repositoryId = repoId,
-                                                ),
+                                val args =
+                                    backStackEntry.toRoute<GithubStoreGraph.DetailsScreen>()
+                                DetailsRoot(
+                                    onNavigateBack = {
+                                        navController.navigateUp()
+                                    },
+                                    onOpenRepositoryInApp = { repoId ->
+                                        navController.navigate(
+                                            GithubStoreGraph.DetailsScreen(
+                                                repositoryId = repoId,
+                                            ),
+                                        )
+                                    },
+                                    onNavigateToDeveloperProfile = { username ->
+                                        navController.navigate(
+                                            GithubStoreGraph.DeveloperProfileScreen(
+                                                username = username,
+                                            ),
+                                        )
+                                    },
+                                    onNavigateToAbout = { repoId, owner, repo, sourceHost, translateTo ->
+                                        navController.navigate(
+                                            GithubStoreGraph.DetailsAboutScreen(
+                                                repositoryId = repoId,
+                                                owner = owner,
+                                                repo = repo,
+                                                sourceHost = sourceHost,
+                                                translateTo = translateTo,
+                                            ),
+                                        )
+                                    },
+                                    onNavigateToWhatsNew = { repoId, owner, repo, sourceHost ->
+                                        navController.navigate(
+                                            GithubStoreGraph.DetailsWhatsNewScreen(
+                                                repositoryId = repoId,
+                                                owner = owner,
+                                                repo = repo,
+                                                sourceHost = sourceHost,
+                                            ),
+                                        )
+                                    },
+                                    onNavigateToIssues = { owner, repo ->
+                                        navController.navigate(
+                                            GithubStoreGraph.RepoIssuesScreen(
+                                                owner = owner,
+                                                repo = repo,
+                                            ),
+                                        )
+                                    },
+                                    onNavigateToSecurity = { owner, repo ->
+                                        navController.navigate(
+                                            GithubStoreGraph.RepoSecurityScreen(
+                                                owner = owner,
+                                                repo = repo,
+                                            ),
+                                        )
+                                    },
+                                    onNavigateToMarkdownViewer = { url ->
+                                        navController.navigate(
+                                            GithubStoreGraph.MarkdownViewerScreen(
+                                                url,
+                                            ),
+                                        )
+                                    },
+                                    viewModel =
+                                        koinViewModel {
+                                            parametersOf(
+                                                args.repositoryId,
+                                                args.owner,
+                                                args.repo,
+                                                args.isComingFromUpdate,
+                                                args.sourceHost,
+                                                args.packageName,
                                             )
                                         },
-                                        onNavigateToDeveloperProfile = { username ->
-                                            navController.navigate(
-                                                GithubStoreGraph.DeveloperProfileScreen(
-                                                    username = username,
-                                                ),
-                                            )
-                                        },
-                                        onNavigateToAbout = { repoId, owner, repo, sourceHost, translateTo ->
-                                            navController.navigate(
-                                                GithubStoreGraph.DetailsAboutScreen(
-                                                    repositoryId = repoId,
-                                                    owner = owner,
-                                                    repo = repo,
-                                                    sourceHost = sourceHost,
-                                                    translateTo = translateTo,
-                                                ),
-                                            )
-                                        },
-                                        onNavigateToWhatsNew = { repoId, owner, repo, sourceHost ->
-                                            navController.navigate(
-                                                GithubStoreGraph.DetailsWhatsNewScreen(
-                                                    repositoryId = repoId,
-                                                    owner = owner,
-                                                    repo = repo,
-                                                    sourceHost = sourceHost,
-                                                ),
-                                            )
-                                        },
-                                        onNavigateToIssues = { owner, repo ->
-                                            navController.navigate(
-                                                GithubStoreGraph.RepoIssuesScreen(
-                                                    owner = owner,
-                                                    repo = repo,
-                                                ),
-                                            )
-                                        },
-                                        onNavigateToSecurity = { owner, repo ->
-                                            navController.navigate(
-                                                GithubStoreGraph.RepoSecurityScreen(
-                                                    owner = owner,
-                                                    repo = repo,
-                                                ),
-                                            )
-                                        },
-                                        onNavigateToMarkdownViewer = { url ->
-                                            navController.navigate(
-                                                GithubStoreGraph.MarkdownViewerScreen(
-                                                    url,
-                                                ),
-                                            )
-                                        },
-                                        viewModel =
-                                            koinViewModel {
-                                                parametersOf(
-                                                    args.repositoryId,
-                                                    args.owner,
-                                                    args.repo,
-                                                    args.isComingFromUpdate,
-                                                    args.sourceHost,
-                                                    args.packageName,
-                                                )
-                                            },
-                                    )
-                                }
+                                )
                             }
 
                             composable<GithubStoreGraph.DetailsAboutScreen>(
