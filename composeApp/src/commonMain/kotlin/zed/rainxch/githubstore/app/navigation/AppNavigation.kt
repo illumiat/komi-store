@@ -62,6 +62,7 @@ import zed.rainxch.devprofile.presentation.DeveloperProfileRoot
 import zed.rainxch.favourites.presentation.FavouritesRoot
 import zed.rainxch.favourites.presentation.import.ImportStarsRoot
 import zed.rainxch.feed.presentation.FeedRoot
+import zed.rainxch.githubstore.app.components.AppIconWarmup
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.adaptive_pick_repo_subtitle
 import zed.rainxch.githubstore.core.presentation.res.adaptive_pick_repo_title
@@ -161,6 +162,7 @@ fun AppNavigation(
                                     if (showBottomBar) Modifier.consumeWindowInsets(PaddingValues(bottom = bottomBarHeight)) else Modifier,
                                 ),
                     ) {
+                        AppIconWarmup()
                         NavHost(
                             navController = navController,
                             startDestination = GithubStoreGraph.ExploreScreen,
