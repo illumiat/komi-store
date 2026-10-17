@@ -145,9 +145,19 @@ class DesktopDownloader(
                             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                             var downloaded: Long = 0
                             var bytesRead: Int
+                            var lastProgressAt = 0L
                             while (input.read(buffer).also { bytesRead = it } != -1) {
                                 output.write(buffer, 0, bytesRead)
                                 downloaded += bytesRead
+                                // The buffer is 8 KiB, so emitting once per read means one
+                                // progress event per 8 KiB transferred - tens of thousands for a
+                                // single file, each running the collector's state update and
+                                // rebuilding the screen that shows it. Emit on a time budget
+                                // instead. The emit after the loop is unconditional, so the final
+                                // value is never dropped.
+                                val now = System.currentTimeMillis()
+                                if (now - lastProgressAt < PROGRESS_EMIT_INTERVAL_MS) continue
+                                lastProgressAt = now
                                 val percent =
                                     if (total != null) ((downloaded * 100L) / total).toInt() else null
                                 emit(DownloadProgress(downloaded, total, percent))
@@ -258,5 +268,8 @@ class DesktopDownloader(
 
     companion object {
         private const val DEFAULT_BUFFER_SIZE = 8 * 1024
+
+        /** Minimum spacing between progress emissions while the body is being copied. */
+        private const val PROGRESS_EMIT_INTERVAL_MS = 100L
     }
 }
