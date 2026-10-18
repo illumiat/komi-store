@@ -5,9 +5,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-// The arm-by-arm coverage for the predicate every resolver shares: no answer, below the target,
-// at or beyond the target, and the code-less fallback that a tag-tracked release needs or its
-// park could never converge.
 class PendingInstallResolutionTest {
 
     @Test
@@ -28,8 +25,6 @@ class PendingInstallResolutionTest {
 
     @Test
     fun aMovedNameDoesNotOverrideACodeThatIsStillBelowTheTarget() {
-        // The row carries a code, so only the code decides: a sideload that raised the name while
-        // the build stays older must not tear the park down.
         assertEquals(
             PendingInstallResolution.Keep,
             parked().pendingInstallResolution(system("2.0.0", 100L)),
@@ -56,9 +51,6 @@ class PendingInstallResolutionTest {
 
     @Test
     fun theTagFallsBackToTheLatestVersionWhenTheParkCarriesNone() {
-        // The system's name is deliberately different from the latest version: this reach is
-        // decided by the code (200 >= 200), so a fallback that landed on the system name would
-        // still resolve, and only a distinct value can prove which candidate actually won.
         val reached = parked(pendingInstallVersion = null)
             .pendingInstallResolution(system("2.5.0", 200L)) as? PendingInstallResolution.Reached
         assertNotNull(reached)
@@ -75,7 +67,6 @@ class PendingInstallResolutionTest {
 
     @Test
     fun aCodeLessTargetKeepsTheParkWhenTheSystemReportsNoName() {
-        // The Android boundary's placeholder for a missing versionName is not a name that arrived.
         assertEquals(
             PendingInstallResolution.Keep,
             parked(latestVersionCode = null)
@@ -93,8 +84,6 @@ class PendingInstallResolutionTest {
 
     @Test
     fun aCodeLessTargetWithNoRecordedBaselineConvergesWhenThePackageAppears() {
-        // A fresh install has no baseline to move off; the package appearing on the system at all
-        // is the change the predicate goes by, or its park could never converge.
         val reached = parked(installedVersionName = null, latestVersionCode = null)
             .pendingInstallResolution(system("2.0.0", 100L)) as? PendingInstallResolution.Reached
         assertNotNull(reached)
@@ -103,10 +92,6 @@ class PendingInstallResolutionTest {
 
     @Test
     fun aCodeLessTargetConvergesWhenTheSystemMatchesTheParkedTarget() {
-        // The post-install shape from the device pass: the confirmed install rewrote the baseline
-        // to the target's name, so "moved" can no longer be seen, and a failed discard would never
-        // retry. The system name matching the park's own target is the proof that keeps the retry
-        // reachable.
         val reached = parked(
             installedVersionName = "1.6.17",
             latestVersionCode = null,

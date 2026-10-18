@@ -1,8 +1,5 @@
 package zed.rainxch.core.domain.model.installation
 
-// The one builder the domain tests share for an InstalledApp row: three suites used to carry a
-// copy each, so every column added to the model meant three edits that could drift apart. Every
-// suite keeps a thin wrapper on top of these defaults for the shape it is about.
 fun testInstalledApp(
     packageName: String = "com.example.app",
     installedVersion: String = "1.0.0",

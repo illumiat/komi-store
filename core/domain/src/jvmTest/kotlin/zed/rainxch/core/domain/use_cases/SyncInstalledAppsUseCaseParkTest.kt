@@ -20,17 +20,11 @@ import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.PackageMonitor
 
-// What a fake discard call carried: the sync has to decide against the path it observed, so the
-// fake records path and package together instead of just the package name.
 private data class DiscardCall(
     val packageName: String,
     val expectedPath: String?,
 )
 
-// The keep-or-discard decision is a property of the sync that performs it, not of the model
-// helpers under it: the model never sees the file path, and the routing between the pointer and
-// the APK is the behaviour at stake. One case per arm, plus the row-deletion path that must not
-// leave an APK on disk with nothing naming it.
 class SyncInstalledAppsUseCaseParkTest {
 
     @Test
@@ -164,9 +158,6 @@ class SyncInstalledAppsUseCaseParkTest {
 
         SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
 
-        // One ordered sequence, with the path that was passed in and the commit in front: a
-        // regression that drops the row first, discards a path the caller never saw, or runs the
-        // cleanup before the transaction ends cannot pass.
         assertEquals(
             listOf(
                 "commit",
@@ -220,17 +211,12 @@ class SyncInstalledAppsUseCaseParkTest {
 
         SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
 
-        // Even a row that names no park goes through the discard first, so a park written between
-        // the scan and the delete still stops the row from going.
         assertEquals(listOf(DiscardCall(abandoned.packageName, null)), repo.discardCalls)
         assertEquals(listOf(abandoned.packageName), repo.deletedPackages)
     }
 
     @Test
     fun aParkedFileOnARowWithoutThePendingFlagSurvivesUntilTheTargetLands() = runBlocking {
-        // The cancelled/failed-install shape: the flag is down but the file is still the one the
-        // user may install (the UI keys "ready to install" off the path alone), so a sync without
-        // proof of the target must leave it alone.
         val ready = parked(isPendingInstall = false)
         val repo = RecordingInstalledAppsRepository(listOf(ready))
         val monitor = FakePackageMonitor(
@@ -259,16 +245,12 @@ class SyncInstalledAppsUseCaseParkTest {
 
         SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
 
-        // The row only carries the file, so the park is discarded (file and pointer together)
-        // and the row itself stays.
         assertEquals(listOf(DiscardCall(ready.packageName, "/data/parked.apk")), repo.discardCalls)
         assertTrue(repo.deletedPackages.isEmpty(), "the row is not part of the discard")
     }
 
     @Test
     fun aPendingFlagWithoutAParkResolvesInsteadOfHoldingTheRow() = runBlocking {
-        // An install that stopped before parking: the flag protects no file, so it resolves
-        // instead of pinning the row in the pending group forever.
         val orphaned = parked(pendingFilePath = null)
         val repo = RecordingInstalledAppsRepository(listOf(orphaned))
         val monitor = FakePackageMonitor(
@@ -286,8 +268,6 @@ class SyncInstalledAppsUseCaseParkTest {
 
     @Test
     fun aFreshParkIsLeftAloneBeforeItsInstallIsAttempted() = runBlocking {
-        // Just parked, not on the system yet, younger than the stale timeout: the scan must skip
-        // the row entirely or a fresh park would be swept before the user installs it.
         val fresh = parked(installedAt = System.currentTimeMillis())
         val repo = RecordingInstalledAppsRepository(listOf(fresh))
         val monitor = FakePackageMonitor(
@@ -378,18 +358,12 @@ class SyncInstalledAppsUseCaseParkTest {
         val discardCalls = mutableListOf<DiscardCall>()
         val deletedPackages = mutableListOf<String>()
 
-        // One ordered sequence: the park has to be gone before its row is allowed to follow, and
-        // every cleanup has to happen only after the commit — two independent lists cannot tell
-        // whether either is the order the use case used. "commit" marks the transaction's end.
         val cleanupLog = mutableListOf<String>()
 
-        // The disposal a test wants the fake to report; the default is a clean discard.
         var discardOutcome: ParkedInstallDisposal = ParkedInstallDisposal.Discarded
 
         val discardedPackages: List<String> get() = discardCalls.map { it.packageName }
 
-        // Flow-of-the-list rather than a snapshot: each collection re-reads the field, so a test
-        // that mutates the fake between collections sees the update.
         override fun getAllInstalledApps(): Flow<List<InstalledApp>> = flow { emit(apps) }
 
         override suspend fun updateApp(app: InstalledApp) {
@@ -406,8 +380,6 @@ class SyncInstalledAppsUseCaseParkTest {
             pendingPathWrites += path
         }
 
-        // Records the routing only: the real file deletion lives in InstalledAppsRepositoryImpl
-        // and is pinned by its own jvmTest, so this fake must not stand in for it.
         override suspend fun discardParkedInstall(
             packageName: String,
             expectedPath: String?,

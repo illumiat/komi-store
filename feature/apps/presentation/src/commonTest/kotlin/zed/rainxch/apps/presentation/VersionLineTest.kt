@@ -6,8 +6,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// The version line's "to" side for the three paths it can take. The string assembly around it is
-// trivial; which version it points at, and whether that is backwards, is the decision.
 class VersionLineTest {
 
     @Test
@@ -34,7 +32,6 @@ class VersionLineTest {
                 latestVersion = "v0.9.1",
             )
 
-        // The parked file's version wins over the store's latest: that is the whole point.
         assertEquals("v0.8.5", line.targetVersion)
         assertTrue(line.isDowngrade)
     }
@@ -69,8 +66,6 @@ class VersionLineTest {
 
     @Test
     fun a_pending_install_with_no_recorded_version_does_not_fall_back_to_latest() {
-        // The store's latest is not what the parked file carries; guessing would misreport the
-        // direction, so there is simply no target.
         val line =
             resolveVersionLine(
                 installedVersion = "v0.9.0",

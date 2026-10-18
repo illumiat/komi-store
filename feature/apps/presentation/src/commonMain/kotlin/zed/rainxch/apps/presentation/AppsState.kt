@@ -104,12 +104,7 @@ data class AppsState(
     val updateGroups: ImmutableList<AppGroup> = persistentListOf(),
     val idleGroups: ImmutableList<AppGroup> = persistentListOf(),
 
-    // Orchestrator downloads whose key matches no loaded library row (an app added by link and
-    // not installed yet is keyed "owner/name", not by package). Rendered as transient cards
-    // built from the orchestrator entry alone: there is no DB row to back them.
     val inProgressDownloads: ImmutableList<OrchestratedDownload> = persistentListOf(),
 
-    // Library rows whose download now lives on an "in progress" card. They are filtered out of
-    // every library group so an app is on screen exactly once during its download.
     val hiddenRowPackages: ImmutableSet<String> = persistentSetOf(),
 )

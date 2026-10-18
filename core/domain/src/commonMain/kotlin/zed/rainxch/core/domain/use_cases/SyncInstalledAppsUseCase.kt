@@ -140,9 +140,6 @@ class SyncInstalledAppsUseCase(
                 .toSet()
                 .associateWith { (presenceOf(it) as? Presence.Present)?.info }
 
-        // Every park cleanup waits for the commit: deleting a parked file is a side effect a
-        // rolled-back transaction cannot undo, and for a row that is leaving the table the
-        // disposal's outcome decides whether it may actually go.
         val parkedCleanups = mutableListOf<ParkedCleanup>()
         confirmedDeletes.forEach {
             parkedCleanups += ParkedCleanup(
@@ -161,10 +158,6 @@ class SyncInstalledAppsUseCase(
             )
         }
         toClearStaleParkedFile.forEach { app ->
-            // A row on the system with the flag down but a parked file is not provably stale: a
-            // failed or cancelled install lands exactly here (those paths lower the flag but keep
-            // the pointer, and the UI still shows the file as ready to install), so the file only
-            // goes when the system proves the target build already landed there.
             val resolution = app.pendingInstallResolution(systemInfoByPackage[app.packageName])
             if (resolution !is PendingInstallResolution.Reached) {
                 logger.info(
@@ -258,15 +251,9 @@ class SyncInstalledAppsUseCase(
             val resolution = app.pendingInstallResolution(systemInfo)
             if (resolution !is PendingInstallResolution.Reached) {
                 if (app.pendingInstallFilePath == null) {
-                    // A flag with no park protects no file: it is the leftover of an install that
-                    // stopped before parking, so it resolves instead of pinning the row in the
-                    // pending group forever (the untrackable path resolves this shape too).
                     installedAppsRepository.updatePendingStatus(app.packageName, false)
                     logger.info("Resolved pending install without a parked file: ${app.packageName}")
                 } else {
-                    // No answer or no proof it landed: the file on disk is still what the user
-                    // needs, so the park stands. Clearing the pointer would fall the card back to
-                    // a download.
                     logger.info("Kept parked install (target not proven): ${app.packageName}")
                 }
                 return
@@ -276,8 +263,6 @@ class SyncInstalledAppsUseCase(
                 "Resolved pending install: ${app.packageName} " +
                     "(v${resolution.versionName}, code=${resolution.versionCode}, tag=${resolution.resolvedTag})",
             )
-            // The file deletion that completes the discard is a side effect a rolled-back
-            // transaction cannot undo, so it waits until the transaction has committed.
             parkedCleanups += ParkedCleanup(
                 packageName = app.packageName,
                 expectedPath = app.pendingInstallFilePath,
@@ -416,8 +401,6 @@ class SyncInstalledAppsUseCase(
         val source: String,
     )
 
-    // A park cleanup that has to wait for the commit, and, when the row is leaving the table, the
-    // path the disposal has to prove gone before the row may follow it.
     private data class ParkedCleanup(
         val packageName: String,
         val expectedPath: String?,

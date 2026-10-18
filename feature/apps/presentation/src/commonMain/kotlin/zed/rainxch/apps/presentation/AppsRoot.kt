@@ -305,9 +305,6 @@ fun AppsScreen(
                             state.showKaoBanner,
                             state.pendingApps.isNotEmpty(),
                             state.updateApps.isNotEmpty() || state.isUpdatingAll,
-                            // This section is inserted above every other one, so a download that
-                            // starts while the user sits at the top would otherwise push it above
-                            // the viewport, which is the opposite of the point.
                             state.inProgressDownloads.isNotEmpty(),
                         ),
                     )
@@ -322,9 +319,6 @@ fun AppsScreen(
                             }
                         }
 
-                        // The transient download cards live outside `filteredApps` (they have no
-                        // DB row), so emptiness must account for them too: otherwise the screen
-                        // would say "no apps" while a download is plainly running.
                         state.filteredApps.isEmpty() && state.inProgressDownloads.isEmpty() -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -369,9 +363,6 @@ fun AppsScreen(
                                 val appGridCells =
                                     rememberWidthCappedGridCells(contentPadding = appGridPadding)
 
-                                // Installed versions for the card's version line. A download with
-                                // no row is keyed "owner/name" and never matches, so it reads null
-                                // and the line shows just the target version.
                                 val installedVersions =
                                     remember(state.apps) {
                                         state.apps.associate {
@@ -388,8 +379,6 @@ fun AppsScreen(
                                     verticalArrangement = Arrangement.spacedBy(CardGridSpec.GridItemSpacing),
                                     horizontalArrangement = CardGridSpec.GridArrangement,
                                 ) {
-                                    // Listed before the library groups: appComparator reads
-                                    // installedApp.*, which a transient card does not have.
                                     if (state.inProgressDownloads.isNotEmpty()) {
                                         item(
                                             key = "header-in-progress",
@@ -408,16 +397,6 @@ fun AppsScreen(
                                             state.inProgressDownloads,
                                             key = { download -> "transient-${download.id}" },
                                         ) { download ->
-                                            // download.packageName is the orchestrator registry
-                                            // key ("owner/name" for a not-yet-installed app), which
-                                            // is what the actions are addressed by. A card for an
-                                            // app with a row joins its installed version in for the
-                                            // downgrade line and its row in for the management
-                                            // toolbar; a fresh install has no row, so both are off.
-                                            //
-                                            // Tapping the card opens the repo it stands for; a
-                                            // download with no repository behind it has no id to
-                                            // open, so the card stays inert.
                                             val openRepo =
                                                 download.repoId?.let { repoId ->
                                                     {

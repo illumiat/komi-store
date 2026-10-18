@@ -297,21 +297,13 @@ class GithubStoreApp : Application() {
         try {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName)
-            // Exhaustive on purpose: a future resolution state must not silently fall into the
-            // keep branch at the one decision point that may or may not drop a park.
             when (val resolution = existing.pendingInstallResolution(systemInfo)) {
                 PendingInstallResolution.Keep -> {
-                    // No answer or no proof the install landed: the park stands, because clearing
-                    // here would drop the only pointer to a file still on disk.
                     Logger.i { "Kept parked self-update (target not proven)" }
                 }
 
                 is PendingInstallResolution.Reached -> {
                     repo.updateApp(existing.resolvePendingFromSystem(resolution))
-                    // resolvePendingFromSystem flips the flag only; the discard takes the pointer
-                    // and the file together, scoped to the park this call looked at. A failure or
-                    // a file that will not go is not fatal: the row keeps the park and the next
-                    // library sync retries.
                     try {
                         val disposal =
                             repo.discardParkedInstall(packageName, existing.pendingInstallFilePath)

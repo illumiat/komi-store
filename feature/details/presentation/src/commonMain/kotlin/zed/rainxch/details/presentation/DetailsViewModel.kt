@@ -157,9 +157,6 @@ class DetailsViewModel(
 ) : ViewModel() {
     private var hasLoadedInitialData = false
 
-    // Backed by a flow rather than a plain field: the display mirror below stands down while this
-    // VM owns a download job, and it has to be told when that job ends. A plain field would leave
-    // any orchestrator transition that happened during the download unread forever.
     private val localDownloadJob = MutableStateFlow<Job?>(null)
 
     private var currentDownloadJob: Job?
@@ -199,8 +196,6 @@ class DetailsViewModel(
 
     private val rateLimited = AtomicBoolean(false)
 
-    // Declared last among the initialisers: viewModelScope dispatches on Main.immediate, so the
-    // collector this starts can run before the properties above exist.
     init {
         observeOrchestratorForDisplay()
     }
@@ -1237,9 +1232,6 @@ class DetailsViewModel(
         }
     }
 
-    // TODO: drives [downloader] directly instead of [downloadOrchestrator], so a download
-    //  started here stays invisible in the library. Left alone deliberately: the user is on
-    //  this screen while it runs, and unifying it needs the stage-vocabulary cleanup.
     private fun installViaExternalApp() {
         currentDownloadJob?.cancel()
         val job = viewModelScope.launch {
@@ -1432,11 +1424,7 @@ class DetailsViewModel(
             .map { it.id }
             .toImmutableSet()
 
-    // TODO: same bypass as [installViaExternalApp]: [downloader] directly, so the library never
-    //  sees this download. See the note there.
     private fun openAppManager() {
-        // Tracked and superseded like the sibling path: untracked, it left the mirror's guard
-        // open, and a leftover observer would keep writing this screen's stage alongside it.
         currentDownloadJob?.cancel()
         currentDownloadJob = viewModelScope.launch {
             try {
@@ -1689,9 +1677,6 @@ class DetailsViewModel(
         }
     }
 
-    // Pause keeps the download on screen: the orchestrator parks it as Paused with its bytes intact,
-    // and the entry observer stays alive across the pause so a resumed run still installs once it
-    // reaches AwaitingInstall. Pausing is not a cancel, so nothing is logged.
     private fun pauseCurrentDownload() {
         val packageKey = orchestratorKey()
         viewModelScope.launch {
@@ -1718,8 +1703,6 @@ class DetailsViewModel(
         }
     }
 
-    // "Delete task" drops the bytes and the entry, never the installed app. It is the old ✕'s
-    // successor, so it keeps that action's Cancelled log line.
     private fun discardCurrentDownload() {
         currentDownloadJob?.cancel()
         currentDownloadJob = null
@@ -2085,9 +2068,6 @@ class DetailsViewModel(
     private fun mirrorOrchestratorStage(entry: OrchestratedDownload?) {
         _state.update { current ->
             when (entry?.stage) {
-                // A Queued entry carries a null percent on purpose, and it is left null here: the
-                // screen renders that as indeterminate, whereas falling back to the previous value
-                // would show a finished run's percentage over a download that has not started.
                 OrchestratorStage.Queued,
                 OrchestratorStage.Downloading,
                 -> current.copy(
@@ -2097,8 +2077,6 @@ class DetailsViewModel(
                     totalBytes = entry.totalBytes ?: current.totalBytes,
                 )
 
-                // Paused holds the bar where it stopped and the bytes it reached, so the screen
-                // reads as a download waiting to continue rather than a finished one.
                 OrchestratorStage.Paused -> current.copy(
                     downloadStage = DownloadStage.PAUSED,
                     downloadProgressPercent = entry.progressPercent,
@@ -2109,9 +2087,6 @@ class DetailsViewModel(
                 OrchestratorStage.Installing ->
                     current.copy(downloadStage = DownloadStage.INSTALLING)
 
-                // Nothing live for this package: it parked, finished or was cancelled while the
-                // screen was gone. A stale progress bar is worse than a resting one, and the byte
-                // counts belong to the run that just ended, so they go with it.
                 null,
                 OrchestratorStage.AwaitingInstall,
                 OrchestratorStage.Completed,
@@ -2149,11 +2124,6 @@ class DetailsViewModel(
         var installFired = false
         downloadOrchestrator
             .observe(packageKey)
-            // The settling entry is emitted and then the flow completes, so this job ends. It
-            // matters beyond tidiness: this job is what holds the display mirror down, and an
-            // observer that outlives the download would keep the mirror disabled for the rest of
-            // the ViewModel's life. Paused is the one exception: it keeps collecting so a resumed
-            // run still installs on AwaitingInstall instead of parking silently.
             .transformWhile { entry ->
                 emit(entry)
                 entry == null ||
@@ -2299,9 +2269,6 @@ class DetailsViewModel(
                     return@collect
                 }
 
-                // Paused is a first-class state on this screen now: the bar and the bytes stay as
-                // the entry carries them, and the resume button restarts the same run. The observer
-                // above stays alive across the pause, so pausing logs nothing.
                 OrchestratorStage.Paused -> {
                     _state.value = _state.value.copy(downloadStage = DownloadStage.PAUSED)
                 }
@@ -3306,9 +3273,6 @@ class DetailsViewModel(
         const val APP_MANAGER_REPO_ID: Long = 268006778
         const val STALLED_STABLE_THRESHOLD_DAYS = 180
 
-        // [orchestratorKey] cannot name a package before the repository has loaded. Empty rather
-        // than a word: a package name is arbitrary, and one literally called "unknown" would
-        // otherwise collide with the sentinel and have its real downloads skipped.
         const val NO_ORCHESTRATOR_KEY = ""
     }
 }

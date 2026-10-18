@@ -25,9 +25,6 @@ sealed interface AppsAction {
         val app: InstalledAppUi,
     ) : AppsAction
 
-    // The block below is addressed by orchestrator registry key rather than by package name: a
-    // download for an app that is not in the library yet is keyed "owner/name". They are actions
-    // rather than screen-scope lambdas so the work outlives the composition.
     data class OnCancelInProgressDownload(
         val key: String,
     ) : AppsAction

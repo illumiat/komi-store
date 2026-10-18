@@ -39,9 +39,6 @@ import zed.rainxch.githubstore.core.presentation.res.apps_skip_version_unskip
 import zed.rainxch.githubstore.core.presentation.res.pre_release_badge
 import zed.rainxch.githubstore.core.presentation.res.variant_picker_open
 
-// The management toolbar — pre-release toggle, asset filter, variant picker, overflow — shared by
-// the big library card and the in-progress card, so the two cannot drift apart while a download
-// hands off from one to the other.
 @Composable
 internal fun AppCardToolbar(
     appItem: AppItem,
@@ -51,9 +48,6 @@ internal fun AppCardToolbar(
     onToggleUpdateCheck: (Boolean) -> Unit,
     onSkipVersionClick: () -> Unit,
     onUnskipVersionClick: () -> Unit,
-    // The row's busy gate is the default — a pending-install row keeps its controls locked.
-    // The in-progress card passes true: the card is busy for its whole life by definition, and
-    // a toolbar disabled for that entire life is not a lock, it is a dead control.
     controlsEnabled: Boolean = !appItem.isBusy,
 ) {
     val colors = LocalPersonality.current.colors

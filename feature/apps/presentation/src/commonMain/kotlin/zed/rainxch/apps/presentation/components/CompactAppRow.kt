@@ -95,8 +95,6 @@ fun CompactAppRow(
     val shape = LocalPersonality.current.shape
     val rowShape = RoundedCornerShape(shape.corner)
 
-    // A parked row shows "installed → parked target" so a rollback reads clearly; every other row
-    // keeps its installed version exactly as before.
     val showVersionMigration = app.isPendingInstall && appItem.versionTargetVersion != null
 
     Row(
@@ -173,9 +171,6 @@ fun CompactAppRow(
                 StatusDotCluster(flags = flags)
             }
 
-            // This row shows nothing for an error otherwise: isBusy is false for it, so the row
-            // looked entirely normal and fell through to Open, leaving a failure that started on
-            // the details screen invisible everywhere in the library.
             if (appItem.updateState is UpdateState.Error) {
                 Spacer(Modifier.height(4.dp))
 

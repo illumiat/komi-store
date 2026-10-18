@@ -472,7 +472,6 @@ private fun HeaderAvatar(
                 )
             }
 
-            // Paused shows no ring: a still progress arc on a stopped download reads as a stall.
             DownloadStage.IDLE, DownloadStage.PAUSED -> { }
         }
     }

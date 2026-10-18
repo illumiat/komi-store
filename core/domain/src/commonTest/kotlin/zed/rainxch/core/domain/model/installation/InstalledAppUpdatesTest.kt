@@ -333,8 +333,6 @@ class InstalledAppUpdatesTest {
         assertEquals("2.0.0", result.installedVersionName)
         assertEquals(200L, result.installedVersionCode)
         assertFalse(result.isUpdateAvailable)
-        // The adopt keeps the pointer: the post-commit discard needs it to find the file, and
-        // dropping it here would orphan the APK if that delete then failed.
         assertEquals("/data/parked.apk", result.pendingInstallFilePath)
     }
 
@@ -606,9 +604,6 @@ class InstalledAppUpdatesTest {
 
     @Test
     fun resolvePendingFromSystemAdoptsTheParkedTagWhenTheInstallReachedTarget() {
-        // The gate's own output for this row: the parked version is what the resolution carries,
-        // so the adopt writes it through. Which tag the resolution ends up carrying is pinned in
-        // PendingInstallResolutionTest.
         val result =
             app(
                 installedVersion = "1.0.0",

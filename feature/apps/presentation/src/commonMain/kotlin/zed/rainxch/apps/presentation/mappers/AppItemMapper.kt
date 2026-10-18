@@ -25,8 +25,6 @@ suspend fun InstalledAppUi.toAppItem(
     val canSkipVersion = isUpdateAvailable &&
         !(latestVersion ?: latestVersionName).isNullOrBlank()
 
-    // A pending install's "to" is the parked version, not the store's latest: the two can differ
-    // when the download is a rollback, and the line has to show which way it goes.
     val versionLine =
         resolveVersionLine(
             installedVersion = installedVersion,
@@ -54,7 +52,6 @@ suspend fun InstalledAppUi.toAppItem(
         versionLabel = buildVersionLabel(
             installedVersion = installedVersion,
             targetVersion = versionLine.targetVersion,
-            // The store's latest carries a publish date; a parked target has none of its own.
             targetPublishedAt = if (isPendingInstall) null else latestReleasePublishedAt,
             lastUpdatedAt = lastUpdatedAt,
         ),

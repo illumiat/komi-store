@@ -9,8 +9,6 @@ import zed.rainxch.core.domain.system.DownloadStage
 import zed.rainxch.core.domain.system.InstallPolicy
 import zed.rainxch.core.domain.system.OrchestratedDownload
 
-// The decisions the library's download visibility rests on. The ViewModel around them is
-// plumbing; these are the parts that were worth getting wrong quietly.
 class AppsDownloadMirrorTest {
 
     private fun entry(key: String, stage: DownloadStage, error: String? = null) =
@@ -42,8 +40,6 @@ class AppsDownloadMirrorTest {
 
     @Test
     fun aDownloadWithARowMovesToTheCardToo() {
-        // Single presentation: while a download runs, a library app shows as a card only. Its row
-        // is hidden (see the hiddenRowPackages tests), so it must not also be dropped here.
         val snapshot = mapOf("com.app" to entry("com.app", DownloadStage.Downloading))
 
         assertEquals(
@@ -54,13 +50,10 @@ class AppsDownloadMirrorTest {
 
     @Test
     fun aParkedDownloadWithARowStaysOnItsRowInsteadOfACard() {
-        // AwaitingInstall is the one takeover stage that is not a card stage for a row: the
-        // library's own "pending installs" group renders the parked app, so the card must not.
         val snapshot = mapOf("com.app" to entry("com.app", DownloadStage.AwaitingInstall))
 
         assertTrue(transientDownloads(snapshot, knownPackages = setOf("com.app")).isEmpty())
 
-        // The same download with no row has no group to fall back to and does need a card.
         val fresh = mapOf("owner/name" to entry("owner/name", DownloadStage.AwaitingInstall))
         assertEquals(1, transientDownloads(fresh, knownPackages = emptySet()).size)
     }
@@ -76,8 +69,6 @@ class AppsDownloadMirrorTest {
 
     @Test
     fun aSettledDownloadIsNotACard() {
-        // Completed and Cancelled are absent from the card stages: the row is either in a library
-        // group by then or gone entirely, and a card would outlive the thing it describes.
         val snapshot =
             mapOf(
                 "owner/name" to entry("owner/name", DownloadStage.Completed),
@@ -89,8 +80,6 @@ class AppsDownloadMirrorTest {
 
     @Test
     fun theDefaultCardStagesAreTheProductionSetItself() {
-        // The default parameter is the production decision: dropping a stage from the real set
-        // (Paused, say) must fail here, not pass against a copy declared in a test.
         val paused = mapOf("owner/name" to entry("owner/name", DownloadStage.Paused))
         assertEquals(1, transientDownloads(paused, knownPackages = emptySet()).size)
 
@@ -120,8 +109,6 @@ class AppsDownloadMirrorTest {
 
     @Test
     fun aRowAlreadyBackInAGroupIsNotHidden() {
-        // A finished or parked-with-a-row download leaves the row visible: nothing is on a card,
-        // so hiding it would make the app disappear.
         val known = setOf("com.app")
         val settled =
             mapOf(
@@ -157,8 +144,6 @@ class AppsDownloadMirrorTest {
 
     @Test
     fun aParkedDownloadLeavesTheRowIdleSoTheLibraryGroupCanOfferIt() {
-        // "Ready to install" renders from the database. A row still marked Downloading would draw a
-        // progress bar where the install button belongs.
         assertEquals(
             UpdateState.Idle,
             mirroredUpdateState(DownloadStage.AwaitingInstall, errorMessage = null, failedFallback = "f"),

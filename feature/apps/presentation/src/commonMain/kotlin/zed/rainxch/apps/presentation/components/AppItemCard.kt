@@ -157,8 +157,6 @@ fun AppItemCard(
                                 fontWeight = FontWeight.SemiBold,
                             )
 
-                            // The parked file's version, not the store's latest: a pending install
-                            // can be a rollback, and the line's direction has to be visible.
                             if (appItem.versionTargetVersion != null) {
                                 Spacer(Modifier.height(2.dp))
 
@@ -273,8 +271,6 @@ fun AppItemCard(
             Spacer(Modifier.height(12.dp))
 
             when (val state = appItem.updateState) {
-                // A running download lives on the "in progress" card, and this row is hidden while
-                // it does, so there is no progress to draw here any more.
                 is UpdateState.Downloading -> {}
 
                 is UpdateState.Installing -> {

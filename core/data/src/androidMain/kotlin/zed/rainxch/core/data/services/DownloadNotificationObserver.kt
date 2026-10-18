@@ -69,8 +69,6 @@ class DownloadNotificationObserver(
                 }
 
                 DownloadNotificationAction.RESUME in actions -> {
-                    // The bar and the bytes are held across the pause, so one post at the transition
-                    // is enough; the ongoing notification then sits with Resume/Delete until it moves.
                     if (stageChanged) {
                         postProgress(pkg, entry, paused = true)
                         lastNotifiedAt[pkg] = SystemClock.uptimeMillis()
@@ -78,8 +76,6 @@ class DownloadNotificationObserver(
                 }
 
                 else -> {
-                    // Any stage that no longer carries a notification clears the one that was up;
-                    // terminal-to-terminal transitions have nothing to take down.
                     if (previous != null && notificationActionsFor(previous).isNotEmpty()) {
                         clearProgressSafely(pkg)
                         lastNotifiedAt.remove(pkg)

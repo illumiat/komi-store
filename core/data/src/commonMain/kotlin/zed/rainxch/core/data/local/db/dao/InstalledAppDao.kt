@@ -198,10 +198,6 @@ interface InstalledAppDao {
         isUpdateAvailable: Boolean,
     )
 
-    // Path and flag follow the path in the same statement, in both directions: a null path takes
-    // the flag down (every clearing caller means the park is over), and a path always raises it.
-    // Leaving the flag to a separate earlier write would let a sync that resolves flag-without-path
-    // rows in between drop it, landing the path on a row that renders in no group.
     @Query(
         """
         UPDATE installed_apps
@@ -231,10 +227,6 @@ interface InstalledAppDao {
         assetName: String?,
     )
 
-    // Clears the park only while the row still names the file the caller decided against: a park
-    // written after that decision (a download finishing mid-discard) must survive with its
-    // pointer intact. A null path clears only the rows that name no park at all, which is how a
-    // flag left without a park resolves instead of pinning the row in no group.
     @Query(
         """
         UPDATE installed_apps
@@ -251,9 +243,6 @@ interface InstalledAppDao {
         path: String?,
     )
 
-    // Path and flag land in one statement: the library's "can install" group needs both, so a
-    // reader catching one without the other sees the row in no group at all. A narrow column
-    // write, not updateApp, which would rewrite every column from an earlier snapshot.
     @Query(
         """
         UPDATE installed_apps

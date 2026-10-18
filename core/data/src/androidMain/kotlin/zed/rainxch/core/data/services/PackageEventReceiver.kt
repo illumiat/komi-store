@@ -133,9 +133,6 @@ class PackageEventReceiver() :
 
                         is PendingInstallResolution.Reached -> {
                             val settled = app.withSettledInstallIdentity(resolution.versionCode)
-                            // The flag stays true on purpose: the discard below ends the
-                            // pending state, and a file that survives its delete must leave
-                            // the row pending for the next sync's retry.
                             repo.updateAppVersion(
                                 packageName = packageName,
                                 newTag = resolution.resolvedTag,
@@ -149,9 +146,6 @@ class PackageEventReceiver() :
                                 signingFingerprint = app.signingFingerprint,
                                 isPendingInstall = true,
                             )
-                            // The discard drops the pointer and the file together, scoped to the
-                            // park this broadcast looked at. Its failure is not fatal: the row
-                            // keeps the park and the next sync retries.
                             try {
                                 val disposal =
                                     repo.discardParkedInstall(packageName, app.pendingInstallFilePath)
@@ -290,9 +284,6 @@ class PackageEventReceiver() :
 
         try {
             val repo = getRepository()
-            // The row is the only handle to a parked file; if one is named here, it has to go with
-            // the row or become an orphan. A file that survives keeps the row so the next sync's
-            // delete path retries it, the same contract the sync itself follows.
             val parkedPath = repo.getAppByPackage(packageName)?.pendingInstallFilePath
             var mayDropRow = parkedPath == null
             if (parkedPath != null) {

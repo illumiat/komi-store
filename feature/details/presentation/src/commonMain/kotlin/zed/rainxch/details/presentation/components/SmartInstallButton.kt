@@ -175,8 +175,6 @@ fun SmartInstallButton(
         else -> stringResource(Res.string.install_latest)
     }
 
-    // Only the install-options dropdown tucks under the primary's edge; the download actions are
-    // separate buttons, so the primary keeps a full corner while downloading.
     val showOptionsPill = state.isObtainiumEnabled && !isActiveDownload
 
     Column(modifier = modifier) {
@@ -222,8 +220,6 @@ fun SmartInstallButton(
             )
 
             if (isActiveDownload) {
-                // Pause/continue is the live action; verifying and installing are short transients
-                // that carry no pause, and the big box already shows their progress.
                 when (state.downloadStage) {
                     DownloadStage.DOWNLOADING -> LabeledActionPill(
                         container = accent,
@@ -247,8 +243,6 @@ fun SmartInstallButton(
                     -> Unit
                 }
 
-                // Disabled while installing: the installer is holding the file, so deleting the
-                // task now would pull it out from under a live install.
                 LabeledActionPill(
                     container = colors.error,
                     content = colors.onError,
@@ -513,8 +507,6 @@ private fun TrailingActionPill(
     }
 }
 
-// The two download actions stay labelled: "delete task" never wears the trash glyph (that one
-// belongs to uninstall) and always carries its wording, and pause/continue reads better with it.
 @Composable
 private fun LabeledActionPill(
     container: Color,

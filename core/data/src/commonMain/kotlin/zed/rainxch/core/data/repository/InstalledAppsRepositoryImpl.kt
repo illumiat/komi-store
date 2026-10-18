@@ -715,27 +715,16 @@ class InstalledAppsRepositoryImpl(
         packageName: String,
         expectedPath: String?,
     ): ParkedInstallDisposal {
-        // Delete what the caller decided against, not what the row happens to name now: a park
-        // written after that decision (a download finishing mid-discard) is not this call's to
-        // touch, and re-reading the row here would only ever agree with itself.
         if (expectedPath != null) {
             if (tryDeleteParkedFile(expectedPath) == ParkedFileDisposal.Survived) {
-                // The file is still on disk, so the pointer must stay: it is the only handle to a
-                // download the user still needs, and dropping it would orphan the file for good.
                 Logger.w { "Parked file for $packageName survived the discard; pointer kept" }
                 return ParkedInstallDisposal.Retained
             }
         }
-        // Clear by the caller's path even when it saw no park: the conditional statement then
-        // clears exactly the rows that name no path — a flag left without a park resolves here
-        // instead of pinning the row in no group — while a park written mid-discard carries a
-        // path and is left alone.
         installedAppsDao.clearPendingInstallIfPathMatches(
             packageName = packageName,
             path = expectedPath,
         )
-        // The row has the last word: a pointer it still carries (the original one, or one written
-        // meanwhile) means a park is live and a row-dropping caller has to keep the row.
         val remainingPath = installedAppsDao.getAppByPackage(packageName)?.pendingInstallFilePath
         return if (remainingPath != null) {
             Logger.d { "Parked install for $packageName still names $remainingPath; row kept" }
@@ -812,9 +801,6 @@ class InstalledAppsRepositoryImpl(
     }
 }
 
-// Deletes a parked file a discard is about to drop, reporting whether the pointer is safe to
-// clear. A delete that fails while the file stays on disk is the one outcome not to treat as
-// success: clearing would orphan the file with no reference left to ever find it again.
 internal enum class ParkedFileDisposal {
     Gone,
 
@@ -825,6 +811,5 @@ internal fun tryDeleteParkedFile(path: String): ParkedFileDisposal {
     val file = java.io.File(path)
     val deleted = runCatching { file.delete() }.getOrDefault(false)
     if (deleted) return ParkedFileDisposal.Gone
-    // Not deleted, but gone anyway: the installer already took it, which is success too.
     return if (file.exists()) ParkedFileDisposal.Survived else ParkedFileDisposal.Gone
 }
