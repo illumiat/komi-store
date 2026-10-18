@@ -1,8 +1,6 @@
 package zed.rainxch.apps.presentation.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,11 +11,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FileDownloadOff
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.InstallMobile
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Update
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,8 +33,9 @@ import zed.rainxch.core.domain.system.OrchestratedDownload
 import zed.rainxch.core.presentation.components.GitHubStoreImage
 import zed.rainxch.core.presentation.components.InstalledAppIcon
 import zed.rainxch.core.presentation.components.buttons.KomiButton
+import zed.rainxch.core.presentation.components.buttons.KomiButtonSize
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
-import zed.rainxch.core.presentation.components.icon.KomiIcon
+import zed.rainxch.core.presentation.components.buttons.KomiSoftIconButton
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.progress.KomiLinearProgress
 import zed.rainxch.core.presentation.components.surfaces.KomiSurface
@@ -204,53 +203,45 @@ fun InProgressAppCard(
             when (download.stage) {
                 DownloadStage.Queued,
                 DownloadStage.Downloading,
+                DownloadStage.Paused,
                 -> {
-                    ProgressBody(download = download, paused = false)
-
-                    Spacer(Modifier.height(12.dp))
-
+                    val paused = download.stage == DownloadStage.Paused
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        KomiButton(
-                            onClick = onPause,
-                            label = stringResource(Res.string.pause),
-                            variant = KomiButtonVariant.Primary,
-                            leadingIcon = Icons.Default.Pause,
+                        ProgressBody(
+                            download = download,
+                            paused = paused,
                             modifier = Modifier.weight(1f),
                         )
 
-                        DeleteTaskIcon(onClick = onDiscard)
-                    }
-                }
+                        Spacer(Modifier.width(8.dp))
 
-                DownloadStage.Paused -> {
-                    ProgressBody(download = download, paused = true)
+                        if (paused) {
+                            KomiSoftIconButton(
+                                icon = Icons.Default.PlayArrow,
+                                contentDescription = stringResource(Res.string.resume),
+                                onClick = { tapCooldown.run(onResume) },
+                                accent = true,
+                                enabled = !tapCooldown.active,
+                            )
+                        } else {
+                            KomiSoftIconButton(
+                                icon = Icons.Default.Pause,
+                                contentDescription = stringResource(Res.string.pause),
+                                onClick = onPause,
+                                accent = true,
+                            )
+                        }
 
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        KomiButton(
-                            onClick = { tapCooldown.run(onResume) },
-                            label = stringResource(Res.string.resume),
-                            variant = KomiButtonVariant.Primary,
-                            leadingIcon = Icons.Default.PlayArrow,
-                            enabled = !tapCooldown.active,
-                            modifier = Modifier.weight(1f),
-                        )
-
-                        DeleteTaskIcon(onClick = onDiscard)
+                        DeleteTaskButton(onClick = onDiscard)
                     }
                 }
 
                 DownloadStage.Installing -> {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -263,43 +254,47 @@ fun InProgressAppCard(
                             role = KomiTextRole.Body,
                             fontSize = 13.sp,
                             color = colors.onSurface,
-                        )
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        KomiButton(
-                            onClick = onDismiss,
-                            label = stringResource(Res.string.dismiss),
-                            variant = KomiButtonVariant.Outline,
                             modifier = Modifier.weight(1f),
                         )
 
-                        DeleteTaskIcon(onClick = onDiscard, enabled = false)
+                        KomiButton(
+                            onClick = onDismiss,
+                            label = stringResource(Res.string.dismiss),
+                            variant = KomiButtonVariant.Text,
+                            size = KomiButtonSize.Sm,
+                        )
                     }
                 }
 
                 DownloadStage.AwaitingInstall -> {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        KomiButton(
-                            onClick = { tapCooldown.run(onInstall) },
-                            label = stringResource(Res.string.install),
-                            variant = KomiButtonVariant.Primary,
-                            leadingIcon = Icons.Default.Update,
-                            enabled = !tapCooldown.active,
+                        KomiText(
+                            text = assetCaption(download, formatFileSize(download.assetSize)),
+                            role = KomiTextRole.Body,
+                            fontSize = 12.sp,
+                            uppercase = false,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
 
-                        DeleteTaskIcon(onClick = onDiscard)
+                        Spacer(Modifier.width(12.dp))
+
+                        KomiButton(
+                            onClick = { tapCooldown.run(onInstall) },
+                            label = stringResource(Res.string.install),
+                            size = KomiButtonSize.Sm,
+                            leadingIcon = Icons.Default.InstallMobile,
+                            enabled = !tapCooldown.active,
+                        )
+
+                        Spacer(Modifier.width(4.dp))
+
+                        DeleteTaskButton(onClick = onDiscard)
                     }
                 }
 
@@ -314,35 +309,35 @@ fun InProgressAppCard(
                         fontSize = 13.sp,
                         uppercase = false,
                         color = colors.error,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        KomiButton(
-                            onClick = { tapCooldown.run(onRetry) },
-                            label = stringResource(Res.string.retry),
-                            variant = KomiButtonVariant.Primary,
-                            leadingIcon = Icons.Default.Refresh,
-                            enabled = !tapCooldown.active,
-                            modifier = Modifier.weight(1f),
-                        )
-
-                        DeleteTaskIcon(onClick = onDiscard)
-                    }
 
                     Spacer(Modifier.height(8.dp))
 
-                    KomiButton(
-                        onClick = onDismiss,
-                        label = stringResource(Res.string.dismiss),
-                        variant = KomiButtonVariant.Text,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    ) {
+                        KomiButton(
+                            onClick = onDismiss,
+                            label = stringResource(Res.string.dismiss),
+                            variant = KomiButtonVariant.Text,
+                            size = KomiButtonSize.Sm,
+                        )
+
+                        KomiButton(
+                            onClick = { tapCooldown.run(onRetry) },
+                            label = stringResource(Res.string.retry),
+                            variant = KomiButtonVariant.Tonal,
+                            size = KomiButtonSize.Sm,
+                            leadingIcon = Icons.Default.Refresh,
+                            enabled = !tapCooldown.active,
+                        )
+
+                        DeleteTaskButton(onClick = onDiscard)
+                    }
                 }
 
                 DownloadStage.Completed,
@@ -404,87 +399,70 @@ private fun VersionLine(installedVersion: String?, targetVersion: String) {
 private fun ProgressBody(
     download: OrchestratedDownload,
     paused: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val percent = download.progressPercent
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        KomiText(
-            text = stringResource(if (paused) Res.string.paused else Res.string.downloading),
-            role = KomiTextRole.Body,
-            fontSize = 13.sp,
-            color = if (paused) colors.onSurfaceVariant else colors.onSurface,
-        )
-
-        if (percent != null) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             KomiText(
-                text = "$percent%",
+                text = stringResource(if (paused) Res.string.paused else Res.string.downloading),
                 role = KomiTextRole.Body,
                 fontSize = 13.sp,
-                uppercase = false,
-                color = colors.onSurface,
+                color = if (paused) colors.onSurfaceVariant else colors.onSurface,
+                modifier = Modifier.weight(1f),
             )
+
+            if (percent != null) {
+                KomiText(
+                    text = "$percent%",
+                    role = KomiTextRole.Body,
+                    fontSize = 13.sp,
+                    uppercase = false,
+                    color = colors.onSurfaceVariant,
+                )
+            }
         }
+
+        Spacer(Modifier.height(6.dp))
+
+        KomiLinearProgress(
+            progress = { (percent ?: 0) / 100f },
+            modifier = Modifier.fillMaxWidth(),
+            color = if (paused) colors.onSurfaceVariant else colors.primary,
+        )
+
+        Spacer(Modifier.height(6.dp))
+
+        KomiText(
+            text = assetCaption(download, downloadSizeLabel(download)),
+            role = KomiTextRole.Body,
+            fontSize = 12.sp,
+            uppercase = false,
+            color = colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
-
-    Spacer(Modifier.height(4.dp))
-
-    KomiLinearProgress(
-        progress = { (percent ?: 0) / 100f },
-        modifier = Modifier.fillMaxWidth(),
-        color = if (paused) colors.onSurfaceVariant else colors.primary,
-    )
-
-    Spacer(Modifier.height(6.dp))
-
-    KomiText(
-        text = downloadSizeLabel(download),
-        role = KomiTextRole.Body,
-        fontSize = 12.sp,
-        uppercase = false,
-        color = colors.onSurfaceVariant,
-    )
-
-    Spacer(Modifier.height(2.dp))
-
-    KomiText(
-        text = download.assetName,
-        role = KomiTextRole.Body,
-        fontSize = 12.sp,
-        uppercase = false,
-        color = colors.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
 }
 
 @Composable
-private fun DeleteTaskIcon(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    val colors = LocalPersonality.current.colors
-    val deleteTaskDescription = stringResource(Res.string.delete_task)
-
-    Box(
-        modifier =
-            modifier
-                .size(48.dp)
-                .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        KomiIcon(
-            imageVector = Icons.Default.FileDownloadOff,
-            contentDescription = deleteTaskDescription,
-            tint = if (enabled) colors.onSurfaceVariant else colors.onSurfaceVariant.copy(alpha = 0.38f),
-        )
-    }
+private fun DeleteTaskButton(onClick: () -> Unit) {
+    KomiSoftIconButton(
+        icon = Icons.Default.Close,
+        contentDescription = stringResource(Res.string.delete_task),
+        onClick = onClick,
+    )
 }
+
+private fun assetCaption(
+    download: OrchestratedDownload,
+    sizeLabel: String,
+): String = "$sizeLabel · ${download.assetName}"
 
 private fun downloadSizeLabel(download: OrchestratedDownload): String {
     val total = download.totalBytes ?: download.assetSize.takeIf { it > 0L }

@@ -16,7 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.FileDownloadOff
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.InstallMobile
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ import zed.rainxch.apps.presentation.model.UpdateState
 import zed.rainxch.core.presentation.components.GitHubStoreImage
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
+import zed.rainxch.core.presentation.components.buttons.KomiSoftIconButton
 import zed.rainxch.core.presentation.components.icon.KomiIcon
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.surfaces.KomiSurface
@@ -371,25 +373,16 @@ fun AppItemCard(
                         onClick = { installCooldown.run(onInstallPendingClick) },
                         label = stringResource(Res.string.install),
                         variant = KomiButtonVariant.Primary,
-                        leadingIcon = Icons.Default.Update,
+                        leadingIcon = Icons.Default.InstallMobile,
                         enabled = !installCooldown.active,
                         modifier = Modifier.weight(1f),
                     )
 
-                    val deleteTaskDescription =
-                        stringResource(Res.string.delete_task)
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clickable(onClick = onDiscardPendingClick),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        KomiIcon(
-                            imageVector = Icons.Default.FileDownloadOff,
-                            contentDescription = deleteTaskDescription,
-                            tint = colors.onSurfaceVariant,
-                        )
-                    }
+                    KomiSoftIconButton(
+                        icon = Icons.Default.Close,
+                        contentDescription = stringResource(Res.string.delete_task),
+                        onClick = onDiscardPendingClick,
+                    )
                 } else if (app.isUpdateAvailable && !app.isPendingInstall) {
                     KomiButton(
                         onClick = { installCooldown.run(onUpdateClick) },
@@ -403,8 +396,8 @@ fun AppItemCard(
                     KomiButton(
                         onClick = onDiscardPendingClick,
                         label = stringResource(Res.string.delete_task),
-                        variant = KomiButtonVariant.Destructive,
-                        leadingIcon = Icons.Default.FileDownloadOff,
+                        variant = KomiButtonVariant.Outline,
+                        leadingIcon = Icons.Default.Close,
                         modifier = Modifier.weight(1f),
                     )
                 } else {

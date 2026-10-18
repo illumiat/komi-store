@@ -22,7 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.FileDownloadOff
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MoreVert
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
@@ -292,7 +292,7 @@ private fun CompactRowOverflow(
                 KomiMenuItem(
                     id = "discard_pending",
                     label = deleteTaskLabel,
-                    icon = Icons.Outlined.FileDownloadOff,
+                    icon = Icons.Outlined.Close,
                     tone = KomiMenuTone.Danger,
                 ),
             )

@@ -24,8 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.utils.VersionMath
+import zed.rainxch.core.presentation.components.buttons.KomiSoftIconButton
 import zed.rainxch.core.presentation.components.icon.KomiIcon
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.text.KomiText
@@ -221,20 +222,20 @@ fun SmartInstallButton(
 
             if (isActiveDownload) {
                 when (state.downloadStage) {
-                    DownloadStage.DOWNLOADING -> LabeledActionPill(
-                        container = accent,
-                        content = onAccent,
+                    DownloadStage.DOWNLOADING -> KomiSoftIconButton(
                         icon = Icons.Default.Pause,
-                        label = stringResource(Res.string.pause),
+                        contentDescription = stringResource(Res.string.pause),
                         onClick = { onAction(DetailsAction.PauseDownload) },
+                        accent = true,
+                        size = ButtonHeight,
                     )
 
-                    DownloadStage.PAUSED -> LabeledActionPill(
-                        container = accent,
-                        content = onAccent,
+                    DownloadStage.PAUSED -> KomiSoftIconButton(
                         icon = Icons.Default.PlayArrow,
-                        label = stringResource(Res.string.resume),
+                        contentDescription = stringResource(Res.string.resume),
                         onClick = { onAction(DetailsAction.ResumeDownload) },
+                        accent = true,
+                        size = ButtonHeight,
                     )
 
                     DownloadStage.IDLE,
@@ -243,13 +244,12 @@ fun SmartInstallButton(
                     -> Unit
                 }
 
-                LabeledActionPill(
-                    container = colors.error,
-                    content = colors.onError,
-                    icon = Icons.Default.FileDownloadOff,
-                    label = stringResource(Res.string.delete_task),
-                    enabled = state.downloadStage != DownloadStage.INSTALLING,
+                KomiSoftIconButton(
+                    icon = Icons.Default.Close,
+                    contentDescription = stringResource(Res.string.delete_task),
                     onClick = { onAction(DetailsAction.DiscardDownload) },
+                    enabled = state.downloadStage != DownloadStage.INSTALLING,
+                    size = ButtonHeight,
                 )
             } else if (state.isObtainiumEnabled) {
                 TrailingActionPill(
@@ -282,8 +282,12 @@ private fun PrimaryAction(
     progress: Int?,
     onClick: () -> Unit,
 ) {
+    val colors = LocalPersonality.current.colors
     val pct = progress?.coerceIn(0, 100) ?: 0
-    val targetFraction = if (isActiveDownload && state.downloadStage == DownloadStage.DOWNLOADING) {
+    val paused = state.downloadStage == DownloadStage.PAUSED
+    val targetFraction = if (isActiveDownload &&
+        (state.downloadStage == DownloadStage.DOWNLOADING || paused)
+    ) {
         pct / 100f
     } else if (isActiveDownload) {
         1f
@@ -301,13 +305,26 @@ private fun PrimaryAction(
             .fillMaxWidth()
             .height(ButtonHeight)
             .clip(shape)
-            .drawBehind {
-                drawRect(accent.copy(alpha = if (isActiveDownload) 0.35f else 1f))
+            .then(
                 if (isActiveDownload) {
+                    Modifier.border(1.dp, colors.outlineVariant, shape)
+                } else {
+                    Modifier
+                },
+            )
+            .drawBehind {
+                if (isActiveDownload) {
+                    drawRect(colors.surfaceContainerHigh)
                     drawRect(
-                        color = accent,
+                        color = if (paused) {
+                            colors.onSurfaceVariant.copy(alpha = 0.16f)
+                        } else {
+                            colors.primary.copy(alpha = 0.22f)
+                        },
                         size = Size(size.width * animatedFraction, size.height),
                     )
+                } else {
+                    drawRect(accent)
                 }
             }
             .clickable(enabled = enabled, onClick = onClick),
@@ -320,7 +337,7 @@ private fun PrimaryAction(
                 DownloadingLabel(
                     state = state,
                     progress = progress,
-                    contentColor = onAccent,
+                    contentColor = colors.onSurface,
                     isUpdateAvailable = isUpdateAvailable,
                 )
             } else {
@@ -503,46 +520,6 @@ private fun TrailingActionPill(
             contentDescription = contentDescription,
             tint = content,
             modifier = Modifier.size(22.dp),
-        )
-    }
-}
-
-@Composable
-private fun LabeledActionPill(
-    container: Color,
-    content: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-) {
-    val shape = LocalPersonality.current.shape
-    val alpha = if (enabled) 1f else 0.45f
-    Row(
-        modifier = Modifier
-            .height(ButtonHeight)
-            .clip(RoundedCornerShape(shape.corner))
-            .background(container.copy(alpha = container.alpha * alpha))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        KomiIcon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = content.copy(alpha = alpha),
-            modifier = Modifier.size(18.dp),
-        )
-        KomiText(
-            text = label,
-            role = KomiTextRole.Title,
-            color = content.copy(alpha = alpha),
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
-            uppercase = false,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }
