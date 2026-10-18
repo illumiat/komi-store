@@ -31,10 +31,6 @@ class AndroidDownloadProgressNotifier(
     ) {
         if (!hasNotificationPermission()) return
 
-        // Pause and resume are the same button in two states, so only one of them is attached. The
-        // action and the data URI must both differ: with FLAG_UPDATE_CURRENT a shared identity
-        // collapses the PendingIntents into one and every button would do the same thing. Pause
-        // keeps the partial, resume continues it, delete erases it.
         val primaryPendingIntent =
             if (paused) {
                 broadcastIntent(

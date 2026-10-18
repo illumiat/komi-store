@@ -1837,7 +1837,7 @@ class DetailsViewModel(
                 val gatePackageName =
                     if (platform == Platform.ANDROID) warning.pendingApkInfo.packageName else null
                 if (gatePackageName != null) {
-                    systemInstallSerializer.awaitFreeAndMarkPending(gatePackageName)
+                    systemInstallSerializer.awaitFreeAndMarkPending(gatePackageName, timeoutMs = 0L)
                 }
                 val installOutcome =
                     try {
@@ -2438,7 +2438,7 @@ class DetailsViewModel(
         val gatePackageName =
             if (platform == Platform.ANDROID) validatedApkInfo?.packageName else null
         if (gatePackageName != null) {
-            systemInstallSerializer.awaitFreeAndMarkPending(gatePackageName)
+            systemInstallSerializer.awaitFreeAndMarkPending(gatePackageName, timeoutMs = 0L)
         }
         val installOutcome =
             try {

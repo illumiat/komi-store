@@ -77,7 +77,8 @@ class DefaultDownloadOrchestrator(
             val existing = _downloads.value[spec.packageName]
             if (existing != null && existing.stage != DownloadStage.Failed &&
                 existing.stage != DownloadStage.Cancelled &&
-                existing.stage != DownloadStage.Paused
+                existing.stage != DownloadStage.Paused &&
+                !existing.lostItsFile()
             ) {
                 if (existing.installPolicy != spec.installPolicy &&
                     existing.installPolicy.priority < spec.installPolicy.priority
@@ -176,6 +177,10 @@ class DefaultDownloadOrchestrator(
         }
     }
 
+    private fun OrchestratedDownload.lostItsFile(): Boolean =
+        (stage == DownloadStage.AwaitingInstall || stage == DownloadStage.Installing) &&
+            filePath?.let { !java.io.File(it).exists() } == true
+
     private suspend fun runDownload(spec: DownloadSpec) {
         while (true) {
             val activeNow =
@@ -247,7 +252,7 @@ class DefaultDownloadOrchestrator(
             )
         }
 
-        val filePath =
+        var filePath =
             downloader.getDownloadedFilePath(scopedName)
                 ?: throw IllegalStateException("Downloaded file missing: $scopedName")
 
@@ -259,13 +264,53 @@ class DefaultDownloadOrchestrator(
         if (expectedDigest != null) {
             val mismatch = digestVerifier.verify(filePath, expectedDigest)
             if (mismatch != null) {
-                Logger.w { "Orchestrator: digest mismatch for ${spec.asset.name}: $mismatch" }
+                Logger.w {
+                    "Orchestrator: digest mismatch for ${spec.asset.name} ($mismatch); " +
+                        "re-fetching from the source"
+                }
                 runCatching { java.io.File(filePath).delete() }
-                markFailed(
-                    spec.packageName,
-                    "Checksum mismatch — file may have been tampered with",
-                )
-                return
+                runCatching { downloader.discardPartial(scopedName) }
+                updateEntry(spec.packageName) {
+                    it.copy(progressPercent = 0, bytesDownloaded = 0L)
+                }
+                val sourceUrl = authenticatedGithubAssetUrl(spec) ?: spec.asset.downloadUrl
+                try {
+                    streamProgress(
+                        downloader.download(
+                            sourceUrl,
+                            scopedName,
+                            bypassMirror = true,
+                            identity = identity,
+                        ),
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (t: Throwable) {
+                    Logger.e(t) { "Orchestrator: source re-fetch failed for ${spec.asset.name}" }
+                    markFailed(spec.packageName, t.message)
+                    return
+                }
+                filePath =
+                    downloader.getDownloadedFilePath(scopedName)
+                        ?: throw IllegalStateException(
+                            "Downloaded file missing after re-fetch: $scopedName",
+                        )
+                val stillMismatched = digestVerifier.verify(filePath, expectedDigest)
+                if (stillMismatched != null) {
+                    Logger.w {
+                        "Orchestrator: digest still mismatched after the source re-fetch for " +
+                            "${spec.asset.name}: $stillMismatched"
+                    }
+                    runCatching { java.io.File(filePath).delete() }
+                    markFailed(
+                        spec.packageName,
+                        "Checksum mismatch — file may have been tampered with",
+                    )
+                    return
+                }
+                updateEntry(spec.packageName) {
+                    it.copy(filePath = filePath, progressPercent = 100)
+                }
             }
         } else {
             Logger.i { "No digest for ${spec.asset.name}, skipping SHA-256 verification" }
@@ -618,11 +663,12 @@ class DefaultDownloadOrchestrator(
         ext: String,
         entry: OrchestratedDownload? = null,
     ): InstallOutcome? {
+        val entryId = _downloads.value[packageName]?.id
         updateEntry(packageName) { it.copy(stage = DownloadStage.Installing) }
         var delegated = false
         return try {
             installer.ensurePermissionsOrThrow(ext)
-            systemInstallSerializer.awaitFreeAndMarkPending(packageName)
+            systemInstallSerializer.awaitFreeAndMarkPending(packageName, timeoutMs = 0L)
             val outcome = installer.install(filePath, ext)
             delegated = outcome == InstallOutcome.DELEGATED_TO_SYSTEM
             adoptUntrackedDownload(entry, filePath, outcome)
@@ -637,7 +683,9 @@ class DefaultDownloadOrchestrator(
                         Logger.w(e) { "Orchestrator: failed to clear pending install path post-install" }
                     }
                     pendingInstallNotifier.clearPending(packageName)
-                    updateEntry(packageName) { it.copy(stage = DownloadStage.Completed) }
+                    if (entryId != null) {
+                        updateEntry(packageName, onlyId = entryId) { it.copy(stage = DownloadStage.Completed) }
+                    }
                 }
 
                 // The installer holds the file now, and nothing reports back through this
@@ -646,8 +694,10 @@ class DefaultDownloadOrchestrator(
                 // Completed with the outcome kept, the row left pending for the system to
                 // confirm — instead of spinning on Installing with no event left to move it.
                 InstallOutcome.DELEGATED_TO_SYSTEM -> {
-                    updateEntry(packageName) {
-                        it.copy(stage = DownloadStage.Completed, installOutcome = outcome)
+                    if (entryId != null) {
+                        updateEntry(packageName, onlyId = entryId) {
+                            it.copy(stage = DownloadStage.Completed, installOutcome = outcome)
+                        }
                     }
                 }
             }
@@ -658,7 +708,7 @@ class DefaultDownloadOrchestrator(
         } catch (t: Throwable) {
             if (!delegated) systemInstallSerializer.markCompleted(packageName)
             Logger.e(t) { "Orchestrator: standalone install failed for $packageName" }
-            markFailed(packageName, t.message)
+            if (entryId != null) markFailed(packageName, t.message, onlyId = entryId)
             null
         }
     }
@@ -743,20 +793,23 @@ class DefaultDownloadOrchestrator(
 
     private suspend fun updateEntry(
         packageName: String,
+        onlyId: String? = null,
         transform: (OrchestratedDownload) -> OrchestratedDownload,
     ) {
         stateMutex.withLock {
             _downloads.update { state ->
                 val current = state[packageName] ?: return@update state
+                if (onlyId != null && current.id != onlyId) return@update state
                 state + (packageName to transform(current))
             }
         }
     }
 
-    private suspend fun markFailed(packageName: String, message: String?) {
+    private suspend fun markFailed(packageName: String, message: String?, onlyId: String? = null) {
         stateMutex.withLock {
             _downloads.update { state ->
                 val current = state[packageName] ?: return@update state
+                if (onlyId != null && current.id != onlyId) return@update state
                 state + (packageName to current.copy(stage = DownloadStage.Failed, errorMessage = message))
             }
         }
