@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.Intent
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.core.context.GlobalContext
 import zed.rainxch.core.domain.system.DownloadOrchestrator
+import zed.rainxch.core.domain.system.DownloadProgressNotifier
 
 class DownloadCancelReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -40,6 +42,10 @@ class DownloadCancelReceiver : BroadcastReceiver() {
         val scope = koin.get<CoroutineScope>()
         scope.launch {
             try {
+                if (orchestrator.observe(packageName).first() == null) {
+                    koin.get<DownloadProgressNotifier>().clearProgress(packageName)
+                    return@launch
+                }
                 when (dispatch) {
                     Dispatch.PAUSE -> orchestrator.cancel(packageName)
                     Dispatch.RESUME -> orchestrator.resume(packageName)

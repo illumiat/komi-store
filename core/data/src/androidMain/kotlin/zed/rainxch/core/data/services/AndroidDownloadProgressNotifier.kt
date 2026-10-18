@@ -17,7 +17,7 @@ class AndroidDownloadProgressNotifier(
     private val context: Context,
     private val pauseLabel: String = "Pause",
     private val resumeLabel: String = "Resume",
-    private val deleteLabel: String = "Delete",
+    private val deleteLabel: String = "Delete task",
 ) : DownloadProgressNotifier {
     @SuppressLint("MissingPermission")
     override fun notifyProgress(
@@ -66,7 +66,7 @@ class AndroidDownloadProgressNotifier(
                 .setContentTitle(appName)
                 .setContentText(progressText)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setOngoing(true)
+                .setOngoing(!paused)
                 .setOnlyAlertOnce(true)
                 .setProgress(100, percent ?: 0, indeterminate)
                 .addAction(

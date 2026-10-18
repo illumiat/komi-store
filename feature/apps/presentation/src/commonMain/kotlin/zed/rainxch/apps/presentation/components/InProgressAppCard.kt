@@ -44,6 +44,7 @@ import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.utils.formatFileSize
+import zed.rainxch.core.presentation.utils.rememberTapCooldown
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.apps_version_update
 import zed.rainxch.githubstore.core.presentation.res.delete_task
@@ -71,13 +72,12 @@ fun InProgressAppCard(
     onDiscard: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
-    // Tapping the card leads back to the repo it stands for, the move the library card makes.
-    // Null for a download with no repository behind it: the card stays inert.
     onOpenRepo: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val shape = LocalPersonality.current.shape
+    val tapCooldown = rememberTapCooldown()
 
     KomiSurface(
         onClick = onOpenRepo,
@@ -116,9 +116,6 @@ fun InProgressAppCard(
                         uppercase = false,
                     )
 
-                    // The same identity lines as the big library card: the handoff from this card
-                    // to that one has to read as the same object changing its status zone, not as
-                    // a swap to a different widget.
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth(),
@@ -149,8 +146,6 @@ fun InProgressAppCard(
                 }
             }
 
-            // The same block in the same slot as the big card's; the row's copy covers a download
-            // that entered before the spec carried a description.
             val description = download.repoDescription ?: rowItem?.installedApp?.repoDescription
             if (description != null) {
                 Spacer(Modifier.height(8.dp))
@@ -165,15 +160,9 @@ fun InProgressAppCard(
                 )
             }
 
-            // The big card's management row, driven through the row it belongs to. Shown for every
-            // stage so the row neither appears nor vanishes depending on where the download is.
             rowItem?.let { item ->
                 AppCardToolbar(
                     appItem = item,
-                    // The card is busy by definition, so the row's gate would keep every control
-                    // dead for the card's whole life; the controls stay live here. The one
-                    // risky follow-up — re-running the update after a variant pick — is already
-                    // covered: this call passes resumeUpdateAfterPick = false.
                     controlsEnabled = true,
                     onAdvancedSettingsClick = {
                         onRowAction(AppsAction.OnOpenAdvancedSettings(item.installedApp))
@@ -237,8 +226,6 @@ fun InProgressAppCard(
                     }
                 }
 
-                // The bar holds the value it stopped at rather than clearing: resuming picks up from
-                // exactly there.
                 DownloadStage.Paused -> {
                     ProgressBody(download = download, paused = true)
 
@@ -250,10 +237,11 @@ fun InProgressAppCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
-                            onClick = onResume,
+                            onClick = { tapCooldown.run(onResume) },
                             label = stringResource(Res.string.resume),
                             variant = KomiButtonVariant.Primary,
                             leadingIcon = Icons.Default.PlayArrow,
+                            enabled = !tapCooldown.active,
                             modifier = Modifier.weight(1f),
                         )
 
@@ -278,10 +266,6 @@ fun InProgressAppCard(
                         )
                     }
 
-                    // The card needs a way out of this state. An install handed to the system
-                    // installer never advances the stage: the installer reports DELEGATED_TO_SYSTEM
-                    // and only a COMPLETED outcome settles the entry, so this card would otherwise
-                    // sit here spinning for good once the transfer has already succeeded.
                     Spacer(Modifier.height(12.dp))
 
                     Row(
@@ -296,8 +280,6 @@ fun InProgressAppCard(
                             modifier = Modifier.weight(1f),
                         )
 
-                        // Disabled: the installer is holding the file, so deleting the task now
-                        // would pull it out from under a live install.
                         DeleteTaskIcon(onClick = onDiscard, enabled = false)
                     }
                 }
@@ -309,10 +291,11 @@ fun InProgressAppCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
-                            onClick = onInstall,
+                            onClick = { tapCooldown.run(onInstall) },
                             label = stringResource(Res.string.install),
                             variant = KomiButtonVariant.Primary,
                             leadingIcon = Icons.Default.Update,
+                            enabled = !tapCooldown.active,
                             modifier = Modifier.weight(1f),
                         )
 
@@ -341,10 +324,11 @@ fun InProgressAppCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         KomiButton(
-                            onClick = onRetry,
+                            onClick = { tapCooldown.run(onRetry) },
                             label = stringResource(Res.string.retry),
                             variant = KomiButtonVariant.Primary,
                             leadingIcon = Icons.Default.Refresh,
+                            enabled = !tapCooldown.active,
                             modifier = Modifier.weight(1f),
                         )
 
@@ -353,8 +337,6 @@ fun InProgressAppCard(
 
                     Spacer(Modifier.height(8.dp))
 
-                    // Dismissing only clears the card from the list; it deletes nothing. Weak
-                    // on purpose next to retry and delete.
                     KomiButton(
                         onClick = onDismiss,
                         label = stringResource(Res.string.dismiss),
@@ -363,8 +345,6 @@ fun InProgressAppCard(
                     )
                 }
 
-                // Terminal: the VM keeps these out of the transient list, so this is reachable
-                // only if that filter changes. Draw nothing rather than invent a fifth state.
                 DownloadStage.Completed,
                 DownloadStage.Cancelled,
                 -> Unit
@@ -373,9 +353,6 @@ fun InProgressAppCard(
     }
 }
 
-// The identity column's third line, kept in the same slot and shape as the big library card's:
-// an awaiting download shows "ready to install" exactly where the pending card shows it, and
-// every other stage shows the version line the same card keeps underneath.
 @Composable
 private fun StageLine(
     download: OrchestratedDownload,
@@ -474,8 +451,6 @@ private fun ProgressBody(
 
     Spacer(Modifier.height(2.dp))
 
-    // The asset belongs to the transfer, not the identity: the big card this hands off to has no
-    // such line, so it moves down here with the numbers instead of changing the top block.
     KomiText(
         text = download.assetName,
         role = KomiTextRole.Body,
@@ -487,9 +462,6 @@ private fun ProgressBody(
     )
 }
 
-// "Delete task" is not the trash glyph: that one belongs to uninstall. This drops the download
-// and its partial, never the installed app. The icon form and its slot match the pending card's
-// delete, so the control does not change shape when the file lands and this card becomes that one.
 @Composable
 private fun DeleteTaskIcon(
     onClick: () -> Unit,

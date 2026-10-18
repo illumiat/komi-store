@@ -73,24 +73,6 @@ class DefaultDownloadOrchestrator(
             .distinctUntilChanged()
 
     override suspend fun enqueue(spec: DownloadSpec): String {
-        stateMutex.withLock {
-            val existing = _downloads.value[spec.packageName]
-            if (existing != null && existing.stage != DownloadStage.Failed &&
-                existing.stage != DownloadStage.Cancelled &&
-                existing.stage != DownloadStage.Paused &&
-                !existing.lostItsFile()
-            ) {
-                if (existing.installPolicy != spec.installPolicy &&
-                    existing.installPolicy.priority < spec.installPolicy.priority
-                ) {
-                    _downloads.update { state ->
-                        state + (spec.packageName to existing.copy(installPolicy = spec.installPolicy))
-                    }
-                }
-                return existing.id
-            }
-        }
-
         val id = generateId()
         val initial =
             OrchestratedDownload(
@@ -109,17 +91,32 @@ class DefaultDownloadOrchestrator(
                 assetDigest = spec.asset.digest,
                 downloadUrl = spec.asset.downloadUrl,
                 releaseTag = spec.releaseTag,
+                releaseId = spec.releaseId,
                 filePath = null,
                 installPolicy = spec.installPolicy,
                 stage = DownloadStage.Queued,
                 progressPercent = null,
             )
         stateMutex.withLock {
+            val existing = _downloads.value[spec.packageName]
+            if (existing != null && existing.stage != DownloadStage.Failed &&
+                existing.stage != DownloadStage.Cancelled &&
+                existing.stage != DownloadStage.Paused &&
+                existing.stage != DownloadStage.Completed &&
+                !existing.lostItsFile()
+            ) {
+                if (existing.installPolicy != spec.installPolicy &&
+                    existing.installPolicy.priority < spec.installPolicy.priority
+                ) {
+                    _downloads.update { state ->
+                        state + (spec.packageName to existing.copy(installPolicy = spec.installPolicy))
+                    }
+                }
+                return existing.id
+            }
             _downloads.update { it + (spec.packageName to initial) }
         }
 
-        // Fired after the new entry is registered: a re-enqueue of an interrupted asset is itself
-        // a claim on that asset's partial, and the sweep must not delete bytes about to resume.
         maybeReclaimOrphanedPartials()
 
         val job = appScope.launch {
@@ -431,10 +428,6 @@ class DefaultDownloadOrchestrator(
         filePath: String,
         notify: Boolean,
     ) {
-        // AwaitingInstall is this component's own statement that the file is ready, and
-        // isPendingInstall is its persisted form, so the flag is raised here rather than by the
-        // page coroutine that started the download: that coroutine dies with the screen, and the
-        // park would then be swept as stale. Path and flag go down in one write.
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
@@ -564,12 +557,15 @@ class DefaultDownloadOrchestrator(
             }
         }
 
-        // Do not remove the entry: Paused keeps the bytes, the progress and the file path so the
-        // user still sees the download and can continue it. [discard] is what removes it.
         stateMutex.withLock {
             _downloads.update { state ->
                 val current = state[packageName] ?: return@update state
-                state + (packageName to current.copy(stage = DownloadStage.Paused))
+                when (current.stage) {
+                    DownloadStage.Queued, DownloadStage.Downloading, DownloadStage.Paused ->
+                        state + (packageName to current.copy(stage = DownloadStage.Paused))
+
+                    else -> state - packageName
+                }
             }
         }
     }
@@ -586,9 +582,6 @@ class DefaultDownloadOrchestrator(
         restart(entry)
     }
 
-    // Shared by resume and retry: both re-issue the transfer from the entry's own fields. enqueue
-    // treats a Paused or Failed entry as restartable, so the only difference is which stage is
-    // allowed in.
     private suspend fun restart(entry: OrchestratedDownload) {
         val spec =
             DownloadSpec(
@@ -611,15 +604,14 @@ class DefaultDownloadOrchestrator(
                 displayAppName = entry.displayAppName,
                 installPolicy = entry.installPolicy,
                 releaseTag = entry.releaseTag,
+                releaseId = entry.releaseId,
             )
         enqueue(spec)
     }
 
     override suspend fun discard(packageName: String) {
         val entry = _downloads.value[packageName]
-        // Keep the bytes: stop the transfer and clear the parked install.
         cancel(packageName)
-        // Only then forget the entry, which cancel deliberately no longer does.
         stateMutex.withLock {
             _downloads.update { it - packageName }
         }
@@ -632,6 +624,15 @@ class DefaultDownloadOrchestrator(
                 throw e
             } catch (e: Exception) {
                 Logger.w(e) { "Orchestrator: discardPartial failed for $scopedName" }
+            }
+            if (entry.stage == DownloadStage.AwaitingInstall || entry.stage == DownloadStage.Failed) {
+                entry.filePath?.let { path ->
+                    try {
+                        java.io.File(path).takeIf { it.exists() }?.delete()
+                    } catch (e: Exception) {
+                        Logger.w(e) { "Orchestrator: could not delete finished file $path" }
+                    }
+                }
             }
         }
     }
@@ -688,11 +689,6 @@ class DefaultDownloadOrchestrator(
                     }
                 }
 
-                // The installer holds the file now, and nothing reports back through this
-                // path: the transfer is handed over, so the card's work is done. Settle the
-                // entry the way the AlwaysInstall path settles a delegated transfer —
-                // Completed with the outcome kept, the row left pending for the system to
-                // confirm — instead of spinning on Installing with no event left to move it.
                 InstallOutcome.DELEGATED_TO_SYSTEM -> {
                     if (entryId != null) {
                         updateEntry(packageName, onlyId = entryId) {
@@ -713,13 +709,6 @@ class DefaultDownloadOrchestrator(
         }
     }
 
-    // A download the library has no row for is becoming an app on the device: once the install
-    // has been handed to the system (or settled silently by a privileged installer), the app
-    // should be tracked, so its row is written here — the same bookkeeping the details screen
-    // does when it installs a download itself. A delegated transfer is written pending, with
-    // the parked file's path, so the sync resolves the row once the system proves the install
-    // landed; a silent completion leaves nothing pending. An app that already has a row is
-    // left alone, and a download with no repo id (a bare link) has nothing to write.
     private suspend fun adoptUntrackedDownload(
         entry: OrchestratedDownload?,
         filePath: String,
@@ -727,9 +716,7 @@ class DefaultDownloadOrchestrator(
     ) {
         if (entry == null) return
         try {
-            if (installedAppsRepository.getAppByPackage(entry.packageName) != null) return
             val repoId = entry.repoId ?: return
-            val isPending = outcome != InstallOutcome.COMPLETED
             val apkInfo =
                 try {
                     installer.getApkInfoExtractor().extractPackageInfo(filePath)
@@ -738,11 +725,14 @@ class DefaultDownloadOrchestrator(
                 } catch (e: Exception) {
                     Logger.w(e) { "Orchestrator: could not read ${entry.assetName} for adoption" }
                     null
-                }
+                } ?: return
+            val packageName = apkInfo.packageName
+            if (installedAppsRepository.getAppByPackage(packageName) != null) return
+            val isPending = outcome != InstallOutcome.COMPLETED
             val now = Clock.System.now().toEpochMilliseconds()
             installedAppsRepository.saveInstalledApp(
                 InstalledApp(
-                    packageName = entry.packageName,
+                    packageName = packageName,
                     repoId = repoId,
                     repoName = entry.repoName,
                     repoOwner = entry.repoOwner,
@@ -763,13 +753,13 @@ class DefaultDownloadOrchestrator(
                     lastCheckedAt = now,
                     lastUpdatedAt = now,
                     isUpdateAvailable = false,
-                    signingFingerprint = apkInfo?.signingFingerprint,
+                    signingFingerprint = apkInfo.signingFingerprint,
                     releaseNotes = "",
                     systemArchitecture = installer.detectSystemArchitecture().name,
                     fileExtension = entry.assetName.substringAfterLast('.', ""),
                     isPendingInstall = isPending,
-                    installedVersionName = apkInfo?.versionName,
-                    installedVersionCode = apkInfo?.versionCode ?: 0L,
+                    installedVersionName = apkInfo.versionName,
+                    installedVersionCode = apkInfo.versionCode,
                     installedAssetId = entry.assetId.takeIf { it > 0L },
                     installedAssetDigest = entry.assetDigest,
                     pendingInstallFilePath = filePath.takeIf { isPending },
@@ -778,11 +768,10 @@ class DefaultDownloadOrchestrator(
                     sourceHost = entry.sourceHost,
                 ),
             )
-            Logger.i { "Orchestrator: adopted ${entry.packageName} into the library (pending=$isPending)" }
+            Logger.i { "Orchestrator: adopted $packageName into the library (pending=$isPending)" }
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
-            // Adoption is bookkeeping: it must not fail the install the user asked for.
             Logger.w(t) { "Orchestrator: failed to adopt ${entry.packageName}" }
         }
     }

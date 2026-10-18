@@ -35,15 +35,7 @@ import zed.rainxch.core.domain.system.MultiSourceDownloader
 import zed.rainxch.core.domain.system.PendingInstallNotifier
 import zed.rainxch.core.domain.system.SystemInstallSerializer
 
-// The library offers an install only when isPendingInstall and pendingInstallFilePath are both
-// set, so a row with one and not the other appears in no group. Through this boundary the
-// orchestrator can only be pinned to the combined write rather than the path-only one; that the
-// two columns land in a single statement is a property of InstalledAppDao.markAwaitingInstall's
-// UPDATE and is not observable from here.
 class DefaultDownloadOrchestratorParkTest {
-
-    // Only the string flows on: FakeDownloader returns it from getDownloadedFilePath and no test
-    // touches the file itself, so a real temp file would buy nothing and outlive the run.
     private val parkedPath: String = "/tmp/komi-orchestrator-park-test.apk"
 
     private fun spec(policy: InstallPolicy) = DownloadSpec(
@@ -98,7 +90,6 @@ class DefaultDownloadOrchestratorParkTest {
         assertEquals("v3.4.1", write.version)
         assertEquals("joplin-3.4.1.apk", write.assetName)
 
-        // Counter-proof: the path-only write is the one that cannot raise the flag.
         assertTrue(
             repository.pendingInstallFilePathWrites.isEmpty(),
             "parking must not go through the path-only write, got " +
@@ -109,7 +100,6 @@ class DefaultDownloadOrchestratorParkTest {
             "parking must not discard the park, got " + repository.discardedParks,
         )
 
-        // InstallWhileForeground parks silently: the user is already looking at the screen.
         assertTrue(
             notifier.notified.isEmpty(),
             "this policy must not notify, got " + notifier.notified,
@@ -132,8 +122,6 @@ class DefaultDownloadOrchestratorParkTest {
             "the download-only policy must not discard the park, got " + repository.discardedParks,
         )
 
-        // The one real difference between the two policies, and the reason the flags cannot be
-        // swapped: a deferred park has to tell the user the file is waiting.
         assertEquals(listOf("net.cozic.joplin"), notifier.notified)
     }
 
@@ -155,14 +143,10 @@ class DefaultDownloadOrchestratorParkTest {
 
         orchestrator.installPending("net.cozic.joplin")
 
-        // The card is done: a transfer handed to the system settles, instead of spinning on
-        // Installing with no event left to move it.
         val entry = orchestrator.downloads.value.getValue("net.cozic.joplin")
         assertEquals(DownloadStage.Completed, entry.stage)
         assertEquals(InstallOutcome.DELEGATED_TO_SYSTEM, entry.installOutcome)
 
-        // And the untracked download is adopted: a pending row pointing at the parked file,
-        // for the sync to resolve once the system proves the install landed.
         val adopted = repository.savedApps.single()
         assertEquals("net.cozic.joplin", adopted.packageName)
         assertEquals(4242L, adopted.repoId)
@@ -171,6 +155,28 @@ class DefaultDownloadOrchestratorParkTest {
         assertEquals(parkedPath, adopted.pendingInstallFilePath)
         assertEquals("v3.4.1", adopted.installedVersion)
         assertEquals("joplin-3.4.1.apk", adopted.installedAssetName)
+    }
+
+    @Test
+    fun a_download_keyed_by_its_repository_is_adopted_under_the_apk_package() = runBlocking {
+        val repository = RecordingInstalledAppsRepository()
+        val orchestrator =
+            orchestrator(
+                repository,
+                scope = this,
+                installer = SettlingInstaller(InstallOutcome.DELEGATED_TO_SYSTEM),
+                serializer = SettledSystemInstallSerializer,
+            )
+
+        orchestrator.enqueue(
+            spec(InstallPolicy.DeferUntilUserAction)
+                .copy(packageName = "laurent22/joplin", repoId = 4242L, sourceHost = "github.com"),
+        )
+        withTimeout(AWAIT_PARK_MS) { repository.parked.await() }
+
+        orchestrator.installPending("laurent22/joplin")
+
+        assertEquals("net.cozic.joplin", repository.savedApps.single().packageName)
     }
 
     @Test
@@ -192,8 +198,6 @@ class DefaultDownloadOrchestratorParkTest {
 
         orchestrator.installPending("net.cozic.joplin")
 
-        // The row already owns this app's bookkeeping; adoption must not duplicate it — while
-        // the entry still settles exactly the same way.
         assertTrue(
             repository.savedApps.isEmpty(),
             "adoption must not run for a tracked app, saved " + repository.savedApps,
@@ -249,8 +253,6 @@ class DefaultDownloadOrchestratorParkTest {
         val savedApps = mutableListOf<InstalledApp>()
         val parked = CompletableDeferred<Unit>()
 
-        // A discard is not expected on this path; recorded so a regression that clears the park
-        // this way fails loudly.
         val discardedParks = mutableListOf<String>()
 
         override suspend fun markAwaitingInstall(
@@ -272,9 +274,6 @@ class DefaultDownloadOrchestratorParkTest {
             pendingInstallFilePathWrites += path
         }
 
-        // Stub: this fake covers the park write path, so a discard is not expected here. The
-        // recording keeps both parameters so a path-scoping regression is distinguishable from a
-        // plain spurious call.
         override suspend fun discardParkedInstall(
             packageName: String,
             expectedPath: String?,
@@ -289,8 +288,6 @@ class DefaultDownloadOrchestratorParkTest {
 
         override fun getUpdateCount(): Flow<Int> = flowOf(0)
 
-        // What the library already tracks, when a test says so. The park path never reads it;
-        // adoption does, to leave a tracked app's bookkeeping to its own row.
         var tracked: InstalledApp? = null
 
         override suspend fun getAppByPackage(packageName: String): InstalledApp? = tracked
@@ -452,18 +449,27 @@ class DefaultDownloadOrchestratorParkTest {
         override fun openWithExternalInstaller(filePath: String) = Unit
     }
 
-    // A stand-in for the system installer on a stock device: it always hands the file over,
-    // and everything it does not override delegates to FakeInstaller so the two cannot drift.
     private class SettlingInstaller(
         private val outcome: InstallOutcome,
     ) : Installer by FakeInstaller {
         override suspend fun ensurePermissionsOrThrow(extOrMime: String) = Unit
 
         override suspend fun install(filePath: String, extOrMime: String): InstallOutcome = outcome
+
+        override fun getApkInfoExtractor(): InstallerInfoExtractor = JoplinApkExtractor
     }
 
-    // The install paths do serialize through the gate; this stand-in lets them, while
-    // FakeSystemInstallSerializer keeps guarding the park path against serializing.
+    private object JoplinApkExtractor : InstallerInfoExtractor {
+        override suspend fun extractPackageInfo(filePath: String): ApkPackageInfo =
+            ApkPackageInfo(
+                packageName = "net.cozic.joplin",
+                versionName = "3.4.1",
+                versionCode = 3041L,
+                appName = "Joplin",
+                signingFingerprint = null,
+            )
+    }
+
     private object SettledSystemInstallSerializer : SystemInstallSerializer {
         override suspend fun awaitFreeAndMarkPending(packageName: String, timeoutMs: Long) = Unit
 

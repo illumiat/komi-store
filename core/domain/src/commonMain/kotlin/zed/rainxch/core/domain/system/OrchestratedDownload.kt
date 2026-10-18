@@ -6,7 +6,6 @@ data class OrchestratedDownload(
     val repoOwner: String,
     val repoName: String,
 
-    // Carried through from the spec so the card can lead back to the repository it stands for.
     val repoId: Long? = null,
 
     val sourceHost: String? = null,
@@ -22,6 +21,7 @@ data class OrchestratedDownload(
 
     val downloadUrl: String,
     val releaseTag: String,
+    val releaseId: Long? = null,
 
     val filePath: String?,
 

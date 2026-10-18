@@ -11,9 +11,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.drawable.toBitmap
-import org.jetbrains.compose.resources.painterResource
-import zed.rainxch.githubstore.core.presentation.res.Res
-import zed.rainxch.githubstore.core.presentation.res.app_icon
 
 private const val TAG = "InstalledAppIcon"
 
@@ -32,31 +29,14 @@ actual fun InstalledAppIcon(
                 ?: apkFilePath?.let { resolveApkIcon(packageManager, it) }
         }
 
-    when {
-        iconBitmap != null ->
-            Image(
-                bitmap = iconBitmap,
-                contentDescription = appName,
-                modifier = modifier,
-            )
-
-        // Nothing on this device can prove what this app's icon is: it is not installed, and the
-        // file we have is not a readable APK yet. The repository's owner avatar is then the only
-        // image that actually belongs to this repository. Falling through to the bundled app_icon
-        // below would stamp THIS application's logo onto someone else's download, which reads as
-        // "this is Komi Store" — the one thing the icon must not say.
-        avatarFallbackUrl != null ->
-            GitHubStoreImage(
-                imageModel = { avatarFallbackUrl },
-                modifier = modifier,
-            )
-
-        else ->
-            Image(
-                painter = painterResource(Res.drawable.app_icon),
-                contentDescription = appName,
-                modifier = modifier,
-            )
+    if (iconBitmap != null) {
+        Image(
+            bitmap = iconBitmap,
+            contentDescription = appName,
+            modifier = modifier,
+        )
+    } else {
+        FallbackAppIcon(appName = appName, avatarFallbackUrl = avatarFallbackUrl, modifier = modifier)
     }
 }
 

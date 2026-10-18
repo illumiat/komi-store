@@ -105,12 +105,8 @@ class AppsViewModel(
 
     private var advancedPreviewJob: Job? = null
 
-    // Orchestrator stages already translated into an UpdateState. Kept so a progress tick
-    // (which arrives many times a second) only refreshes the percentage instead of re-sorting
-    // the whole list through updateAppState.
     private val orchestratedStages = mutableMapOf<String, OrchestratorStage>()
 
-    // The last snapshot seen, so the mirror can be re-applied when the rows are rebuilt.
     private var orchestratorSnapshot: Map<String, OrchestratedDownload> = emptyMap()
 
     private val _state = MutableStateFlow(AppsState())
@@ -131,8 +127,6 @@ class AppsViewModel(
                 initialValue = AppsState(),
             )
 
-    // Declared after [_state]: the collector reads it immediately when a download is already
-    // running by the time this screen is opened.
     init {
         observeOrchestratorDownloads()
     }
@@ -160,9 +154,6 @@ class AppsViewModel(
             linkInstallableAssets.filter { regex.containsMatchIn(it.name) }.toImmutableList()
         }
 
-        // A row whose download is on an "in progress" card is hidden from every group: the app is
-        // already on screen, and showing the row too would draw it twice. Its card carries the
-        // stage, so the row has nothing left to say.
         val visibleApps = filteredApps.filterNot { it.installedApp.packageName in hiddenRowPackages }
 
         val pending = visibleApps.filter {
@@ -414,7 +405,7 @@ class AppsViewModel(
             }
 
             is AppsAction.OnRetryInProgressDownload -> {
-                runOrchestratorAction("retry", action.key) { downloadOrchestrator.retry(it) }
+                retryInProgressDownload(action.key)
             }
 
             is AppsAction.OnDiscardInProgressDownload -> {
@@ -1558,9 +1549,6 @@ class AppsViewModel(
             }
     }
 
-    // Orchestrator work started from the screen runs here rather than on a composition scope, so
-    // navigating away cannot abort it, and every failure is contained instead of cancelling
-    // viewModelScope.
     private fun runOrchestratorAction(
         what: String,
         key: String,
@@ -1574,6 +1562,16 @@ class AppsViewModel(
             } catch (t: Throwable) {
                 logger.warn("$what failed for $key: ${t.message}")
             }
+        }
+    }
+
+    private fun retryInProgressDownload(key: String) {
+        if (activeUpdates.containsKey(key)) return
+        val app = _state.value.apps.firstOrNull { it.installedApp.packageName == key }?.installedApp
+        when {
+            app == null -> runOrchestratorAction("retry", key) { downloadOrchestrator.retry(it) }
+            app.pendingInstallFilePath != null -> redownloadPendingApp(app)
+            else -> updateSingleApp(app)
         }
     }
 
@@ -1592,15 +1590,13 @@ class AppsViewModel(
                     appItem.installedApp.latestAssetName?.let { assetName ->
                         cleanupUpdate(appItem.installedApp.packageName, assetName)
                     }
-                    // A details-screen download has no [activeUpdates] entry, so cancelling the
-                    // jobs above is a no-op for it; the orchestrator is what stops it.
                     try {
-                        downloadOrchestrator.cancel(appItem.installedApp.packageName)
+                        downloadOrchestrator.discard(appItem.installedApp.packageName)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (t: Throwable) {
                         logger.warn(
-                            "cancelAllUpdates: orchestrator cancel failed for " +
+                            "cancelAllUpdates: orchestrator discard failed for " +
                                 "${appItem.installedApp.packageName}: ${t.message}",
                         )
                     }
@@ -1686,18 +1682,12 @@ class AppsViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (t: Throwable) {
-                    // This collector is the screen's only source of download visibility, so an
-                    // unexpected failure must not end it: that would silently bring back the
-                    // invisible-download symptom this class exists to remove.
                     logger.warn("observeOrchestratorDownloads: mirroring failed: ${t.message}")
                 }
             }
         }
     }
 
-    // Rows are rebuilt from scratch on every apps emission, so whatever the orchestrator said
-    // before the first rows existed has to be said again: the stage cache would otherwise see no
-    // change and skip it, leaving the row Idle for the whole download.
     private suspend fun reapplyOrchestratorStages() {
         orchestratedStages.clear()
         mirrorOrchestratorSnapshot(orchestratorSnapshot, getString(Res.string.download_failed))
@@ -1717,9 +1707,6 @@ class AppsViewModel(
         }
 
         snapshot.forEach { (packageName, entry) ->
-            // A registry key for an app that is not in the library is "owner/name" and can never
-            // match a row, so mirroring it would be a guaranteed miss on every progress tick; its
-            // UI is the transient card.
             if (packageName in knownPackages && !activeUpdates.containsKey(packageName)) {
                 applyOrchestratorEntry(packageName, entry, failedFallback)
             }
@@ -1756,8 +1743,6 @@ class AppsViewModel(
             )
         }
 
-        // Progress is the one thing that changes without the stage changing, so it is written on
-        // every tick rather than behind the stage cache above.
         if (entry.stage.phase == DownloadStagePhase.Live) {
             updateAppProgress(packageName, entry.progressPercent)
         }
@@ -1857,6 +1842,10 @@ class AppsViewModel(
                             packageName = app.packageName,
                             repoOwner = app.repoOwner,
                             repoName = app.repoName,
+                            repoId = app.repoId,
+                            sourceHost = app.sourceHost,
+                            repoOwnerAvatarUrl = app.repoOwnerAvatarUrl,
+                            repoDescription = app.repoDescription,
                             asset = target.asset,
                             displayAppName = app.appName,
                             installPolicy = InstallPolicy.InstallWhileForeground,
@@ -1898,11 +1887,11 @@ class AppsViewModel(
     private fun discardPendingInstall(app: InstalledAppUi) {
         viewModelScope.launch {
             try {
-                downloadOrchestrator.cancel(app.packageName)
+                downloadOrchestrator.discard(app.packageName)
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
-                logger.warn("discardPendingInstall: orchestrator cancel failed: ${t.message}")
+                logger.warn("discardPendingInstall: orchestrator discard failed: ${t.message}")
             }
 
             app.pendingInstallFilePath?.let { path ->
