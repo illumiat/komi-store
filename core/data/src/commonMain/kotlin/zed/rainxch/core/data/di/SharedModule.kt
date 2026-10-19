@@ -144,6 +144,8 @@ val coreModule =
                 clientProvider = get(),
                 backendApiClient = get(),
                 forgejoClientRegistry = get(),
+                packageMonitor = get(),
+                digestVerifier = get(),
             )
         }
 

@@ -226,6 +226,8 @@ class DownloadLifecycleTest {
             filePath: String,
             expectedDigest: String,
         ): String? = error("an asset without a digest is not verified")
+
+        override suspend fun computeSha256(filePath: String): String? = null
     }
 
     private object HandOffInstaller : Installer {

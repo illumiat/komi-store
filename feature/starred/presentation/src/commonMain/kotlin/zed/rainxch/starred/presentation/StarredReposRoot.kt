@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.presentation.components.ScrollbarContainer
@@ -180,6 +182,20 @@ fun StarredReposScreen(
                                     modifier = Modifier.fillMaxSize()
                                         .arrowKeyScroll(gridState, autoFocus = true),
                                 ) {
+                                    if (state.notInstallableCount > 0) {
+                                        item(
+                                            key = "not_installable_hint",
+                                            span = StaggeredGridItemSpan.FullLine,
+                                        ) {
+                                            NotInstallableHint(
+                                                count = state.notInstallableCount,
+                                                showingAll = state.showAllStarred,
+                                                onToggle = {
+                                                    onAction(StarredReposAction.OnToggleShowAllStarred)
+                                                },
+                                            )
+                                        }
+                                    }
                                     items(
                                         items = state.filteredRepositories,
                                         key = { it.repoId },
@@ -413,6 +429,47 @@ private fun PreviewStarred() {
                     isAuthenticated = true,
                 ),
             onAction = {},
+        )
+    }
+}
+
+@Composable
+private fun NotInstallableHint(
+    count: Int,
+    showingAll: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalPersonality.current.colors
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        KomiText(
+            text =
+                pluralStringResource(
+                    if (showingAll) {
+                        Res.plurals.starred_including_not_installable
+                    } else {
+                        Res.plurals.starred_hidden_not_installable
+                    },
+                    count,
+                    count,
+                ),
+            role = KomiTextRole.Body,
+            color = colors.onSurfaceVariant,
+            uppercase = false,
+            modifier = Modifier.weight(1f),
+        )
+        KomiButton(
+            onClick = onToggle,
+            label =
+                stringResource(
+                    if (showingAll) Res.string.starred_installable_only else Res.string.starred_show_all,
+                ),
+            variant = KomiButtonVariant.Text,
+            size = KomiButtonSize.Sm,
         )
     }
 }

@@ -197,6 +197,8 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
             calls += filePath
             return queue.removeFirstOrNull()
         }
+
+        override suspend fun computeSha256(filePath: String): String? = null
     }
 
     private object StubInstaller : Installer {
