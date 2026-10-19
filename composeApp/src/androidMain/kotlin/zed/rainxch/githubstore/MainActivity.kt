@@ -28,6 +28,8 @@ import zed.rainxch.core.domain.helpers.ShareManager
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
 import zed.rainxch.githubstore.app.deeplink.DeepLinkParser
+import zed.rainxch.githubstore.utils.readDeviceCapabilities
+import zed.rainxch.githubstore.utils.supportsSustainedPerformance
 import zed.rainxch.githubstore.utils.updateSystemBars
 
 class MainActivity : ComponentActivity() {
@@ -50,6 +52,10 @@ class MainActivity : ComponentActivity() {
         (shareManager as? AndroidShareManager)?.registerActivityResultLauncher(this)
 
         super.onCreate(savedInstanceState)
+
+        readDeviceCapabilities().let { capabilities ->
+            window.setSustainedPerformanceMode(capabilities.supportsSustainedPerformance)
+        }
 
         // Cancels draw requests until the real UI past the gate has composed, so no placeholder
         // frame is rendered.
