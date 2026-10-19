@@ -44,7 +44,6 @@
     <string name="try_again">Try again</string>
 
     <!-- Errors -->
-    <string name="auth_error_with_message">Error: %1$s</string>
 
     <!-- Device flow -->
     <string name="enter_code_on_github">Enter this code on GitHub:</string>
@@ -142,6 +141,9 @@
     <string name="proxy_test_error_auth_required">Proxy authentication required.</string>
     <string name="proxy_test_error_status">Unexpected response: HTTP %1$d</string>
     <string name="proxy_test_error_unknown">Connection test failed</string>
+    <string name="proxy_test_master_result">Search: %1$s, Downloads: %2$s, Translation: %3$s</string>
+    <string name="proxy_test_probe_ok">%1$d ms</string>
+    <string name="proxy_test_probe_failed">failed</string>
 
     <!-- Snackbar -->
     <string name="logout_success">Logged out successfully</string>
@@ -161,6 +163,9 @@
     <string name="open_repository">Open repository</string>
     <string name="open_in_browser">Open in browser</string>
     <string name="cancel_download">Cancel download</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="paused">Paused</string>
     <string name="show_install_options">Show install options</string>
 
     <string name="error_state_title_generic">Something went wrong</string>
@@ -520,6 +525,12 @@
     <string name="auth_check_status">I already authorized</string>
     <string name="auth_polling_status">Checking…</string>
     <string name="auth_rate_limited">Rate limited — retrying in %1$ds</string>
+    <string name="auth_error_unreachable">Couldn't connect to GitHub</string>
+    <string name="auth_error_rate_limited">Too many sign-in attempts</string>
+    <string name="auth_hint_wait">Wait a few minutes, then try again.</string>
+    <string name="auth_error_denied">Authorization was denied</string>
+    <string name="auth_error_browser">Couldn't open the browser</string>
+    <string name="auth_hint_other_method">Use a device code or a personal access token instead.</string>
 
     <!-- Read More / Show Less -->
     <string name="read_more">Read More</string>
@@ -1003,7 +1014,7 @@
     <string name="feedback_send_via_github">Open as GitHub Issue</string>
     <string name="feedback_send_success_email">Thanks — opening your mail client.</string>
     <string name="feedback_send_success_github">Thanks — opening your browser.</string>
-    <string name="feedback_send_error">Couldn't open feedback channel: %1$s</string>
+    <string name="feedback_send_failed">Couldn't open the feedback channel</string>
 
     <!-- Tweaks feature - Custom forges -->
     <string name="custom_forges_entry_label">Custom forges</string>
@@ -1020,6 +1031,15 @@
     <!-- Mirror - Sections -->
     <string name="mirror_section_official">Official</string>
     <string name="mirror_section_community">Community</string>
+
+    <string name="mirror_pick_fastest">Pick fastest</string>
+    <string name="mirror_pick_fastest_sub">Time every mirror, pick the fastest</string>
+    <string name="mirror_measuring">Measuring from this device…</string>
+    <string name="mirror_measure_latency">Measure latency</string>
+    <string name="mirror_latency_local">%1$d ms from you</string>
+    <string name="mirror_fastest_badge">%1$s · fastest</string>
+    <string name="mirror_fastest_chosen">Switched to %1$s (%2$d ms).</string>
+    <string name="mirror_no_mirror_responded">No mirror answered. Check your connection and try again.</string>
 
     <!-- Mirror - Statuses -->
     <string name="mirror_status_ok">%1$dms</string>
@@ -1041,7 +1061,7 @@
     <string name="mirror_test_http_error">Mirror returned %1$d</string>
     <string name="mirror_test_timeout">Timed out after 5s</string>
     <string name="mirror_test_dns_fail">Could not resolve host</string>
-    <string name="mirror_test_other">Failed: %1$s</string>
+    <string name="mirror_test_failed">Connection failed</string>
 
     <!-- Mirror - Footer hint -->
     <string name="mirror_deploy_your_own_hint">All mirrors broken? You can host your own in 5 minutes — see docs.</string>
@@ -1072,12 +1092,15 @@
     <string name="apps_compact_status_updates_ignored">updates ignored</string>
     <string name="apps_ignore_updates">Ignore updates</string>
     <string name="discard_pending_install">Discard</string>
+    <string name="delete_task">Delete task</string>
     <string name="apps_updates_banner_title_one">1 update available</string>
     <string name="apps_updates_banner_title_other">%1$d updates available</string>
     <string name="apps_updates_banner_subtitle">Review or update everything at once.</string>
     <string name="apps_updates_banner_show">See list</string>
     <string name="apps_updates_banner_hide">Hide list</string>
     <string name="apps_section_pending_installs">Ready to install</string>
+    <string name="apps_section_in_progress">In progress</string>
+    <string name="download_failed">Download failed</string>
     <string name="adaptive_pick_repo_title">Pick a repository</string>
     <string name="adaptive_pick_repo_subtitle">Tap any card on the left to view its details here.</string>
     <string name="translation_card_title">Translate</string>
@@ -1267,7 +1290,9 @@
     <string name="host_tokens_action_add">Add token</string>
     <string name="host_tokens_action_delete">Delete</string>
     <string name="host_tokens_saved">Saved token for %1$s</string>
-    <string name="host_tokens_validation_failed">Validation failed: %1$s</string>
+    <string name="host_tokens_load_failed">Couldn't load saved tokens</string>
+    <string name="host_tokens_save_failed">Couldn't save token for %1$s</string>
+    <string name="host_tokens_delete_failed">Couldn't delete token for %1$s</string>
 
     <!-- Host tokens — picker / forge presets / inline feedback / undo -->
     <string name="host_tokens_picker_title">Add token for…</string>
@@ -1293,6 +1318,8 @@
     <string name="host_tokens_compose_replace_title">Replace token for %1$s</string>
     <string name="host_tokens_compose_add_title">Add token</string>
     <string name="host_tokens_validation_failed_fallback">unknown error</string>
+    <string name="host_tokens_validation_http">HTTP %1$d</string>
+    <string name="host_tokens_validation_unreachable">couldn't reach the server</string>
     <string name="host_tokens_undo_failed">Couldn't restore token for %1$s</string>
 
     <!-- Tweaks redesign (P14/P15/P16) -->

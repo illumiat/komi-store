@@ -47,6 +47,7 @@ import zed.rainxch.apps.presentation.components.AppsSectionHeader
 import zed.rainxch.apps.presentation.components.AppsTopbar
 import zed.rainxch.apps.presentation.components.CompactAppRow
 import zed.rainxch.apps.presentation.components.ImportSummarySheet
+import zed.rainxch.apps.presentation.components.InProgressAppCard
 import zed.rainxch.apps.presentation.components.KaoBanner
 import zed.rainxch.apps.presentation.components.LinkAppBottomSheet
 import zed.rainxch.apps.presentation.components.PendingDiscardSheet
@@ -78,6 +79,7 @@ import zed.rainxch.core.presentation.utils.arrowKeyScroll
 import zed.rainxch.core.presentation.utils.formatLastChecked
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.add_by_link
+import zed.rainxch.githubstore.core.presentation.res.apps_section_in_progress
 import zed.rainxch.githubstore.core.presentation.res.apps_section_pending_installs
 import zed.rainxch.githubstore.core.presentation.res.apps_section_up_to_date
 import zed.rainxch.githubstore.core.presentation.res.cancel
@@ -208,7 +210,6 @@ fun AppsRoot(
     }
 }
 
-
 @Composable
 fun AppsScreen(
     state: AppsState,
@@ -304,6 +305,7 @@ fun AppsScreen(
                             state.showKaoBanner,
                             state.pendingApps.isNotEmpty(),
                             state.updateApps.isNotEmpty() || state.isUpdatingAll,
+                            state.inProgressDownloads.isNotEmpty(),
                         ),
                     )
 
@@ -317,7 +319,7 @@ fun AppsScreen(
                             }
                         }
 
-                        state.filteredApps.isEmpty() -> {
+                        state.filteredApps.isEmpty() && state.inProgressDownloads.isEmpty() -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center,
@@ -361,6 +363,13 @@ fun AppsScreen(
                                 val appGridCells =
                                     rememberWidthCappedGridCells(contentPadding = appGridPadding)
 
+                                val installedVersions =
+                                    remember(state.apps) {
+                                        state.apps.associate {
+                                            it.installedApp.packageName to it.installedApp.installedVersion
+                                        }
+                                    }
+
                                 LazyVerticalGrid(
                                     columns = appGridCells,
                                     state = listState,
@@ -370,6 +379,94 @@ fun AppsScreen(
                                     verticalArrangement = Arrangement.spacedBy(CardGridSpec.GridItemSpacing),
                                     horizontalArrangement = CardGridSpec.GridArrangement,
                                 ) {
+                                    if (state.inProgressDownloads.isNotEmpty()) {
+                                        item(
+                                            key = "header-in-progress",
+                                            span = { GridItemSpan(maxLineSpan) },
+                                        ) {
+                                            AppsSectionHeader(
+                                                title = stringResource(Res.string.apps_section_in_progress),
+                                                count = state.inProgressDownloads.size,
+                                                isExpanded = true,
+                                                collapsible = false,
+                                                onToggle = {},
+                                            )
+                                        }
+
+                                        items(
+                                            state.inProgressDownloads,
+                                            key = { download -> "transient-${download.id}" },
+                                        ) { download ->
+                                            val openRepo =
+                                                download.repoId?.let { repoId ->
+                                                    {
+                                                        onAction(
+                                                            AppsAction.OnNavigateToRepo(
+                                                                repoId = repoId,
+                                                                sourceHost = download.sourceHost,
+                                                                owner = download.repoOwner,
+                                                                repo = download.repoName,
+                                                                packageName = download.packageName,
+                                                            ),
+                                                        )
+                                                    }
+                                                }
+                                            InProgressAppCard(
+                                                download = download,
+                                                installedVersion =
+                                                    installedVersions[download.packageName],
+                                                rowItem =
+                                                    state.apps.find {
+                                                        it.installedApp.packageName == download.packageName
+                                                    },
+                                                onOpenRepo = openRepo,
+                                                onRowAction = onAction,
+                                                onPause = {
+                                                    onAction(
+                                                        AppsAction.OnCancelInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onResume = {
+                                                    onAction(
+                                                        AppsAction.OnResumeInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onRetry = {
+                                                    onAction(
+                                                        AppsAction.OnRetryInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onDiscard = {
+                                                    onAction(
+                                                        AppsAction.OnDiscardInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onInstall = {
+                                                    onAction(
+                                                        AppsAction.OnInstallInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                                onDismiss = {
+                                                    onAction(
+                                                        AppsAction.OnDismissInProgressDownload(
+                                                            download.packageName,
+                                                        ),
+                                                    )
+                                                },
+                                            )
+                                        }
+                                    }
+
                                     if (state.showImportProposalBanner) {
                                         item(key = "external-import-banner", span = { GridItemSpan(maxLineSpan) }) {
                                             ImportProposalBanner(
@@ -529,13 +626,6 @@ private fun AppItemCardWithActions(
             onAction(
                 AppsAction.OnUpdateApp(
                     appItem.installedApp
-                )
-            )
-        },
-        onCancelClick = {
-            onAction(
-                AppsAction.OnCancelUpdate(
-                    appItem.installedApp.packageName
                 )
             )
         },

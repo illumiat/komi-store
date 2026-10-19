@@ -7,6 +7,9 @@ class AssetSourceGoneException(
     val statusCode: Int,
 ) : Exception("Unexpected code $statusCode") {
     companion object {
-        fun isGoneCode(statusCode: Int): Boolean = statusCode == 404 || statusCode == 410
+        private const val STATUS_NOT_FOUND = 404
+        private const val STATUS_GONE = 410
+
+        fun isGoneCode(statusCode: Int): Boolean = statusCode == STATUS_NOT_FOUND || statusCode == STATUS_GONE
     }
 }

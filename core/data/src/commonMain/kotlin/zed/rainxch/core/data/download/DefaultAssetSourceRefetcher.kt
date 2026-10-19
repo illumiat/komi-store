@@ -4,7 +4,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.http.HttpHeaders
-import kotlin.coroutines.cancellation.CancellationException
 import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.mappers.toDomain
 import zed.rainxch.core.data.network.GitHubClientProvider
@@ -13,12 +12,12 @@ import zed.rainxch.core.data.network.executeRequest
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.system.DownloadSpec
+import kotlin.coroutines.cancellation.CancellationException
 
 class DefaultAssetSourceRefetcher(
     private val clientProvider: GitHubClientProvider,
     private val logger: KomiStoreLogger,
 ) : AssetSourceRefetcher {
-
     // Reads straight from the repository host: the reason a download lands here is a stale
     // resolution, and every cache that can hand out a stale URL — the backend's release copy in
     // particular — is exactly what the question "what does the repository have now" must step
@@ -46,12 +45,11 @@ class DefaultAssetSourceRefetcher(
                         logger.error(
                             "Asset refetch failed for ${spec.repoOwner}/${spec.repoName}: ${e.message}",
                         )
-                    }
-                    .getOrNull()
+                    }.getOrNull()
                     ?: return null
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (e: java.io.IOException) {
                 logger.error(
                     "Asset refetch failed for ${spec.repoOwner}/${spec.repoName}: ${e.message}",
                 )
@@ -73,10 +71,15 @@ class DefaultAssetSourceRefetcher(
 // same name: the name is the floor, because a different file would be a different download, not
 // a retry. Prereleases are not filtered here — the spec does not say which channel built it, and
 // a test build's spec is a prerelease itself. Null means nothing moved and the failure stands.
-internal fun assetReplacementFor(spec: DownloadSpec, window: List<GithubRelease>): DownloadSpec? {
+internal fun assetReplacementFor(
+    spec: DownloadSpec,
+    window: List<GithubRelease>,
+): DownloadSpec? {
     val inSameRelease =
-        window.firstOrNull { it.tagName == spec.releaseTag }
-            ?.assets?.firstOrNull { it.name == spec.asset.name }
+        window
+            .firstOrNull { it.tagName == spec.releaseTag }
+            ?.assets
+            ?.firstOrNull { it.name == spec.asset.name }
     if (inSameRelease != null) {
         return if (inSameRelease.downloadUrl == spec.asset.downloadUrl) {
             null

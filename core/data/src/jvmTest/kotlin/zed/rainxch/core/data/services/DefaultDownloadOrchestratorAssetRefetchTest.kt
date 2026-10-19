@@ -1,7 +1,5 @@
 package zed.rainxch.core.data.services
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -19,11 +17,12 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
 import zed.rainxch.core.domain.model.installation.DownloadProgress
 import zed.rainxch.core.domain.model.installation.InstalledApp
+import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 import zed.rainxch.core.domain.model.system.SystemArchitecture
+import zed.rainxch.core.domain.network.AssetIdentity
 import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.network.Downloader
-import zed.rainxch.core.domain.network.SlowDownloadDetector
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.DownloadSpec
 import zed.rainxch.core.domain.system.DownloadStage
@@ -34,6 +33,8 @@ import zed.rainxch.core.domain.system.InstallerInfoExtractor
 import zed.rainxch.core.domain.system.MultiSourceDownloader
 import zed.rainxch.core.domain.system.PendingInstallNotifier
 import zed.rainxch.core.domain.system.SystemInstallSerializer
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 // A download that was resolved from a cached release can be handed an asset URL that no longer
 // exists: the release was replaced, or the asset re-uploaded, since the resolution was taken.
@@ -42,7 +43,6 @@ import zed.rainxch.core.domain.system.SystemInstallSerializer
 // the notification — speaks about the replacement, not the dead URL. When nothing moved, the
 // failure stands exactly as it did before.
 class DefaultDownloadOrchestratorAssetRefetchTest {
-
     private companion object {
         const val PKG = "zed.rainxch.githubstore"
         const val OLD_TAG = "testbuild-all-prs-20261008"
@@ -105,7 +105,6 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         installer = StubInstaller,
         installedAppsRepository = repo,
         pendingInstallNotifier = notifier,
-        slowDownloadDetector = StubSlowDownloadDetector,
         appScope = scope,
         systemInstallSerializer = StubInstallSerializer,
         tokenStore = StubTokenStore,
@@ -119,9 +118,10 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             val verifier = RecordingVerifier()
             val repo = RecordingInstalledAppsRepository()
             val notifier = RecordingNotifier()
-            val refetcher = RecordingRefetcher(
-                spec().copy(asset = newAsset(), releaseTag = NEW_TAG, releaseId = 99L),
-            )
+            val refetcher =
+                RecordingRefetcher(
+                    spec().copy(asset = newAsset(), releaseTag = NEW_TAG, releaseId = 99L),
+                )
             val orchestrator = orchestrator(downloader, multi, verifier, repo, notifier, refetcher, scope = this)
 
             orchestrator.enqueue(spec())
@@ -205,7 +205,11 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         val window =
             listOf(
                 release(tag = NEW_TAG, assets = listOf(newAsset()), publishedAt = "2026-10-09T08:02:05Z"),
-                release(tag = "older", assets = listOf(newAsset().copy(downloadUrl = "https://example.invalid/older.apk")), publishedAt = "2026-10-01T00:00:00Z"),
+                release(
+                    tag = "older",
+                    assets = listOf(newAsset().copy(downloadUrl = "https://example.invalid/older.apk")),
+                    publishedAt = "2026-10-01T00:00:00Z",
+                ),
             )
 
         val refetched = assetReplacementFor(spec(), window)
@@ -250,7 +254,11 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
     private class ThrowingOnceMultiSource : MultiSourceDownloader {
         val calls = mutableListOf<String>()
 
-        override fun download(githubUrl: String, suggestedFileName: String?): Flow<DownloadProgress> {
+        override fun download(
+            githubUrl: String,
+            suggestedFileName: String?,
+            identity: AssetIdentity?,
+        ): Flow<DownloadProgress> {
             calls += githubUrl
             if (githubUrl == OLD_URL) {
                 throw AssetSourceGoneException(404)
@@ -261,7 +269,9 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         }
     }
 
-    private class RecordingRefetcher(private val result: DownloadSpec?) : AssetSourceRefetcher {
+    private class RecordingRefetcher(
+        private val result: DownloadSpec?,
+    ) : AssetSourceRefetcher {
         val calls = mutableListOf<DownloadSpec>()
 
         override suspend fun refetch(spec: DownloadSpec): DownloadSpec? {
@@ -273,7 +283,10 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
     private class RecordingVerifier : DigestVerifier {
         val expectedDigests = mutableListOf<String>()
 
-        override suspend fun verify(filePath: String, expectedDigest: String): String? {
+        override suspend fun verify(
+            filePath: String,
+            expectedDigest: String,
+        ): String? {
             expectedDigests += expectedDigest
             return null
         }
@@ -284,19 +297,39 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             url: String,
             suggestedFileName: String?,
             bypassMirror: Boolean,
+            identity: AssetIdentity?,
         ): Flow<DownloadProgress> = error("the direct fallback is not part of these paths")
 
-        override suspend fun saveToFile(url: String, suggestedFileName: String?): String =
-            error("saveToFile is not part of this path")
+        override suspend fun discardPartial(fileName: String): Boolean = false
 
-        override suspend fun getDownloadedFilePath(fileName: String): String =
-            "/tmp/komi-refetch-test/$fileName"
+        override suspend fun reclaimOrphanedPartials(claimedNames: Set<String>): Int = 0
+
+        override suspend fun saveToFile(
+            url: String,
+            suggestedFileName: String?,
+        ): String = error("saveToFile is not part of this path")
+
+        override suspend fun getDownloadedFilePath(fileName: String): String = "/tmp/komi-refetch-test/$fileName"
 
         override suspend fun cancelDownload(fileName: String): Boolean = false
     }
 
     private class RecordingInstalledAppsRepository : InstalledAppsRepository {
         var pendingPathVersion: String? = null
+
+        override suspend fun markAwaitingInstall(
+            packageName: String,
+            path: String,
+            version: String?,
+            assetName: String?,
+        ) {
+            pendingPathVersion = version
+        }
+
+        override suspend fun discardParkedInstall(
+            packageName: String,
+            expectedPath: String?,
+        ): ParkedInstallDisposal = ParkedInstallDisposal.Discarded
 
         override suspend fun setPendingInstallFilePath(
             packageName: String,
@@ -359,11 +392,20 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             isUpdateAvailable: Boolean,
         ) = Unit
 
-        override suspend fun updatePendingStatus(packageName: String, isPending: Boolean) = Unit
+        override suspend fun updatePendingStatus(
+            packageName: String,
+            isPending: Boolean,
+        ) = Unit
 
-        override suspend fun setIncludePreReleases(packageName: String, enabled: Boolean) = Unit
+        override suspend fun setIncludePreReleases(
+            packageName: String,
+            enabled: Boolean,
+        ) = Unit
 
-        override suspend fun setUpdateCheckEnabled(packageName: String, enabled: Boolean) = Unit
+        override suspend fun setUpdateCheckEnabled(
+            packageName: String,
+            enabled: Boolean,
+        ) = Unit
 
         override suspend fun setAssetFilter(
             packageName: String,
@@ -382,7 +424,10 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
 
         override suspend fun clearPreferredVariant(packageName: String) = Unit
 
-        override suspend fun setSkippedReleaseTag(packageName: String, tag: String?) = Unit
+        override suspend fun setSkippedReleaseTag(
+            packageName: String,
+            tag: String?,
+        ) = Unit
 
         override fun getAppsWithSkippedReleaseTag(): Flow<List<InstalledApp>> = emptyFlow()
 
@@ -416,11 +461,12 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
     private object StubInstaller : Installer {
         override suspend fun isSupported(extOrMime: String): Boolean = false
 
-        override suspend fun ensurePermissionsOrThrow(extOrMime: String) =
-            error("a deferred download must not install")
+        override suspend fun ensurePermissionsOrThrow(extOrMime: String) = error("a deferred download must not install")
 
-        override suspend fun install(filePath: String, extOrMime: String): InstallOutcome =
-            error("a deferred download must not install")
+        override suspend fun install(
+            filePath: String,
+            extOrMime: String,
+        ): InstallOutcome = error("a deferred download must not install")
 
         override fun uninstall(packageName: String) = Unit
 
@@ -440,7 +486,10 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
 
         override fun isAppManagerInstalled(): Boolean = false
 
-        override fun openInAppManager(filePath: String, onOpenInstaller: () -> Unit) = Unit
+        override fun openInAppManager(
+            filePath: String,
+            onOpenInstaller: () -> Unit,
+        ) = Unit
 
         override fun getApkInfoExtractor(): InstallerInfoExtractor = NoOpExtractor
 
@@ -453,16 +502,11 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         override suspend fun extractPackageInfo(filePath: String): ApkPackageInfo? = null
     }
 
-    private object StubSlowDownloadDetector : SlowDownloadDetector {
-        override val suggestMirror: Flow<Unit> = emptyFlow()
-
-        override suspend fun onProgress(progress: DownloadProgress) = Unit
-
-        override suspend fun reset() = Unit
-    }
-
     private object StubInstallSerializer : SystemInstallSerializer {
-        override suspend fun awaitFreeAndMarkPending(packageName: String, timeoutMs: Long) = Unit
+        override suspend fun awaitFreeAndMarkPending(
+            packageName: String,
+            timeoutMs: Long,
+        ) = Unit
 
         override fun markCompleted(packageName: String) = Unit
     }
