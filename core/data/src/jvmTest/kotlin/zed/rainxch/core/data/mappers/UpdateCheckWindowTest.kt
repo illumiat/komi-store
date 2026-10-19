@@ -1,12 +1,11 @@
 package zed.rainxch.core.data.mappers
 
+import zed.rainxch.core.domain.model.account.github.GithubRelease
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import zed.rainxch.core.domain.model.account.github.GithubRelease
 
 class UpdateCheckWindowTest {
-
     @Test
     fun the_window_reads_newest_first() {
         val oldest = release(id = 1L, tag = "1.0.0", publishedAt = "2026-09-01T00:00:00Z")

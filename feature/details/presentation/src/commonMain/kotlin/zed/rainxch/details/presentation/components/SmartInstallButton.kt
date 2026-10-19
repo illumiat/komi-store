@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -47,11 +49,13 @@ import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.utils.VersionMath
+import zed.rainxch.core.presentation.components.buttons.KomiSoftIconButton
 import zed.rainxch.core.presentation.components.icon.KomiIcon
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
+import zed.rainxch.core.presentation.utils.rememberTapCooldown
 import zed.rainxch.details.presentation.DetailsAction
 import zed.rainxch.details.presentation.DetailsState
 import zed.rainxch.details.presentation.model.AttestationStatus
@@ -60,8 +64,8 @@ import zed.rainxch.details.presentation.utils.extractArchitectureFromName
 import zed.rainxch.details.presentation.utils.isExactArchitectureMatch
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.architecture_compatible
-import zed.rainxch.githubstore.core.presentation.res.cancel_download
 import zed.rainxch.githubstore.core.presentation.res.checking_attestation
+import zed.rainxch.githubstore.core.presentation.res.delete_task
 import zed.rainxch.githubstore.core.presentation.res.downloading
 import zed.rainxch.githubstore.core.presentation.res.install_latest
 import zed.rainxch.githubstore.core.presentation.res.install_ready
@@ -70,6 +74,9 @@ import zed.rainxch.githubstore.core.presentation.res.installing
 import zed.rainxch.githubstore.core.presentation.res.no_build_for_this_device
 import zed.rainxch.githubstore.core.presentation.res.not_available
 import zed.rainxch.githubstore.core.presentation.res.open_app
+import zed.rainxch.githubstore.core.presentation.res.pause
+import zed.rainxch.githubstore.core.presentation.res.paused
+import zed.rainxch.githubstore.core.presentation.res.resume
 import zed.rainxch.githubstore.core.presentation.res.show_install_options
 import zed.rainxch.githubstore.core.presentation.res.unable_to_verify_attestation
 import zed.rainxch.githubstore.core.presentation.res.uninstall
@@ -92,6 +99,7 @@ fun SmartInstallButton(
 ) {
     val colors = LocalPersonality.current.colors
     val shape = LocalPersonality.current.shape
+    val primaryCooldown = rememberTapCooldown()
     val installedApp = state.installedApp
     val isInstalled = installedApp != null && !installedApp.isPendingInstall
     val isUpdateAvailable =
@@ -106,7 +114,7 @@ fun SmartInstallButton(
     val selectedIsLatestRelease =
         normSelected != null &&
             (installedApp?.latestVersion.isNullOrBlank() ||
-                VersionMath.isExactSameVersion(normSelected, installedApp?.latestVersion))
+                VersionMath.isExactSameVersion(normSelected, installedApp.latestVersion))
     val isSameVersionInstalled =
         isInstalled &&
             normInstalled != null &&
@@ -114,14 +122,14 @@ fun SmartInstallButton(
             VersionMath.isExactSameVersion(normInstalled, normSelected) &&
             !(
                 selectedIsTimestampTracked &&
-                    installedApp?.isUpdateAvailable == true &&
+                    installedApp.isUpdateAvailable &&
                     selectedIsLatestRelease
             )
     val showUpdateAffordance = isUpdateAvailable && selectedIsLatestRelease
 
     val enabled = remember(primaryAsset, isDownloading, isInstalling) {
         primaryAsset != null && !isDownloading && !isInstalling
-    }
+    } && !primaryCooldown.active
     val isActiveDownload = state.isDownloading || state.downloadStage != DownloadStage.IDLE
 
     if (isSameVersionInstalled && !isActiveDownload) {
@@ -168,7 +176,7 @@ fun SmartInstallButton(
         else -> stringResource(Res.string.install_latest)
     }
 
-    val hasTrailing = isActiveDownload || state.isObtainiumEnabled
+    val showOptionsPill = state.isObtainiumEnabled && !isActiveDownload
 
     Column(modifier = modifier) {
         Row(
@@ -176,7 +184,7 @@ fun SmartInstallButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            val primaryShape = if (hasTrailing) {
+            val primaryShape = if (showOptionsPill) {
                 RoundedCornerShape(
                     topStart = shape.corner,
                     bottomStart = shape.corner,
@@ -201,22 +209,47 @@ fun SmartInstallButton(
                 progress = progress,
                 onClick = {
                     if (!state.isDownloading && state.downloadStage == DownloadStage.IDLE) {
-                        if (showUpdateAffordance) {
-                            onAction(DetailsAction.UpdateApp)
-                        } else {
-                            onAction(DetailsAction.InstallPrimary)
+                        primaryCooldown.run {
+                            if (showUpdateAffordance) {
+                                onAction(DetailsAction.UpdateApp)
+                            } else {
+                                onAction(DetailsAction.InstallPrimary)
+                            }
                         }
                     }
                 },
             )
 
             if (isActiveDownload) {
-                TrailingActionPill(
-                    container = colors.error,
-                    content = colors.onError,
+                when (state.downloadStage) {
+                    DownloadStage.DOWNLOADING -> KomiSoftIconButton(
+                        icon = Icons.Default.Pause,
+                        contentDescription = stringResource(Res.string.pause),
+                        onClick = { onAction(DetailsAction.PauseDownload) },
+                        accent = true,
+                        size = ButtonHeight,
+                    )
+
+                    DownloadStage.PAUSED -> KomiSoftIconButton(
+                        icon = Icons.Default.PlayArrow,
+                        contentDescription = stringResource(Res.string.resume),
+                        onClick = { onAction(DetailsAction.ResumeDownload) },
+                        accent = true,
+                        size = ButtonHeight,
+                    )
+
+                    DownloadStage.IDLE,
+                    DownloadStage.VERIFYING,
+                    DownloadStage.INSTALLING,
+                    -> Unit
+                }
+
+                KomiSoftIconButton(
                     icon = Icons.Default.Close,
-                    contentDescription = stringResource(Res.string.cancel_download),
-                    onClick = { onAction(DetailsAction.CancelCurrentDownload) },
+                    contentDescription = stringResource(Res.string.delete_task),
+                    onClick = { onAction(DetailsAction.DiscardDownload) },
+                    enabled = state.downloadStage != DownloadStage.INSTALLING,
+                    size = ButtonHeight,
                 )
             } else if (state.isObtainiumEnabled) {
                 TrailingActionPill(
@@ -249,8 +282,12 @@ private fun PrimaryAction(
     progress: Int?,
     onClick: () -> Unit,
 ) {
+    val colors = LocalPersonality.current.colors
     val pct = progress?.coerceIn(0, 100) ?: 0
-    val targetFraction = if (isActiveDownload && state.downloadStage == DownloadStage.DOWNLOADING) {
+    val paused = state.downloadStage == DownloadStage.PAUSED
+    val targetFraction = if (isActiveDownload &&
+        (state.downloadStage == DownloadStage.DOWNLOADING || paused)
+    ) {
         pct / 100f
     } else if (isActiveDownload) {
         1f
@@ -268,13 +305,26 @@ private fun PrimaryAction(
             .fillMaxWidth()
             .height(ButtonHeight)
             .clip(shape)
-            .drawBehind {
-                drawRect(accent.copy(alpha = if (isActiveDownload) 0.35f else 1f))
+            .then(
                 if (isActiveDownload) {
+                    Modifier.border(1.dp, colors.outlineVariant, shape)
+                } else {
+                    Modifier
+                },
+            )
+            .drawBehind {
+                if (isActiveDownload) {
+                    drawRect(colors.surfaceContainerHigh)
                     drawRect(
-                        color = accent,
+                        color = if (paused) {
+                            colors.onSurfaceVariant.copy(alpha = 0.16f)
+                        } else {
+                            colors.primary.copy(alpha = 0.22f)
+                        },
                         size = Size(size.width * animatedFraction, size.height),
                     )
+                } else {
+                    drawRect(accent)
                 }
             }
             .clickable(enabled = enabled, onClick = onClick),
@@ -287,7 +337,7 @@ private fun PrimaryAction(
                 DownloadingLabel(
                     state = state,
                     progress = progress,
-                    contentColor = onAccent,
+                    contentColor = colors.onSurface,
                     isUpdateAvailable = isUpdateAvailable,
                 )
             } else {
@@ -401,6 +451,7 @@ private fun DownloadingLabel(
             } else {
                 stringResource(Res.string.downloading)
             }
+            DownloadStage.PAUSED -> stringResource(Res.string.paused)
             DownloadStage.VERIFYING -> stringResource(Res.string.verifying)
             DownloadStage.INSTALLING -> if (isUpdateAvailable) {
                 stringResource(Res.string.updating)
@@ -416,8 +467,12 @@ private fun DownloadingLabel(
             color = contentColor,
             fontWeight = FontWeight.SemiBold,
             uppercase = false,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        if (state.downloadStage == DownloadStage.DOWNLOADING) {
+        if (state.downloadStage == DownloadStage.DOWNLOADING ||
+            state.downloadStage == DownloadStage.PAUSED
+        ) {
             Spacer(Modifier.height(2.dp))
             val progressText = if (state.totalBytes != null && state.totalBytes > 0) {
                 "${formatFileSize(state.downloadedBytes)} / ${formatFileSize(state.totalBytes)}"
@@ -430,6 +485,8 @@ private fun DownloadingLabel(
                 fontSize = 11.sp,
                 color = contentColor.copy(alpha = 0.78f),
                 uppercase = false,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

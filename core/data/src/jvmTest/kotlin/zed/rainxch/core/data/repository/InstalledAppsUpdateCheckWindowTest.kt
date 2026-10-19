@@ -2,11 +2,6 @@ package zed.rainxch.core.data.repository
 
 import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -23,7 +18,9 @@ import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.network.BackendApiClient
 import zed.rainxch.core.data.network.ForgejoClientRegistry
 import zed.rainxch.core.data.network.GitHubClientProvider
+import zed.rainxch.core.domain.model.account.HostToken
 import zed.rainxch.core.domain.model.account.SessionSnapshot
+import zed.rainxch.core.domain.model.account.TokenValidation
 import zed.rainxch.core.domain.model.account.UserProfile
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubRelease
@@ -32,11 +29,17 @@ import zed.rainxch.core.domain.model.error.RateLimitInfo
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.settings.ProxyConfig
 import zed.rainxch.core.domain.model.system.SystemArchitecture
+import zed.rainxch.core.domain.repository.HostTokenRepository
 import zed.rainxch.core.domain.repository.RateLimitRepository
 import zed.rainxch.core.domain.repository.UserSessionRepository
 import zed.rainxch.core.domain.system.InstallOutcome
 import zed.rainxch.core.domain.system.Installer
 import zed.rainxch.core.domain.system.InstallerInfoExtractor
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 // The window-fed check is the other half of the details refresh: the page already holds the
 // repository host's own release list, and these tests pin that the list — and nothing else —
@@ -44,7 +47,6 @@ import zed.rainxch.core.domain.system.InstallerInfoExtractor
 // a path that tried to fetch instead of judging the window would fail loudly, not silently
 // reach the network.
 class InstalledAppsUpdateCheckWindowTest {
-
     @Test
     fun a_fed_window_settles_the_stored_update_state() =
         runBlocking {
@@ -168,7 +170,8 @@ class InstalledAppsUpdateCheckWindowTest {
 
     private suspend fun withRepo(block: suspend (InstalledAppsRepositoryImpl, AppDatabase) -> Unit) {
         val db =
-            Room.inMemoryDatabaseBuilder<AppDatabase>()
+            Room
+                .inMemoryDatabaseBuilder<AppDatabase>()
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(Dispatchers.IO)
                 .build()
@@ -195,6 +198,7 @@ class InstalledAppsUpdateCheckWindowTest {
                     tokenStore = FakeTokenStore(),
                     rateLimitRepository = FakeRateLimitRepository(),
                     userSessionRepository = FakeUserSessionRepository(),
+                    hostTokenRepository = FakeHostTokenRepository(),
                     proxyConfigFlow = MutableStateFlow(offlineProxy),
                 ),
             backendApiClient =
@@ -202,7 +206,11 @@ class InstalledAppsUpdateCheckWindowTest {
                     proxyConfigFlow = MutableStateFlow(offlineProxy),
                     tokenStore = FakeTokenStore(),
                 ),
-            forgejoClientRegistry = ForgejoClientRegistry(MutableStateFlow(offlineProxy)),
+            forgejoClientRegistry =
+                ForgejoClientRegistry(
+                    proxyConfigFlow = MutableStateFlow(offlineProxy),
+                    hostTokenRepository = FakeHostTokenRepository(),
+                ),
         )
 
     private fun app(
@@ -280,8 +288,7 @@ class InstalledAppsUpdateCheckWindowTest {
 
         override fun uninstall(packageName: String) = Unit
 
-        override fun isAssetInstallable(assetName: String): Boolean =
-            assetName.endsWith(".apk", ignoreCase = true)
+        override fun isAssetInstallable(assetName: String): Boolean = assetName.endsWith(".apk", ignoreCase = true)
 
         override fun choosePrimaryAsset(assets: List<GithubAsset>): GithubAsset? = assets.firstOrNull()
 
@@ -363,6 +370,28 @@ class InstalledAppsUpdateCheckWindowTest {
         override suspend fun notifyRequestSucceeded(tokenKey: String?) = Unit
 
         override suspend fun logout() = Unit
+    }
+
+    private class FakeHostTokenRepository : HostTokenRepository {
+        override fun observeAll(): Flow<List<HostToken>> = emptyFlow()
+
+        override suspend fun get(host: String): HostToken? = null
+
+        override suspend fun set(
+            host: String,
+            token: String,
+            displayName: String?,
+        ) = Unit
+
+        override suspend fun delete(host: String) = Unit
+
+        override suspend fun validate(
+            host: String,
+            token: String,
+        ): Result<TokenValidation> =
+            Result.success(
+                TokenValidation(login = null, scopes = emptyList(), rateLimitRemaining = null),
+            )
     }
 
     private companion object {
