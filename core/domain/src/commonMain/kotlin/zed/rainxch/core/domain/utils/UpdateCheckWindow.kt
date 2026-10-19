@@ -6,5 +6,5 @@ package zed.rainxch.core.domain.utils
 // from "the read saw less than the check would" — a shorter list must not settle a verdict,
 // or a genuine update sitting past the read's coverage would be reported as gone.
 object UpdateCheckWindow {
-    const val Size: Int = 50
+    const val SIZE: Int = 50
 }

@@ -3213,7 +3213,7 @@ class DetailsViewModel(
     // not fail the refresh.
     private suspend fun syncLibraryUpdateState(freshReleases: List<GithubRelease>) {
         val installed = _state.value.installedApp ?: return
-        if (freshReleases.size < UpdateCheckWindow.Size) return
+        if (freshReleases.size < UpdateCheckWindow.SIZE) return
         try {
             installedAppsRepository
                 .getAppsByRepoId(installed.repoId)

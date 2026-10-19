@@ -59,7 +59,7 @@ class InstalledAppsRepositoryImpl(
     private val httpClient: HttpClient get() = clientProvider.client
 
     private companion object {
-        const val RELEASE_WINDOW = UpdateCheckWindow.Size
+        const val RELEASE_WINDOW = UpdateCheckWindow.SIZE
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =
