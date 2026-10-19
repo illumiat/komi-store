@@ -1004,8 +1004,7 @@ class UpdateVerdictTest {
 
     @Test
     fun attested_same_bytes_keep_the_rebuild_quiet_even_when_the_window_moved() {
-        // The stored side alone would report — published moved on since the last check. The
-        // installed bytes decide instead: they already are that build.
+        // The stored side alone would report, since publishedAt moved on after the last check.
         val result =
             decide(
                 installedTag = "testbuild-all-prs-20261007",

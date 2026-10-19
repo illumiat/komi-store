@@ -370,12 +370,8 @@ class InstalledAppsRepositoryImpl(
                     null
                 }
 
-            // A rolling tag reuses one tag string across builds, and a read that cannot lean on
-            // an install binding has nothing stored that can tell one build from the next. The
-            // installed file itself can: same digest, same build; a different one, a rebuild the
-            // device does not run. True no matter how the build arrived — sideloaded, refreshed
-            // while checking was off, or after the stored identity was cleared. Only asked for
-            // tags version math cannot speak for (unknown schemes, opaque markers).
+            // A rolling tag reuses one tag string across builds. Without a binding, only the
+            // installed file can tell whether the release is the build the device runs.
             val tagNeedsSelfAttestation =
                 VersionMath.isTimestampTrackedTag(matchedRelease.tagName) ||
                     VersionMath.detectScheme(matchedRelease.tagName) == VersionMath.Scheme.Unknown

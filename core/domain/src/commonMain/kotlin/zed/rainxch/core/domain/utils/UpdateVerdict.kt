@@ -134,13 +134,8 @@ object UpdateVerdict {
                 }
             }
 
-        // What the device itself runs, for the case no binding can speak for: a rolling tag reuses
-        // one tag string across builds, so when the tag is not a version at all — an unknown
-        // scheme, or a known opaque marker — the installed file is the only side that can say
-        // whether the release still offers something the device does not run. Difference is
-        // evidence — it reports; sameness is also evidence — it keeps the other voices from
-        // reporting. A digest that cannot be compared drops out and leaves the decision to the
-        // existing paths.
+        // Different installed bytes report; equal bytes keep the other paths from reporting a
+        // rebuild the device already runs. Null leaves the decision to those paths.
         val tagNeedsSelfAttestation =
             timestampTracked || VersionMath.detectScheme(matched.tag) == VersionMath.Scheme.Unknown
         val hasBothDigests = selfAttestedDigest != null && matched.assetDigest != null

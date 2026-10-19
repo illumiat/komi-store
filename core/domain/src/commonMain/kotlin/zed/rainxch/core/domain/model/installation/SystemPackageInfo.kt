@@ -6,8 +6,7 @@ data class SystemPackageInfo(
     val versionCode: Long,
     val isInstalled: Boolean,
     val signingFingerprint: String?,
-    // Where the installed APK lives on disk, for reads that must hash the bytes themselves.
-    // Null where the platform cannot say (desktop has no such file).
+    // Null on desktop, which has no installed APK to read.
     val apkPath: String? = null,
 ) {
     companion object {
