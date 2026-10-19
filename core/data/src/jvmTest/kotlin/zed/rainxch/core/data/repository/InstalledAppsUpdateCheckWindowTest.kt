@@ -41,11 +41,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// The window-fed check is the other half of the details refresh: the page already holds the
-// repository host's own release list, and these tests pin that the list — and nothing else —
-// decides the verdict and writes the row. Every client here is pointed at a discard port, so
-// a path that tried to fetch instead of judging the window would fail loudly, not silently
-// reach the network.
+// Every client points at a discard port, so a path that fetched instead of judging the fed
+// list would fail loudly instead of reaching the network.
 class InstalledAppsUpdateCheckWindowTest {
     @Test
     fun a_fed_window_settles_the_stored_update_state() =
@@ -140,7 +137,7 @@ class InstalledAppsUpdateCheckWindowTest {
         }
 
     @Test
-    fun a_window_with_no_matching_asset_reports_nothing() =
+    fun a_window_without_this_apps_release_changes_nothing() =
         runBlocking {
             withRepo { repo, db ->
                 db.installedAppDao.insertApp(
@@ -161,9 +158,9 @@ class InstalledAppsUpdateCheckWindowTest {
                         ),
                     )
 
-                assertFalse(updated)
+                assertTrue(updated)
                 val row = db.installedAppDao.getAppByPackage(PKG)!!
-                assertFalse(row.isUpdateAvailable)
+                assertTrue(row.isUpdateAvailable)
                 assertEquals("9.9.9", row.latestVersion)
             }
         }

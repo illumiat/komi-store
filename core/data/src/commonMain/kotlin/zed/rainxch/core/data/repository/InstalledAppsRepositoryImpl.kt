@@ -40,7 +40,6 @@ import zed.rainxch.core.domain.system.Installer
 import zed.rainxch.core.domain.utils.AssetFilter
 import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
-import zed.rainxch.core.domain.utils.UpdateCheckWindow
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
 import kotlin.coroutines.cancellation.CancellationException
@@ -59,7 +58,7 @@ class InstalledAppsRepositoryImpl(
     private val httpClient: HttpClient get() = clientProvider.client
 
     private companion object {
-        const val RELEASE_WINDOW = UpdateCheckWindow.SIZE
+        const val RELEASE_WINDOW = 50
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =
@@ -310,7 +309,7 @@ class InstalledAppsRepositoryImpl(
                     sourceHost = app.sourceHost,
                 )
 
-            return checkAgainstWindow(app, releases)
+            return checkAgainstWindow(app, releases, recordUnmatched = true)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -338,7 +337,8 @@ class InstalledAppsRepositoryImpl(
                     limit = RELEASE_WINDOW,
                 )
 
-            return checkAgainstWindow(app, window)
+            // A fed list can be shorter than the check's own window, so a miss proves nothing.
+            return checkAgainstWindow(app, window, recordUnmatched = false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -352,14 +352,14 @@ class InstalledAppsRepositoryImpl(
     private suspend fun checkAgainstWindow(
         app: InstalledAppEntity,
         releases: List<GithubRelease>,
+        recordUnmatched: Boolean,
     ): Boolean {
         val packageName = app.packageName
 
         try {
-            // An empty window is a failed fetch (backend error, rate limit, network) — or a
-            // caller-grown list with nothing this app can judge — not proof the repo lost
-            // its releases. Keep what the last good check found and leave lastCheckedAt
-            // alone so the next check retries.
+            // An empty window is a failed fetch (backend error, rate limit, network), not
+            // proof the repo lost its releases. Keep what the last good check found and
+            // leave lastCheckedAt alone so the next check retries.
             if (releases.isEmpty()) {
                 Logger.d { "No releases for ${app.appName} this time; keeping its stored update state" }
                 return app.isUpdateAvailable
@@ -395,6 +395,7 @@ class InstalledAppsRepositoryImpl(
                     "No matching release found for ${app.appName} in window of ${releases.size}; " +
                         "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
                 }
+                if (!recordUnmatched) return app.isUpdateAvailable
                 recordUnmatchedRelease(packageName)
                 return false
             }

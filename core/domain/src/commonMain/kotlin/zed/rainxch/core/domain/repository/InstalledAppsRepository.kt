@@ -31,10 +31,8 @@ interface InstalledAppsRepository {
 
     suspend fun checkForUpdates(packageName: String): Boolean
 
-    // A check that must not fetch: the caller already holds a release list (the details
-    // refresh just read it from the repository host), and it has to settle the same verdict,
-    // written the same way, as the fetch-driven check would — a fresh read that only fed the
-    // screen would leave the library on a stale verdict. An empty window changes nothing.
+    // checkForUpdates on a release list the caller already read. A list without this app's
+    // release changes nothing.
     suspend fun checkForUpdatesWithReleases(
         packageName: String,
         releases: List<GithubRelease>,

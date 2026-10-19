@@ -70,7 +70,6 @@ import zed.rainxch.core.domain.utils.AssetFilter
 import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
 import zed.rainxch.core.domain.utils.ReleaseLines
-import zed.rainxch.core.domain.utils.UpdateCheckWindow
 import zed.rainxch.core.domain.utils.VersionMath
 import zed.rainxch.core.domain.utils.platforms
 import zed.rainxch.core.domain.utils.toDiscoveryPlatform
@@ -3204,16 +3203,9 @@ class DetailsViewModel(
         }
     }
 
-    // The read the user just asked for is the freshest thing this app knows about the
-    // repository's releases; the library must not keep a verdict that read just outdated. The
-    // sync is the same update check the library runs, only judged from this window, for every
-    // installed app of the repository. The sync only runs when the read covered the check's
-    // ground — a shorter list says nothing about what sits past its coverage, and settling a
-    // verdict from it could report a genuine update as gone. Best-effort: a failure here must
-    // not fail the refresh.
+    // Best-effort: a failed sync must not fail the refresh that read these releases.
     private suspend fun syncLibraryUpdateState(freshReleases: List<GithubRelease>) {
         val installed = _state.value.installedApp ?: return
-        if (freshReleases.size < UpdateCheckWindow.SIZE) return
         try {
             installedAppsRepository
                 .getAppsByRepoId(installed.repoId)
