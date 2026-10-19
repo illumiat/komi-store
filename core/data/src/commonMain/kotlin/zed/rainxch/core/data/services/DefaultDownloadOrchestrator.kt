@@ -217,7 +217,7 @@ class DefaultDownloadOrchestrator(
             }
         }
 
-        val identity =
+        var identity =
             AssetIdentity(
                 assetId = spec.asset.id,
                 digest = spec.asset.digest,
@@ -268,10 +268,19 @@ class DefaultDownloadOrchestrator(
                         progressPercent = 0,
                         downloadUrl = refetched.asset.downloadUrl,
                         assetSize = refetched.asset.size,
+                        assetId = refetched.asset.id,
+                        assetDigest = refetched.asset.digest,
                         releaseTag = refetched.releaseTag,
+                        releaseId = refetched.releaseId,
                     )
                 }
                 effectiveSpec = refetched
+                identity =
+                    AssetIdentity(
+                        assetId = refetched.asset.id,
+                        digest = refetched.asset.digest,
+                        size = refetched.asset.size,
+                    )
                 try {
                     streamProgress(
                         multiSourceDownloader.download(
@@ -311,7 +320,8 @@ class DefaultDownloadOrchestrator(
                 updateEntry(spec.packageName) {
                     it.copy(progressPercent = 0, bytesDownloaded = 0L)
                 }
-                val sourceUrl = authenticatedGithubAssetUrl(spec) ?: spec.asset.downloadUrl
+                val sourceUrl =
+                    authenticatedGithubAssetUrl(effectiveSpec) ?: effectiveSpec.asset.downloadUrl
                 try {
                     streamProgress(
                         downloader.download(

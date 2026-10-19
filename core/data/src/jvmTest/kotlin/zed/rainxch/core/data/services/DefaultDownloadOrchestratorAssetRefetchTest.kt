@@ -36,12 +36,8 @@ import zed.rainxch.core.domain.system.SystemInstallSerializer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-// A download that was resolved from a cached release can be handed an asset URL that no longer
-// exists: the release was replaced, or the asset re-uploaded, since the resolution was taken.
-// These tests pin the recovery: the repository host is asked once for where the asset lives now,
-// the download repeats there, and everything downstream — the digest check, the parked record,
-// the notification — speaks about the replacement, not the dead URL. When nothing moved, the
-// failure stands exactly as it did before.
+// The host is asked once where a gone asset lives now. The download, the digest check, the parked
+// record and the notification then follow the replacement. When nothing moved, the failure stands.
 class DefaultDownloadOrchestratorAssetRefetchTest {
     private companion object {
         const val PKG = "zed.rainxch.githubstore"
@@ -157,6 +153,14 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
                 "the entry records the replacement, so a later retry starts from truth",
             )
             assertEquals(NEW_TAG, entry.releaseTag)
+            assertEquals(43L, entry.assetId)
+            assertEquals(NEW_DIGEST, entry.assetDigest)
+            assertEquals(99L, entry.releaseId)
+            assertEquals(
+                AssetIdentity(assetId = 43L, digest = NEW_DIGEST, size = 1_000L),
+                multi.identities.last(),
+                "the retry resumes only bytes of the replacement",
+            )
             assertEquals(DownloadStage.AwaitingInstall, entry.stage)
         }
 
@@ -253,6 +257,7 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
 
     private class ThrowingOnceMultiSource : MultiSourceDownloader {
         val calls = mutableListOf<String>()
+        val identities = mutableListOf<AssetIdentity?>()
 
         override fun download(
             githubUrl: String,
@@ -260,6 +265,7 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             identity: AssetIdentity?,
         ): Flow<DownloadProgress> {
             calls += githubUrl
+            identities += identity
             if (githubUrl == OLD_URL) {
                 throw AssetSourceGoneException(404)
             }

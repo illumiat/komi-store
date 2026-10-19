@@ -207,7 +207,7 @@ class AndroidDownloader(
                             }
                         } catch (e: PartialAborted) {
                             throw e.cause ?: e
-                        } catch (e: PartialTerminal) {
+                        } catch (e: AssetSourceGoneException) {
                             throw e
                         } catch (e: Exception) {
                             coroutineContext.ensureActive()
@@ -307,13 +307,10 @@ class AndroidDownloader(
                     throw PartialRestart()
                 }
                 if (decision == RangeDecision.UNEXPECTED) {
-                    if (AssetSourceGoneException.isGoneCode(response.code)) {
-                        throw AssetSourceGoneException(response.code)
-                    }
                     if (PartialDisposal.shouldDiscardPartial(response.code, explicitDiscard = false)) {
                         partFile.delete()
                         metaFile.delete()
-                        throw PartialTerminal("Unexpected code ${response.code}")
+                        throw AssetSourceGoneException(response.code)
                     }
                     throw kotlinx.io.IOException("Unexpected code ${response.code}")
                 }
@@ -600,10 +597,6 @@ class AndroidDownloader(
     }
 
     private class PartialRestart : Exception()
-
-    private class PartialTerminal(
-        message: String,
-    ) : Exception(message)
 
     private class PartialAborted(
         cause: Throwable,
