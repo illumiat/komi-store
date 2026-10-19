@@ -296,6 +296,8 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             expectedDigests += expectedDigest
             return null
         }
+
+        override suspend fun computeSha256(filePath: String): String? = null
     }
 
     private class TrackingDownloader : Downloader {
