@@ -6,10 +6,15 @@ plugins {
     alias(libs.plugins.compose.multiplatform) apply false
     alias(libs.plugins.compose.compiler) apply false
     alias(libs.plugins.kotlin.multiplatform) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.android.kotlin.multiplatform.library) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.room) apply false
+    alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.stability.analyzer) apply false
+    alias(libs.plugins.spotless)
+    alias(libs.plugins.kover)
 }
 
 tasks.flatpakGradleGenerator {
@@ -18,17 +23,39 @@ tasks.flatpakGradleGenerator {
     excludeConfigurations.set(listOf("testCompileClasspath", "testRuntimeClasspath"))
 }
 
-subprojects {
-    afterEvaluate {
-        tasks.configureEach {
-            when (name) {
-                "preBuild",
-                "compileKotlinJvm",
-                "compileKotlinAndroid",
-                -> {
-                    val ktlintFormat = tasks.findByName("ktlintFormat")
-                    if (ktlintFormat != null) dependsOn(ktlintFormat)
-                }
+spotless {
+    ratchetFrom("origin/main")
+    kotlin {
+        target("**/*.kt")
+        targetExclude("**/build/**", "**/generated/**", ".claude/**")
+        ktlint(libs.versions.ktlint.get())
+            .setEditorConfigPath("$rootDir/.editorconfig")
+            .customRuleSets(listOf("io.nlopez.compose.rules:ktlint:${libs.versions.compose.rules.get()}"))
+        file("config/ktlint/baseline.txt").readLines().filter { it.isNotBlank() }.forEach { line ->
+            val (rule, filePath) = line.trim().split(" ", limit = 2)
+            suppressLintsFor {
+                step = "ktlint"
+                shortCode = rule
+                path = filePath
+            }
+        }
+    }
+    kotlinGradle {
+        target("**/*.gradle.kts")
+        targetExclude("**/build/**", ".claude/**")
+        ktlint(libs.versions.ktlint.get()).setEditorConfigPath("$rootDir/.editorconfig")
+    }
+}
+
+dependencies {
+    subprojects.filter { it.buildFile.exists() && it.path != ":konsist-test" }.forEach { kover(project(it.path)) }
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes("*.BuildKonfig", "*_Impl", "*_Impl\$*", "*.generated.resources.*")
             }
         }
     }

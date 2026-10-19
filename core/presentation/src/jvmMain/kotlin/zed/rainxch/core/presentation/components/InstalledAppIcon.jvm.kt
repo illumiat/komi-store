@@ -1,11 +1,7 @@
 package zed.rainxch.core.presentation.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.painterResource
-import zed.rainxch.githubstore.core.presentation.res.Res
-import zed.rainxch.githubstore.core.presentation.res.app_icon
 
 @Composable
 actual fun InstalledAppIcon(
@@ -13,10 +9,7 @@ actual fun InstalledAppIcon(
     appName: String,
     modifier: Modifier,
     apkFilePath: String?,
+    avatarFallbackUrl: String?,
 ) {
-    Image(
-        painter = painterResource(Res.drawable.app_icon),
-        contentDescription = appName,
-        modifier = modifier,
-    )
+    FallbackAppIcon(appName = appName, avatarFallbackUrl = avatarFallbackUrl, modifier = modifier)
 }

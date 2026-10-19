@@ -68,27 +68,14 @@ fun InstalledApp.confirmInstall(
     )
 }
 
-fun InstalledApp.resolvePendingFromSystem(
-    resolvedTag: String,
-    versionName: String?,
-    versionCode: Long,
-): InstalledApp {
-    val targetCode = latestVersionCode ?: 0L
-    val installReachedTarget = targetCode > 0L && versionCode >= targetCode
-    val adoptedTag =
-        if (installReachedTarget) {
-            pendingInstallVersion ?: resolvedTag
-        } else {
-            installedVersion
-        }
-    return withSettledInstallIdentity(versionCode).copy(
+fun InstalledApp.resolvePendingFromSystem(reached: PendingInstallResolution.Reached): InstalledApp =
+    withSettledInstallIdentity(reached.versionCode).copy(
         isPendingInstall = false,
-        installedVersion = adoptedTag,
-        installedVersionName = versionName,
-        installedVersionCode = versionCode,
-        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
+        installedVersion = reached.resolvedTag,
+        installedVersionName = reached.versionName,
+        installedVersionCode = reached.versionCode,
+        isUpdateAvailable = updateFlagAgainstSnapshot(reached.versionCode, reached.versionName),
     )
-}
 
 fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
     val hasParkedIdentity =
@@ -121,6 +108,51 @@ fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
     )
 }
 
+sealed interface PendingInstallResolution {
+    data object Keep : PendingInstallResolution
+
+    class Reached internal constructor(
+        val resolvedTag: String,
+        val versionName: String,
+        val versionCode: Long,
+    ) : PendingInstallResolution
+}
+
+fun InstalledApp.pendingInstallResolution(systemInfo: SystemPackageInfo?): PendingInstallResolution {
+    if (systemInfo == null) return PendingInstallResolution.Keep
+    if (!installReachedTarget(systemInfo.versionName, systemInfo.versionCode)) {
+        return PendingInstallResolution.Keep
+    }
+    return PendingInstallResolution.Reached(
+        resolvedTag = pendingInstallVersion ?: latestVersion ?: systemInfo.versionName,
+        versionName = systemInfo.versionName,
+        versionCode = systemInfo.versionCode,
+    )
+}
+
+private fun InstalledApp.installReachedTarget(
+    versionName: String,
+    versionCode: Long,
+): Boolean {
+    val targetCode = latestVersionCode ?: 0L
+    return if (targetCode > 0L) {
+        versionCode >= targetCode
+    } else {
+        versionName.isNotBlank() &&
+            versionName != SystemPackageInfo.UNKNOWN_VERSION_NAME &&
+            (
+                installedVersionName == null ||
+                    versionName != installedVersionName ||
+                    matchesParkedTargetName(versionName)
+            )
+    }
+}
+
+private fun InstalledApp.matchesParkedTargetName(systemName: String): Boolean {
+    val target = pendingInstallVersion ?: latestVersion ?: return false
+    return VersionMath.isExactSameVersion(systemName, target)
+}
+
 private fun InstalledApp.updateFlagAgainstSnapshot(
     installedCode: Long,
     installedVersion: String?,
@@ -148,20 +180,22 @@ fun InstalledApp.externalInstallUpdateFlag(
 fun InstalledApp.normalizeInstalledTag(
     tag: String,
     isUpdateAvailable: Boolean,
-): InstalledApp = copy(
-    installedVersion = tag,
-    isUpdateAvailable = isUpdateAvailable,
-)
+): InstalledApp =
+    copy(
+        installedVersion = tag,
+        isUpdateAvailable = isUpdateAvailable,
+    )
 
 fun InstalledApp.withMigratedVersionInfo(
     versionName: String?,
     versionCode: Long,
-): InstalledApp = copy(
-    installedVersionName = versionName,
-    installedVersionCode = versionCode,
-    latestVersionName = if (versionCode > 0L) versionName else latestVersionName,
-    latestVersionCode = if (versionCode > 0L) versionCode else latestVersionCode,
-)
+): InstalledApp =
+    copy(
+        installedVersionName = versionName,
+        installedVersionCode = versionCode,
+        latestVersionName = if (versionCode > 0L) versionName else latestVersionName,
+        latestVersionCode = if (versionCode > 0L) versionCode else latestVersionCode,
+    )
 
 fun InstalledApp.tagForObservedBuild(
     versionName: String?,
@@ -244,19 +278,21 @@ fun InstalledApp.markPending(
     releaseId: Long?,
     assetId: Long?,
     assetDigest: String?,
-): InstalledApp = copy(
-    isPendingInstall = true,
-    pendingInstallReleaseId = releaseId,
-    pendingInstallAssetId = assetId,
-    pendingInstallAssetDigest = assetDigest,
-)
+): InstalledApp =
+    copy(
+        isPendingInstall = true,
+        pendingInstallReleaseId = releaseId,
+        pendingInstallAssetId = assetId,
+        pendingInstallAssetDigest = assetDigest,
+    )
 
-fun InstalledApp.clearPending(): InstalledApp = copy(
-    isPendingInstall = false,
-    pendingInstallReleaseId = null,
-    pendingInstallAssetId = null,
-    pendingInstallAssetDigest = null,
-)
+fun InstalledApp.clearPending(): InstalledApp =
+    copy(
+        isPendingInstall = false,
+        pendingInstallReleaseId = null,
+        pendingInstallAssetId = null,
+        pendingInstallAssetDigest = null,
+    )
 
 fun InstalledApp.withLatestSnapshot(
     version: String,
@@ -264,10 +300,11 @@ fun InstalledApp.withLatestSnapshot(
     assetUrl: String?,
     versionName: String?,
     versionCode: Long?,
-): InstalledApp = copy(
-    latestVersion = version,
-    latestAssetName = assetName,
-    latestAssetUrl = assetUrl,
-    latestVersionName = versionName,
-    latestVersionCode = versionCode,
-)
+): InstalledApp =
+    copy(
+        latestVersion = version,
+        latestAssetName = assetName,
+        latestAssetUrl = assetUrl,
+        latestVersionName = versionName,
+        latestVersionCode = versionCode,
+    )
