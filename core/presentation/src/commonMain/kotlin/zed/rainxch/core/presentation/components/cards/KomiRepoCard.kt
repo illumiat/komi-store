@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,7 +103,9 @@ fun KomiRepoCard(
     val gap = if (compact) 9.dp else 11.dp
 
     KomiSurface(
-        modifier = modifier.fillMaxWidth(),
+        // The layer lets Compose keep the card's display list across scroll frames: the
+        // position changes, the recorded draw operations do not have to be replayed as new ones.
+        modifier = modifier.fillMaxWidth().graphicsLayer(),
         elevation = KomiSurfaceElevation.Card,
         screentone = KomiScreentone.Corner,
         onClick = onOpen,
