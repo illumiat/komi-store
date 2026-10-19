@@ -43,6 +43,7 @@ import zed.rainxch.core.domain.utils.RepoIdCodec
 import zed.rainxch.details.data.dto.AttestationsResponse
 import zed.rainxch.details.data.utils.ReadmeLocalizationHelper
 import zed.rainxch.details.data.utils.preprocessMarkdown
+import zed.rainxch.details.domain.model.CachedReleases
 import zed.rainxch.details.domain.model.RepoStats
 import zed.rainxch.details.domain.repository.DetailsRepository
 import kotlin.coroutines.cancellation.CancellationException
@@ -332,20 +333,55 @@ class DetailsRepositoryImpl(
         }
     }
 
+    override suspend fun getCachedReleases(
+        owner: String,
+        repo: String,
+        sourceHost: String?,
+    ): CachedReleases? {
+        if (sourceHost != null) return null
+        val cacheKey = "details:releases:$owner/$repo"
+        val cached = cacheManager.get<List<GithubRelease>>(cacheKey)?.takeIf { it.isNotEmpty() }
+        val cachedAt = cacheManager.getCachedAt(cacheKey)
+        return if (cached != null && cachedAt != null) CachedReleases(cached, cachedAt) else null
+    }
+
     override suspend fun getAllReleases(
         owner: String,
         repo: String,
         defaultBranch: String,
         sourceHost: String?,
+        bypassCache: Boolean,
+        allowStale: Boolean,
+        preferDirectSource: Boolean,
     ): List<GithubRelease> {
         if (sourceHost != null) return getForgejoAllReleases(owner, repo, sourceHost)
         val cacheKey = "details:releases:$owner/$repo"
 
-        cacheManager.get<List<GithubRelease>>(cacheKey)?.let { cached ->
-            if (cached.isNotEmpty()) {
-                logger.debug("Cache hit for all releases $owner/$repo: ${cached.size} releases")
-                return cached
+        if (!bypassCache) {
+            cacheManager.get<List<GithubRelease>>(cacheKey)?.let { cached ->
+                if (cached.isNotEmpty()) {
+                    logger.debug("Cache hit for all releases $owner/$repo: ${cached.size} releases")
+                    return cached
+                }
             }
+        }
+
+        // The backend answers from a copy up to an hour old with no way to force it, so a user-asked read tries the host first.
+        var triedDirect = false
+        if (preferDirectSource) {
+            triedDirect = true
+            val direct =
+                try {
+                    readReleasesFromGitHub(owner, repo, defaultBranch, cacheKey, allowStale)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (t: Throwable) {
+                    logger.debug(
+                        "Direct releases read failed for $owner/$repo (${t.message}), trying the backend",
+                    )
+                    emptyList()
+                }
+            if (direct.isNotEmpty()) return direct
         }
 
         val backendResult = backendApiClient.getReleases(owner, repo)
@@ -366,10 +402,12 @@ class DetailsRepositoryImpl(
                 return result
             },
             onFailure = { e ->
-                if (!shouldFallbackToGithubOrRethrow(e, isSignedIn())) {
-                    cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
-                        logger.debug("Backend 4xx for releases $owner/$repo, serving stale cache")
-                        return stale
+                if (!shouldFallbackToGithubOrRethrow(e, isSignedIn()) || triedDirect) {
+                    if (allowStale) {
+                        cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
+                            logger.debug("Backend 4xx for releases $owner/$repo, serving stale cache")
+                            return stale
+                        }
                     }
                     throw e
                 }
@@ -377,6 +415,16 @@ class DetailsRepositoryImpl(
             },
         )
 
+        return readReleasesFromGitHub(owner, repo, defaultBranch, cacheKey, allowStale)
+    }
+
+    private suspend fun readReleasesFromGitHub(
+        owner: String,
+        repo: String,
+        defaultBranch: String,
+        cacheKey: String,
+        allowStale: Boolean,
+    ): List<GithubRelease> {
         return try {
             val releases =
                 httpClient
@@ -405,17 +453,21 @@ class DetailsRepositoryImpl(
             throw e
         } catch (e: SerializationException) {
             logger.error("Failed to parse releases for $owner/$repo: ${e.message}", e)
-            cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
-                logger.debug("Serving stale cache for releases $owner/$repo after parse failure")
-                return stale
+            if (allowStale) {
+                cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
+                    logger.debug("Serving stale cache for releases $owner/$repo after parse failure")
+                    return stale
+                }
             }
             throw e
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
-                logger.debug("Network error, using stale cache for releases $owner/$repo")
-                return stale
+            if (allowStale) {
+                cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
+                    logger.debug("Network error, using stale cache for releases $owner/$repo")
+                    return stale
+                }
             }
             throw e
         }

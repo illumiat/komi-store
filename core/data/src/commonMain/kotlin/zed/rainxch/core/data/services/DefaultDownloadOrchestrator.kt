@@ -567,6 +567,9 @@ class DefaultDownloadOrchestrator(
             }
         }
 
+        // The network call is only cut by cancelDownload above, so wait for the job after it, not before.
+        job?.join()
+
         stateMutex.withLock {
             _downloads.update { state ->
                 val current = state[packageName] ?: return@update state

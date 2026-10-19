@@ -17,6 +17,16 @@ private fun zed.rainxch.starred.presentation.EmptyStateContent(title: kotlin.Str
     - onActionClick: STABLE (function type)
 
 @Composable
+private fun zed.rainxch.starred.presentation.NotInstallableHint(count: kotlin.Int, showingAll: kotlin.Boolean, onToggle: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - count: STABLE (primitive type)
+    - showingAll: STABLE (primitive type)
+    - onToggle: STABLE (function type)
+    - modifier: STABLE (marked @Stable or @Immutable)
+
+@Composable
 public fun zed.rainxch.starred.presentation.StarredReposRoot(onNavigateBack: kotlin.Function0<kotlin.Unit>, onNavigateToDetails: kotlin.Function1<@[ParameterName(name = \, onNavigateToDeveloperProfile: kotlin.Function1<@[ParameterName(name = \, onNavigateToAuthentication: kotlin.Function0<kotlin.Unit>, viewModel: zed.rainxch.starred.presentation.StarredReposViewModel): kotlin.Unit
   skippable: false
   restartable: true

@@ -42,8 +42,14 @@ class StarredReposViewModel(
     private val _state = MutableStateFlow(StarredReposState())
     val state =
         _state
-            .map { it.copy(filteredRepositories = filterStarred(it.starredRepositories, it.searchQuery)) }
-            .flowOn(Dispatchers.Default)
+            .map { state ->
+                val matching = filterStarred(state.starredRepositories, state.searchQuery)
+                val installable = matching.filter { it.latestRelease != null }
+                state.copy(
+                    filteredRepositories = if (state.showAllStarred) matching else installable.toImmutableList(),
+                    notInstallableCount = matching.size - installable.size,
+                )
+            }.flowOn(Dispatchers.Default)
             .onStart {
                 if (!hasLoadedInitialData) {
                     checkAuthAndLoad()
@@ -198,19 +204,11 @@ class StarredReposViewModel(
 
     fun onAction(action: StarredReposAction) {
         when (action) {
-            StarredReposAction.OnNavigateBackClick -> {
-                Unit
-            }
-
-            is StarredReposAction.OnRepositoryClick -> {
-                Unit
-            }
-
-            is StarredReposAction.OnDeveloperProfileClick -> {
-                Unit
-            }
-
-            StarredReposAction.OnSignInClick -> {
+            StarredReposAction.OnNavigateBackClick,
+            is StarredReposAction.OnRepositoryClick,
+            is StarredReposAction.OnDeveloperProfileClick,
+            StarredReposAction.OnSignInClick,
+            -> {
                 Unit
             }
 
@@ -225,6 +223,10 @@ class StarredReposViewModel(
 
             StarredReposAction.OnDismissError -> {
                 _state.update { it.copy(errorMessage = null) }
+            }
+
+            StarredReposAction.OnToggleShowAllStarred -> {
+                _state.update { it.copy(showAllStarred = !it.showAllStarred) }
             }
 
             is StarredReposAction.OnSearchChange -> {

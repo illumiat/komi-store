@@ -394,6 +394,16 @@
     <string name="sign_in_required">Sign in required</string>
     <string name="sign_in_with_github_for_stars">Sign in with GitHub to see your starred repositories</string>
     <string name="no_starred_repos">No starred repositories</string>
+    <plurals name="starred_hidden_not_installable">
+        <item quantity="one">%1$d more starred repo has no installable release</item>
+        <item quantity="other">%1$d more starred repos have no installable release</item>
+    </plurals>
+    <plurals name="starred_including_not_installable">
+        <item quantity="one">Including %1$d starred repo with no installable release</item>
+        <item quantity="other">Including %1$d starred repos with no installable release</item>
+    </plurals>
+    <string name="starred_show_all">Show all</string>
+    <string name="starred_installable_only">Installable only</string>
     <string name="star_repos_hint">Star repositories on GitHub with installable releases to see them here</string>
     <string name="last_synced">Last synced</string>
     <string name="just_now">Just now</string>

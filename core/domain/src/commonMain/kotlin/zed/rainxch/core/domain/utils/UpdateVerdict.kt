@@ -40,6 +40,7 @@ object UpdateVerdict {
         matched: Matched,
         skippedTag: String?,
         bound: Bound? = null,
+        selfAttestedDigest: String? = null,
     ): Result {
         val reconcilable = VersionMath.versionsReconcilable(installed.tag, matched.tag)
         val codesAlreadyMatch =
@@ -133,10 +134,26 @@ object UpdateVerdict {
                 }
             }
 
+        // Different installed bytes report; equal bytes keep the other paths from reporting a
+        // rebuild the device already runs. Null leaves the decision to those paths.
+        val tagNeedsSelfAttestation =
+            timestampTracked || VersionMath.detectScheme(matched.tag) == VersionMath.Scheme.Unknown
+        val hasBothDigests = selfAttestedDigest != null && matched.assetDigest != null
+        val selfAttestedSameFile =
+            if (hasBothDigests && sameTag && tagNeedsSelfAttestation) {
+                selfAttestedDigest == matched.assetDigest
+            } else {
+                null
+            }
+
         val isUpdateAvailable =
             when {
                 skipHolds -> {
                     false
+                }
+
+                selfAttestedSameFile != null -> {
+                    !selfAttestedSameFile
                 }
 
                 deviceRunsMatchedRelease -> {
