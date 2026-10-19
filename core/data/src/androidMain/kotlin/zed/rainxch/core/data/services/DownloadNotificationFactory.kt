@@ -19,6 +19,7 @@ object DownloadNotificationFactory {
 
     private const val NOTIFICATION_ID_BASE = 3000
     private const val PAUSE_LABEL = "Pause"
+    private const val RESUME_LABEL = "Resume"
     private const val DELETE_LABEL = "Delete"
     private const val PROGRESS_MAX = 100
 
@@ -39,6 +40,10 @@ object DownloadNotificationFactory {
         text: String,
         percent: Int?,
         cancelPackageName: String?,
+        paused: Boolean = false,
+        pauseLabel: String = PAUSE_LABEL,
+        resumeLabel: String = RESUME_LABEL,
+        deleteLabel: String = DELETE_LABEL,
     ): Notification {
         val builder =
             NotificationCompat
@@ -47,27 +52,32 @@ object DownloadNotificationFactory {
                 .setContentTitle(title)
                 .setContentText(text)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setOngoing(true)
+                .setOngoing(!paused)
                 .setOnlyAlertOnce(true)
                 .setProgress(PROGRESS_MAX, percent ?: 0, percent == null)
 
         if (cancelPackageName != null) {
             builder.addAction(
                 NotificationCompat.Action.Builder(
-                    android.R.drawable.ic_media_pause,
-                    PAUSE_LABEL,
+                    if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
+                    if (paused) resumeLabel else pauseLabel,
                     actionPendingIntent(
                         context = context,
                         packageName = cancelPackageName,
-                        action = DownloadCancelReceiver.ACTION_CANCEL,
-                        uriScheme = DownloadCancelReceiver.URI_SCHEME_PAUSE,
+                        action = if (paused) DownloadCancelReceiver.ACTION_RESUME else DownloadCancelReceiver.ACTION_CANCEL,
+                        uriScheme =
+                            if (paused) {
+                                DownloadCancelReceiver.URI_SCHEME_RESUME
+                            } else {
+                                DownloadCancelReceiver.URI_SCHEME_PAUSE
+                            },
                     ),
                 ).build(),
             )
             builder.addAction(
                 NotificationCompat.Action.Builder(
                     android.R.drawable.ic_menu_delete,
-                    DELETE_LABEL,
+                    deleteLabel,
                     actionPendingIntent(
                         context = context,
                         packageName = cancelPackageName,

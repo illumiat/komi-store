@@ -11,9 +11,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.drawable.toBitmap
-import org.jetbrains.compose.resources.painterResource
-import zed.rainxch.githubstore.core.presentation.res.Res
-import zed.rainxch.githubstore.core.presentation.res.app_icon
 
 private const val TAG = "InstalledAppIcon"
 
@@ -23,6 +20,7 @@ actual fun InstalledAppIcon(
     appName: String,
     modifier: Modifier,
     apkFilePath: String?,
+    avatarFallbackUrl: String?,
 ) {
     val packageManager = LocalContext.current.packageManager
     val iconBitmap =
@@ -38,11 +36,7 @@ actual fun InstalledAppIcon(
             modifier = modifier,
         )
     } else {
-        Image(
-            painter = painterResource(Res.drawable.app_icon),
-            contentDescription = appName,
-            modifier = modifier,
-        )
+        FallbackAppIcon(appName = appName, avatarFallbackUrl = avatarFallbackUrl, modifier = modifier)
     }
 }
 
@@ -56,7 +50,6 @@ private fun resolveInstalledIcon(
             .toBitmap()
             .asImageBitmap()
     } catch (t: Throwable) {
-
         Log.w(TAG, "failed to load installed icon for $packageName", t)
         null
     }
@@ -66,7 +59,6 @@ private fun resolveApkIcon(
     apkFilePath: String,
 ): ImageBitmap? =
     try {
-
         val info = getPackageArchiveInfoCompat(packageManager, apkFilePath)
         val appInfo = info?.applicationInfo ?: return null
         appInfo.sourceDir = apkFilePath
@@ -83,13 +75,12 @@ private fun resolveApkIcon(
 private fun getPackageArchiveInfoCompat(
     packageManager: PackageManager,
     apkFilePath: String,
-) =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        packageManager.getPackageArchiveInfo(
-            apkFilePath,
-            PackageManager.PackageInfoFlags.of(0L),
-        )
-    } else {
-        @Suppress("DEPRECATION")
-        packageManager.getPackageArchiveInfo(apkFilePath, 0)
-    }
+) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    packageManager.getPackageArchiveInfo(
+        apkFilePath,
+        PackageManager.PackageInfoFlags.of(0L),
+    )
+} else {
+    @Suppress("DEPRECATION")
+    packageManager.getPackageArchiveInfo(apkFilePath, 0)
+}

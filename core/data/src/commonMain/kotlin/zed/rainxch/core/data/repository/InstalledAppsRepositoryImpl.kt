@@ -8,7 +8,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.http.HttpHeaders
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -21,8 +20,8 @@ import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
-import zed.rainxch.core.data.mappers.toReleaseWindow
 import zed.rainxch.core.data.mappers.toEntity
+import zed.rainxch.core.data.mappers.toReleaseWindow
 import zed.rainxch.core.data.network.GitHubClientProvider
 import zed.rainxch.core.data.network.executeRequest
 import zed.rainxch.core.domain.model.account.github.GithubAsset
@@ -30,6 +29,7 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.account.github.isEffectivelyPreRelease
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
+import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.installation.clearPending
 import zed.rainxch.core.domain.model.installation.confirmInstall
 import zed.rainxch.core.domain.model.installation.markPending
@@ -41,6 +41,7 @@ import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
+import kotlin.coroutines.cancellation.CancellationException
 
 class InstalledAppsRepositoryImpl(
     private val database: AppDatabase,
@@ -53,11 +54,9 @@ class InstalledAppsRepositoryImpl(
 ) : InstalledAppsRepository {
     private val checkAllMutex = Mutex()
 
-
     private val httpClient: HttpClient get() = clientProvider.client
 
     private companion object {
-
         const val RELEASE_WINDOW = 50
     }
 
@@ -85,20 +84,17 @@ class InstalledAppsRepositoryImpl(
             .getAppByPackage(packageName)
             ?.toDomain()
 
-    override suspend fun getAppByRepoId(repoId: Long): InstalledApp? =
-        installedAppsDao.getAppByRepoId(repoId)?.toDomain()
+    override suspend fun getAppByRepoId(repoId: Long): InstalledApp? = installedAppsDao.getAppByRepoId(repoId)?.toDomain()
 
     override fun getAppByRepoIdAsFlow(repoId: Long): Flow<InstalledApp?> =
         installedAppsDao.getAppByRepoIdAsFlow(repoId).map { it?.toDomain() }
 
-    override suspend fun getAppsByRepoId(repoId: Long): List<InstalledApp> =
-        installedAppsDao.getAppsByRepoId(repoId).map { it.toDomain() }
+    override suspend fun getAppsByRepoId(repoId: Long): List<InstalledApp> = installedAppsDao.getAppsByRepoId(repoId).map { it.toDomain() }
 
     override fun getAppsByRepoIdAsFlow(repoId: Long): Flow<List<InstalledApp>> =
         installedAppsDao.getAppsByRepoIdAsFlow(repoId).map { list -> list.map { it.toDomain() } }
 
-    override suspend fun isAppInstalled(repoId: Long): Boolean =
-        installedAppsDao.getAppByRepoId(repoId) != null
+    override suspend fun isAppInstalled(repoId: Long): Boolean = installedAppsDao.getAppByRepoId(repoId) != null
 
     override suspend fun saveInstalledApp(app: InstalledApp) {
         installedAppsDao.insertApp(app.toEntity())
@@ -118,15 +114,18 @@ class InstalledAppsRepositoryImpl(
             return fetchForgejoReleaseWindow(sourceHost, owner, repo, includePreReleases)
         }
         val backendResult = backendApiClient.getReleases(owner, repo, perPage = RELEASE_WINDOW)
-        val backendReleases = backendResult.fold(
-            onSuccess = { it },
-            onFailure = { error ->
-                if (!zed.rainxch.core.data.network.shouldFallbackToGithubOrRethrow(error)) {
-                    return emptyList()
-                }
-                null
-            },
-        )
+        val backendReleases =
+            backendResult.fold(
+                onSuccess = { it },
+                onFailure = { error ->
+                    if (!zed.rainxch.core.data.network
+                            .shouldFallbackToGithubOrRethrow(error)
+                    ) {
+                        return emptyList()
+                    }
+                    null
+                },
+            )
         if (backendReleases != null) {
             return backendReleases.toReleaseWindow(includePreReleases)
         }
@@ -152,16 +151,14 @@ class InstalledAppsRepositoryImpl(
                     if (flagSays != tagSays) {
                         Logger.w {
                             "Pre-release flag/tag mismatch for $owner/$repo " +
-                                    "release '${release.tagName}' (name='${release.name}'): " +
-                                    "apiFlag=$flagSays, tagMarker=$tagSays — " +
-                                    "treating as pre-release=${true}"
+                                "release '${release.tagName}' (name='${release.name}'): " +
+                                "apiFlag=$flagSays, tagMarker=$tagSays — " +
+                                "treating as pre-release=${true}"
                         }
                     }
-                }
-                .filter { includePreReleases || !it.isEffectivelyPreRelease() }
+                }.filter { includePreReleases || !it.isEffectivelyPreRelease() }
                 .toList()
         } catch (e: CancellationException) {
-
             throw e
         } catch (e: Exception) {
             Logger.e { "Failed to fetch releases for $owner/$repo: ${e.message}" }
@@ -194,11 +191,16 @@ class InstalledAppsRepositoryImpl(
 
         // An APK no installed app owns is usually a sibling app the user never installed
         // (monorepos). Only an app with no asset name or glob to compare can't tell.
-        fun belongsElsewhere(asset: GithubAsset, releaseTag: String, releaseAssets: List<GithubAsset>): Boolean {
+        fun belongsElsewhere(
+            asset: GithubAsset,
+            releaseTag: String,
+            releaseAssets: List<GithubAsset>,
+        ): Boolean {
             if (self == null) return false
             if (!AssetOwnership.canOwn(self, asset.name)) return true
-            val owner = AssetOwnership.ownerOf(asset.name, repoApps, releaseAssets, releases, releaseTag)
-                ?: return self.installedAssetName != null || !self.assetGlobPattern.isNullOrBlank()
+            val owner =
+                AssetOwnership.ownerOf(asset.name, repoApps, releaseAssets, releases, releaseTag)
+                    ?: return self.installedAssetName != null || !self.assetGlobPattern.isNullOrBlank()
             return owner.packageName != trackedPackageName
         }
 
@@ -211,16 +213,19 @@ class InstalledAppsRepositoryImpl(
 
         val hasAnyPin =
             preferredVariant != null ||
-                    preferredTokens.isNotEmpty() ||
-                    !preferredGlob.isNullOrBlank()
+                preferredTokens.isNotEmpty() ||
+                !preferredGlob.isNullOrBlank()
 
         for (release in candidates) {
             val installableForPlatform =
                 release.assets.filter { installer.isAssetInstallable(it.name) }
             val installableForApp =
                 (
-                    if (filter == null) installableForPlatform
-                    else installableForPlatform.filter { filter.matches(it.name) }
+                    if (filter == null) {
+                        installableForPlatform
+                    } else {
+                        installableForPlatform.filter { filter.matches(it.name) }
+                    }
                 ).filterNot { belongsElsewhere(it, release.tagName, installableForPlatform) }
 
             if (installableForApp.isEmpty()) continue
@@ -254,10 +259,11 @@ class InstalledAppsRepositoryImpl(
                     release.tagName,
                     self?.installedVersion,
                 )
-            val primary = fingerprintMatch
-                ?: positionMatch
-                ?: installer.choosePrimaryAsset(autoPickPool)
-                ?: continue
+            val primary =
+                fingerprintMatch
+                    ?: positionMatch
+                    ?: installer.choosePrimaryAsset(autoPickPool)
+                    ?: continue
 
             val variantWasLost =
                 hasAnyPin && fingerprintMatch == null && positionMatch == null
@@ -311,32 +317,34 @@ class InstalledAppsRepositoryImpl(
             }
 
             val compiledFilter =
-                AssetFilter.parse(app.assetFilterRegex)
+                AssetFilter
+                    .parse(app.assetFilterRegex)
                     ?.onFailure { error ->
                         Logger.w {
                             "Invalid asset filter for $packageName " +
-                                    "(${app.assetFilterRegex}): ${error.message} — ignoring"
+                                "(${app.assetFilterRegex}): ${error.message} — ignoring"
                         }
                     }?.getOrNull()
 
-            val resolved = resolveTrackedRelease(
-                releases = releases,
-                filter = compiledFilter,
-                fallbackToOlderReleases = app.fallbackToOlderReleases,
-                preferredVariant = app.preferredAssetVariant,
-                preferredTokens = AssetVariant.deserializeTokens(app.preferredAssetTokens),
-                preferredGlob = app.assetGlobPattern,
-                pickedIndex = app.pickedAssetIndex,
-                pickedSiblingCount = app.pickedAssetSiblingCount,
-                trackedPackageName = app.packageName,
-                installedAssetName = app.installedAssetName,
-                repoApps = installedAppsDao.getAppsByRepoId(app.repoId).map { it.toDomain() },
-            )
+            val resolved =
+                resolveTrackedRelease(
+                    releases = releases,
+                    filter = compiledFilter,
+                    fallbackToOlderReleases = app.fallbackToOlderReleases,
+                    preferredVariant = app.preferredAssetVariant,
+                    preferredTokens = AssetVariant.deserializeTokens(app.preferredAssetTokens),
+                    preferredGlob = app.assetGlobPattern,
+                    pickedIndex = app.pickedAssetIndex,
+                    pickedSiblingCount = app.pickedAssetSiblingCount,
+                    trackedPackageName = app.packageName,
+                    installedAssetName = app.installedAssetName,
+                    repoApps = installedAppsDao.getAppsByRepoId(app.repoId).map { it.toDomain() },
+                )
 
             if (resolved == null) {
                 Logger.d {
                     "No matching release found for ${app.appName} in window of ${releases.size}; " +
-                            "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
+                        "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
                 }
                 recordUnmatchedRelease(packageName)
                 return false
@@ -399,11 +407,11 @@ class InstalledAppsRepositoryImpl(
 
             Logger.d {
                 "[UPDATE-CHECK] ${app.appName} $packageName " +
-                        "installedTag=${app.installedVersion} matchedTag=${matchedRelease.tagName} " +
-                        "storedPublishedAt=${app.latestReleasePublishedAt} " +
-                        "matchedPublishedAt=${matchedRelease.publishedAt} " +
-                        "bound=${bound != null} " +
-                        "isUpdate=$isUpdateAvailable"
+                    "installedTag=${app.installedVersion} matchedTag=${matchedRelease.tagName} " +
+                    "storedPublishedAt=${app.latestReleasePublishedAt} " +
+                    "matchedPublishedAt=${matchedRelease.publishedAt} " +
+                    "bound=${bound != null} " +
+                    "isUpdate=$isUpdateAvailable"
             }
 
             val resolvedLatestVersionCode =
@@ -513,7 +521,8 @@ class InstalledAppsRepositoryImpl(
         )
 
         installedAppsDao.updateApp(
-            app.toDomain()
+            app
+                .toDomain()
                 .confirmInstall(
                     tag = newTag,
                     releaseId = newReleaseId,
@@ -526,8 +535,7 @@ class InstalledAppsRepositoryImpl(
                     signingFingerprint = signingFingerprint,
                     isPending = isPendingInstall,
                     at = System.currentTimeMillis(),
-                )
-                .toEntity(),
+                ).toEntity(),
         )
     }
 
@@ -561,7 +569,8 @@ class InstalledAppsRepositoryImpl(
     ) {
         val app = installedAppsDao.getAppByPackage(packageName) ?: return
         installedAppsDao.updateApp(
-            app.toDomain()
+            app
+                .toDomain()
                 .let {
                     if (isPending) {
                         it.markPending(
@@ -572,8 +581,7 @@ class InstalledAppsRepositoryImpl(
                     } else {
                         it.clearPending()
                     }
-                }
-                .toEntity(),
+                }.toEntity(),
         )
     }
 
@@ -623,7 +631,7 @@ class InstalledAppsRepositoryImpl(
         } catch (e: Exception) {
             Logger.w {
                 "Saved new asset filter for $packageName but immediate " +
-                        "re-check failed: ${e.message}"
+                    "re-check failed: ${e.message}"
             }
         }
     }
@@ -655,7 +663,7 @@ class InstalledAppsRepositoryImpl(
         } catch (e: Exception) {
             Logger.w {
                 "Saved new variant for $packageName but immediate " +
-                        "re-check failed: ${e.message}"
+                    "re-check failed: ${e.message}"
             }
         }
     }
@@ -697,6 +705,44 @@ class InstalledAppsRepositoryImpl(
         )
     }
 
+    override suspend fun markAwaitingInstall(
+        packageName: String,
+        path: String,
+        version: String?,
+        assetName: String?,
+    ) {
+        installedAppsDao.markAwaitingInstall(
+            packageName = packageName,
+            path = path,
+            version = version,
+            assetName = assetName,
+        )
+    }
+
+    override suspend fun discardParkedInstall(
+        packageName: String,
+        expectedPath: String?,
+    ): ParkedInstallDisposal {
+        if (expectedPath != null) {
+            if (tryDeleteParkedFile(expectedPath) == ParkedFileDisposal.Survived) {
+                Logger.w { "Parked file for $packageName survived the discard; pointer kept" }
+                return ParkedInstallDisposal.Retained
+            }
+        }
+        installedAppsDao.clearPendingInstallIfPathMatches(
+            packageName = packageName,
+            path = expectedPath,
+        )
+        val remainingPath = installedAppsDao.getAppByPackage(packageName)?.pendingInstallFilePath
+        return if (remainingPath != null) {
+            Logger.d { "Parked install for $packageName still names $remainingPath; row kept" }
+            ParkedInstallDisposal.Retained
+        } else {
+            Logger.d { "Discarded parked install for $packageName (path=${expectedPath ?: "none"})" }
+            ParkedInstallDisposal.Discarded
+        }
+    }
+
     override suspend fun previewMatchingAssets(
         owner: String,
         repo: String,
@@ -730,8 +776,11 @@ class InstalledAppsRepositoryImpl(
             val installableForPlatform =
                 release.assets.filter { installer.isAssetInstallable(it.name) }
             val matched =
-                if (filter == null) installableForPlatform
-                else installableForPlatform.filter { filter.matches(it.name) }
+                if (filter == null) {
+                    installableForPlatform
+                } else {
+                    installableForPlatform.filter { filter.matches(it.name) }
+                }
             if (matched.isNotEmpty()) {
                 return MatchingPreview(release = release, matchedAssets = matched)
             }
@@ -751,8 +800,9 @@ class InstalledAppsRepositoryImpl(
     ): List<GithubRelease> {
         val client = forgejoClientRegistry.clientFor(host)
         return try {
-            val releases = client.getReleases(owner, repo, perPage = RELEASE_WINDOW).getOrNull()
-                ?: return emptyList()
+            val releases =
+                client.getReleases(owner, repo, perPage = RELEASE_WINDOW).getOrNull()
+                    ?: return emptyList()
             releases.toReleaseWindow(includePreReleases)
         } catch (e: CancellationException) {
             throw e
@@ -761,4 +811,17 @@ class InstalledAppsRepositoryImpl(
             emptyList()
         }
     }
+}
+
+internal enum class ParkedFileDisposal {
+    Gone,
+
+    Survived,
+}
+
+internal fun tryDeleteParkedFile(path: String): ParkedFileDisposal {
+    val file = java.io.File(path)
+    val deleted = runCatching { file.delete() }.getOrDefault(false)
+    if (deleted) return ParkedFileDisposal.Gone
+    return if (file.exists()) ParkedFileDisposal.Survived else ParkedFileDisposal.Gone
 }

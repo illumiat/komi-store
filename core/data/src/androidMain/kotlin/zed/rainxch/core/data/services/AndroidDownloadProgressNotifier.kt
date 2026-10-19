@@ -7,6 +7,9 @@ import zed.rainxch.core.domain.system.DownloadProgressNotifier
 
 class AndroidDownloadProgressNotifier(
     private val context: Context,
+    private val pauseLabel: String = "Pause",
+    private val resumeLabel: String = "Resume",
+    private val deleteLabel: String = "Delete task",
 ) : DownloadProgressNotifier {
     @SuppressLint("MissingPermission")
     override fun notifyProgress(
@@ -16,6 +19,7 @@ class AndroidDownloadProgressNotifier(
         percent: Int?,
         bytesDownloaded: Long,
         totalBytes: Long?,
+        paused: Boolean,
     ) {
         if (!DownloadNotificationFactory.hasNotificationPermission(context)) return
 
@@ -31,6 +35,10 @@ class AndroidDownloadProgressNotifier(
                     ),
                 percent = percent,
                 cancelPackageName = packageName,
+                paused = paused,
+                pauseLabel = pauseLabel,
+                resumeLabel = resumeLabel,
+                deleteLabel = deleteLabel,
             )
 
         NotificationManagerCompat

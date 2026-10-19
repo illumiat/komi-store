@@ -40,7 +40,6 @@
     <string name="try_again">다시 시도</string>
 
     <!-- Errors -->
-    <string name="auth_error_with_message">오류: %1$s</string>
 
     <!-- Device flow -->
     <string name="enter_code_on_github">GitHub에 다음 코드를 입력하세요:</string>
@@ -788,7 +787,6 @@
     <string name="feedback_send_via_github">GitHub Issue로 열기</string>
     <string name="feedback_send_success_email">감사합니다 — 메일 클라이언트를 열고 있습니다.</string>
     <string name="feedback_send_success_github">감사합니다 — 브라우저를 열고 있습니다.</string>
-    <string name="feedback_send_error">피드백 채널을 열 수 없습니다: %1$s</string>
 
     <!-- ═══════════════════════════════════════════════════════════════
          E5 — Mirror feature
@@ -820,7 +818,6 @@
     <string name="mirror_test_http_error">미러가 %1$d를 반환했습니다</string>
     <string name="mirror_test_timeout">5s 후 타임아웃</string>
     <string name="mirror_test_dns_fail">호스트를 확인할 수 없습니다</string>
-    <string name="mirror_test_other">실패: %1$s</string>
     <string name="mirror_deploy_your_own_hint">모든 미러가 다운되었나요? 5분 안에 직접 호스팅할 수 있습니다 — 문서를 참조하세요.</string>
     <string name="mirror_removed_toast">%1$s를 더 이상 사용할 수 없어 GitHub 직접으로 전환했습니다.</string>
 
@@ -1035,6 +1032,8 @@
     <string name="adaptive_pick_repo_subtitle">왼쪽의 카드를 탭하면 여기에서 세부 정보를 볼 수 있어요.</string>
     <string name="adaptive_pick_repo_title">저장소를 선택하세요</string>
     <string name="apps_section_pending_installs">설치 준비 완료</string>
+    <string name="apps_section_in_progress">진행 중</string>
+    <string name="download_failed">다운로드 실패</string>
     <string name="apps_updates_banner_hide">목록 숨기기</string>
     <string name="apps_updates_banner_show">목록 보기</string>
     <string name="apps_updates_banner_subtitle">한 번에 검토하거나 모두 업데이트하세요.</string>
@@ -1102,7 +1101,6 @@
     <string name="host_tokens_undo_action">실행 취소</string>
     <string name="host_tokens_undo_failed">%1$s 토큰을 복원할 수 없습니다</string>
     <string name="host_tokens_undo_snackbar">%1$s 토큰이 제거되었습니다</string>
-    <string name="host_tokens_validation_failed">유효성 검사 실패: %1$s</string>
     <string name="host_tokens_validation_failed_fallback">알 수 없는 오류</string>
     <string name="host_tokens_validation_host_invalid">잘못된 호스트</string>
     <string name="host_tokens_validation_host_required">호스트가 필요합니다</string>
