@@ -279,71 +279,6 @@ class StarredRepositoryImpl(
             }
         }
 
-    /**
-     * The star time is the whole point of asking for `star+json`. If an entire listing
-     * arrives without one, the request went out with the generic media type (a proxy, or the
-     * default Accept winning) and the sort has silently degraded to alphabetical - worth
-     * saying out loud rather than rediscovering it from a bug report (#822).
-     */
-    private fun warnIfTheMediaTypeWasIgnored(items: List<GitHubStarredItem>) {
-        if (items.isNotEmpty() && items.all { it.starredAt == null }) {
-            Logger.w {
-                "Starred listing returned ${'$'}{items.size} entries without starred_at; " +
-                    "the star+json media type was not honoured, so ordering falls back to name"
-            }
-        }
-    }
-
-    private fun buildRow(
-        item: GitHubStarredItem,
-        installedPackageNameOrNull: String?,
-        probe: AssetProbe,
-        now: Long,
-    ): zed.rainxch.core.domain.model.repository.StarredRepository {
-        val repo = item.repo
-
-        // `when` over the sealed result rather than two `as?` casts: a future probe variant
-        // must be handled here. With casts it would fall through to "installable, no version"
-        // and be persisted that way - precisely the silent failure this change removes.
-        val version: String?
-        val releaseUrl: String?
-        val exclusionReason: StarredExclusionReason?
-        when (probe) {
-            is AssetProbe.Installable -> {
-                version = probe.version
-                releaseUrl = probe.url
-                exclusionReason = null
-            }
-
-            is AssetProbe.NotInstallable -> {
-                version = null
-                releaseUrl = null
-                exclusionReason = probe.reason
-            }
-        }
-
-        return zed.rainxch.core.domain.model.repository.StarredRepository(
-            repoId = repo.id,
-            repoName = repo.name,
-            repoOwner = repo.owner.login,
-            repoOwnerAvatarUrl = repo.owner.avatarUrl,
-            repoDescription = repo.description,
-            primaryLanguage = repo.language,
-            repoUrl = repo.htmlUrl,
-            stargazersCount = repo.stargazersCount,
-            forksCount = repo.forksCount,
-            openIssuesCount = repo.openIssuesCount,
-            isInstalled = installedPackageNameOrNull != null,
-            installedPackageName = installedPackageNameOrNull,
-            latestVersion = version,
-            latestReleaseUrl = releaseUrl,
-            starredAt = item.starredAt.toEpochMillisecondsOrNull(),
-            addedAt = now,
-            lastSyncedAt = now,
-            exclusionReason = exclusionReason,
-        )
-    }
-
     private fun matchesPlatform(assetName: String): Boolean {
         val name = assetName.lowercase()
         return when (platform) {
@@ -378,78 +313,13 @@ class StarredRepositoryImpl(
         repo: String,
         matcher: (String) -> Boolean = ::matchesPlatform,
     ): AssetProbe {
-        val backendResult = backendApiClient.getReleases(owner, repo, perPage = 10)
-        backendResult.fold(
-            onSuccess = { releases ->
-                return probeFor(
-                    releases.map { release ->
-                        ReleaseShape(
-                            isStable = release.draft != true && release.prerelease != true,
-                            assetNames = release.assets.map { it.name },
-                            tag = release.tagName,
-                            url = release.htmlUrl,
-                        )
-                    },
-                    matcher,
-                )
-            },
-            onFailure = { error ->
-                if (!zed.rainxch.core.data.network
-                        .shouldFallbackToGithubOrRethrow(error)
-                ) {
-                    return AssetProbe.NotInstallable(StarredExclusionReason.PROBE_FAILED)
-                }
-            },
-        )
-
-        return try {
-            val releasesResponse =
-                httpClient.get("/repos/$owner/$repo/releases") {
-                    header("Accept", "application/vnd.github.v3+json")
-                    parameter("per_page", 10)
-                }
-
-            if (!releasesResponse.status.isSuccess()) {
-                return AssetProbe.NotInstallable(StarredExclusionReason.PROBE_FAILED)
-            }
-
-            val allReleases: List<GithubReleaseNetworkModel> = releasesResponse.body()
-
-            probeFor(
-                allReleases.map { release ->
-                    ReleaseShape(
-                        isStable = release.draft != true && release.prerelease != true,
-                        assetNames = release.assets.map { it.name },
-                        tag = release.tagName,
-                        url = release.htmlUrl,
-                    )
-                },
-                matcher,
-            )
-        } catch (e: RateLimitException) {
-            throw e
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Logger.w(e) { "Failed to check valid assets for $owner/$repo" }
+        val releases = loadReleaseShapes(httpClient, backendApiClient, owner, repo)
+        return if (releases == null) {
             AssetProbe.NotInstallable(StarredExclusionReason.PROBE_FAILED)
+        } else {
+            probeFor(releases, matcher)
         }
     }
-
-    @Serializable
-    private data class GithubReleaseNetworkModel(
-        val assets: List<AssetNetworkModel>,
-        val draft: Boolean? = null,
-        val prerelease: Boolean? = null,
-        @SerialName("tag_name") val tagName: String? = null,
-        @SerialName("html_url") val htmlUrl: String? = null,
-        @SerialName("published_at") val publishedAt: String? = null,
-    )
-
-    @Serializable
-    private data class AssetNetworkModel(
-        val name: String,
-    )
 }
 
 /**
@@ -486,18 +356,12 @@ internal fun probeFor(
     releases: List<ReleaseShape>,
     matcher: (String) -> Boolean,
 ): AssetProbe {
-    if (releases.isEmpty()) {
-        return AssetProbe.NotInstallable(StarredExclusionReason.NO_RELEASES)
-    }
-
-    val stable =
-        releases.firstOrNull { it.isStable }
-            ?: return AssetProbe.NotInstallable(StarredExclusionReason.PRERELEASE_ONLY)
-
-    return if (stable.assetNames.any(matcher)) {
-        AssetProbe.Installable(version = stable.tag, url = stable.url)
-    } else {
-        AssetProbe.NotInstallable(StarredExclusionReason.NO_MATCHING_ASSET)
+    val stable = releases.firstOrNull { it.isStable }
+    return when {
+        releases.isEmpty() -> AssetProbe.NotInstallable(StarredExclusionReason.NO_RELEASES)
+        stable == null -> AssetProbe.NotInstallable(StarredExclusionReason.PRERELEASE_ONLY)
+        stable.assetNames.any(matcher) -> AssetProbe.Installable(stable.tag, stable.url)
+        else -> AssetProbe.NotInstallable(StarredExclusionReason.NO_MATCHING_ASSET)
     }
 }
 
@@ -515,7 +379,7 @@ internal fun String?.toEpochMillisecondsOrNull(): Long? {
         Instant.parse(raw).toEpochMilliseconds()
     } catch (e: CancellationException) {
         throw e
-    } catch (e: Exception) {
+    } catch (e: IllegalArgumentException) {
         Logger.w(e) { "Unparsable starred_at '$raw'; treating the entry as oldest" }
         null
     }
@@ -533,3 +397,155 @@ private fun HttpRequestBuilder.acceptGitHubMediaType(mediaType: String) {
     headers.remove(HttpHeaders.Accept)
     header(HttpHeaders.Accept, mediaType)
 }
+
+/** Null means the probe itself failed, as opposed to "there is nothing installable". */
+private suspend fun loadReleaseShapes(
+    httpClient: HttpClient,
+    backendApiClient: zed.rainxch.core.data.network.BackendApiClient,
+    owner: String,
+    repo: String,
+): List<ReleaseShape>? =
+    backendApiClient.getReleases(owner, repo, perPage = 10).fold(
+        onSuccess = { releases -> releases.map { it.toReleaseShape() } },
+        onFailure = { error ->
+            if (zed.rainxch.core.data.network
+                    .shouldFallbackToGithubOrRethrow(error)
+            ) {
+                fetchReleaseShapesFromGitHub(httpClient, owner, repo)
+            } else {
+                null
+            }
+        },
+    )
+
+/** How many releases to look at before deciding a repository is not installable. */
+private const val RELEASES_PROBE_LIMIT = 10
+
+private suspend fun fetchReleaseShapesFromGitHub(
+    httpClient: HttpClient,
+    owner: String,
+    repo: String,
+): List<ReleaseShape>? =
+    try {
+        val releasesResponse =
+            httpClient.get("/repos/$owner/$repo/releases") {
+                header("Accept", "application/vnd.github.v3+json")
+                parameter("per_page", RELEASES_PROBE_LIMIT)
+            }
+
+        if (releasesResponse.status.isSuccess()) {
+            val allReleases: List<GithubReleaseNetworkModel> = releasesResponse.body()
+            allReleases.map { it.toReleaseShape() }
+        } else {
+            null
+        }
+    } catch (e: RateLimitException) {
+        throw e
+    } catch (e: CancellationException) {
+        throw e
+    } catch (
+        // Network boundary: Ktor surfaces IO, TLS, timeout and serialization failures through
+        // a wide range of types, and here they all mean the same thing - the probe could not
+        // conclude, which is a different answer from "nothing installable". Nothing above this
+        // layer can act on the distinction.
+        @Suppress("TooGenericExceptionCaught") e: Exception,
+    ) {
+        Logger.w(e) { "Failed to check valid assets for $owner/$repo" }
+        null
+    }
+
+/**
+ * The star time is the whole point of asking for `star+json`. If an entire listing arrives
+ * without one, the request went out with the generic media type (a proxy, or the default
+ * Accept winning) and the sort has silently degraded to alphabetical - worth saying out loud
+ * rather than rediscovering it from a bug report (#822).
+ */
+private fun warnIfTheMediaTypeWasIgnored(items: List<GitHubStarredItem>) {
+    if (items.isNotEmpty() && items.all { it.starredAt == null }) {
+        Logger.w {
+            "Starred listing returned ${'$'}{items.size} entries without starred_at; " +
+                "the star+json media type was not honoured, so ordering falls back to name"
+        }
+    }
+}
+
+private fun buildRow(
+    item: GitHubStarredItem,
+    installedPackageNameOrNull: String?,
+    probe: AssetProbe,
+    now: Long,
+): zed.rainxch.core.domain.model.repository.StarredRepository {
+    val repo = item.repo
+
+    // when over the sealed result rather than two s? casts: a future probe variant must be
+    // handled here. With casts it would fall through to "installable, no version" and be
+    // persisted that way - precisely the silent failure this change removes.
+    val version: String?
+    val releaseUrl: String?
+    val exclusionReason: StarredExclusionReason?
+    when (probe) {
+        is AssetProbe.Installable -> {
+            version = probe.version
+            releaseUrl = probe.url
+            exclusionReason = null
+        }
+
+        is AssetProbe.NotInstallable -> {
+            version = null
+            releaseUrl = null
+            exclusionReason = probe.reason
+        }
+    }
+
+    return zed.rainxch.core.domain.model.repository.StarredRepository(
+        repoId = repo.id,
+        repoName = repo.name,
+        repoOwner = repo.owner.login,
+        repoOwnerAvatarUrl = repo.owner.avatarUrl,
+        repoDescription = repo.description,
+        primaryLanguage = repo.language,
+        repoUrl = repo.htmlUrl,
+        stargazersCount = repo.stargazersCount,
+        forksCount = repo.forksCount,
+        openIssuesCount = repo.openIssuesCount,
+        isInstalled = installedPackageNameOrNull != null,
+        installedPackageName = installedPackageNameOrNull,
+        latestVersion = version,
+        latestReleaseUrl = releaseUrl,
+        starredAt = item.starredAt.toEpochMillisecondsOrNull(),
+        addedAt = now,
+        lastSyncedAt = now,
+        exclusionReason = exclusionReason,
+    )
+}
+
+@Serializable
+private data class GithubReleaseNetworkModel(
+    val assets: List<AssetNetworkModel>,
+    val draft: Boolean? = null,
+    val prerelease: Boolean? = null,
+    @SerialName("tag_name") val tagName: String? = null,
+    @SerialName("html_url") val htmlUrl: String? = null,
+    @SerialName("published_at") val publishedAt: String? = null,
+)
+
+@Serializable
+private data class AssetNetworkModel(
+    val name: String,
+)
+
+private fun GithubReleaseNetworkModel.toReleaseShape(): ReleaseShape =
+    ReleaseShape(
+        isStable = draft != true && prerelease != true,
+        assetNames = assets.map { it.name },
+        tag = tagName,
+        url = htmlUrl,
+    )
+
+private fun zed.rainxch.core.data.dto.ReleaseNetwork.toReleaseShape(): ReleaseShape =
+    ReleaseShape(
+        isStable = draft != true && prerelease != true,
+        assetNames = assets.map { it.name },
+        tag = tagName,
+        url = htmlUrl,
+    )

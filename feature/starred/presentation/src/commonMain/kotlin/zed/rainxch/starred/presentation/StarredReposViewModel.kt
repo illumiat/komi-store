@@ -258,27 +258,29 @@ class StarredReposViewModel(
             }
 
             is StarredReposAction.OnToggleFavorite -> {
-                viewModelScope.launch {
-                    val repo = action.repository
-
-                    val favoriteRepo =
-                        FavoriteRepo(
-                            repoId = repo.repoId,
-                            repoName = repo.repoName,
-                            repoOwner = repo.repoOwner,
-                            repoOwnerAvatarUrl = repo.repoOwnerAvatarUrl,
-                            repoDescription = repo.repoDescription,
-                            primaryLanguage = repo.primaryLanguage,
-                            repoUrl = repo.repoUrl,
-                            latestVersion = repo.latestRelease,
-                            latestReleaseUrl = repo.latestReleaseUrl,
-                            addedAt = Clock.System.now().toEpochMilliseconds(),
-                            lastSyncedAt = Clock.System.now().toEpochMilliseconds(),
-                        )
-
-                    favouritesRepository.toggleFavorite(favoriteRepo)
-                }
+                toggleFavorite(action.repository)
             }
+        }
+    }
+
+    private fun toggleFavorite(repo: StarredRepositoryUi) {
+        viewModelScope.launch {
+            val now = Clock.System.now().toEpochMilliseconds()
+            favouritesRepository.toggleFavorite(
+                FavoriteRepo(
+                    repoId = repo.repoId,
+                    repoName = repo.repoName,
+                    repoOwner = repo.repoOwner,
+                    repoOwnerAvatarUrl = repo.repoOwnerAvatarUrl,
+                    repoDescription = repo.repoDescription,
+                    primaryLanguage = repo.primaryLanguage,
+                    repoUrl = repo.repoUrl,
+                    latestVersion = repo.latestRelease,
+                    latestReleaseUrl = repo.latestReleaseUrl,
+                    addedAt = now,
+                    lastSyncedAt = now,
+                ),
+            )
         }
     }
 }
