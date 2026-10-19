@@ -25,7 +25,6 @@ import zed.rainxch.core.data.mappers.toReleaseWindow
 import zed.rainxch.core.data.mappers.toUpdateCheckWindow
 import zed.rainxch.core.data.network.GitHubClientProvider
 import zed.rainxch.core.data.network.executeRequest
-import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.account.github.isEffectivelyPreRelease
 import zed.rainxch.core.domain.model.installation.InstallSource
@@ -40,8 +39,9 @@ import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.Installer
 import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.utils.AssetFilter
-import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
+import zed.rainxch.core.domain.utils.ResolvedRelease
+import zed.rainxch.core.domain.utils.TrackedReleaseResolver
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
 import kotlin.coroutines.cancellation.CancellationException
@@ -171,112 +171,34 @@ class InstalledAppsRepositoryImpl(
         }
     }
 
-    private data class ResolvedRelease(
-        val release: GithubRelease,
-        val primaryAsset: GithubAsset,
-        val variantWasLost: Boolean,
-    )
-
-    private fun resolveTrackedRelease(
+    private suspend fun resolveTrackedReleaseFor(
+        app: InstalledAppEntity,
         releases: List<GithubRelease>,
-        filter: AssetFilter?,
-        fallbackToOlderReleases: Boolean,
-        preferredVariant: String?,
-        preferredTokens: Set<String>,
-        preferredGlob: String?,
-        pickedIndex: Int?,
-        pickedSiblingCount: Int?,
-        trackedPackageName: String,
-        installedAssetName: String?,
-        repoApps: List<InstalledApp>,
     ): ResolvedRelease? {
-        if (releases.isEmpty()) return null
-
-        val self = repoApps.firstOrNull { it.packageName == trackedPackageName }
-
-        // An APK no installed app owns is usually a sibling app the user never installed
-        // (monorepos). Only an app with no asset name or glob to compare can't tell.
-        fun belongsElsewhere(
-            asset: GithubAsset,
-            releaseTag: String,
-            releaseAssets: List<GithubAsset>,
-        ): Boolean {
-            if (self == null) return false
-            if (!AssetOwnership.canOwn(self, asset.name)) return true
-            val owner =
-                AssetOwnership.ownerOf(asset.name, repoApps, releaseAssets, releases, releaseTag)
-                    ?: return self.installedAssetName != null || !self.assetGlobPattern.isNullOrBlank()
-            return owner.packageName != trackedPackageName
-        }
-
-        val candidates =
-            if (filter != null && !fallbackToOlderReleases) {
-                releases.take(1)
-            } else {
-                releases
-            }
-
-        val hasAnyPin =
-            preferredVariant != null ||
-                preferredTokens.isNotEmpty() ||
-                !preferredGlob.isNullOrBlank()
-
-        for (release in candidates) {
-            val installableForPlatform =
-                release.assets.filter { installer.isAssetInstallable(it.name) }
-            val installableForApp =
-                (
-                    if (filter == null) {
-                        installableForPlatform
-                    } else {
-                        installableForPlatform.filter { filter.matches(it.name) }
+        val compiledFilter =
+            AssetFilter
+                .parse(app.assetFilterRegex)
+                ?.onFailure { error ->
+                    Logger.w {
+                        "Invalid asset filter for ${app.packageName} " +
+                            "(${app.assetFilterRegex}): ${error.message} — ignoring"
                     }
-                ).filterNot { belongsElsewhere(it, release.tagName, installableForPlatform) }
+                }?.getOrNull()
 
-            if (installableForApp.isEmpty()) continue
-
-            val sameApp =
-                AssetOwnership.narrowToApp(installableForApp, installedAssetName, release.tagName, self?.installedVersion)
-            val fingerprintMatch =
-                AssetVariant.resolvePreferredAsset(
-                    assets = sameApp,
-                    pinnedVariant = preferredVariant,
-                    pinnedTokens = preferredTokens.takeIf { it.isNotEmpty() },
-                    pinnedGlob = preferredGlob,
-                    releaseTag = release.tagName,
-                )
-
-            val positionMatch =
-                if (fingerprintMatch == null && hasAnyPin && sameApp.size == installableForApp.size) {
-                    AssetVariant.resolveBySamePosition(
-                        assets = installableForApp,
-                        originalIndex = pickedIndex,
-                        siblingCountAtPickTime = pickedSiblingCount,
-                    )
-                } else {
-                    null
-                }
-
-            val autoPickPool =
-                AssetOwnership.narrowToApp(
-                    AssetVariant.filterByPackageFlavor(installableForApp, trackedPackageName),
-                    installedAssetName,
-                    release.tagName,
-                    self?.installedVersion,
-                )
-            val primary =
-                fingerprintMatch
-                    ?: positionMatch
-                    ?: installer.choosePrimaryAsset(autoPickPool)
-                    ?: continue
-
-            val variantWasLost =
-                hasAnyPin && fingerprintMatch == null && positionMatch == null
-
-            return ResolvedRelease(release, primary, variantWasLost)
-        }
-
-        return null
+        return TrackedReleaseResolver.resolve(
+            releases = releases,
+            filter = compiledFilter,
+            fallbackToOlderReleases = app.fallbackToOlderReleases,
+            preferredVariant = app.preferredAssetVariant,
+            preferredTokens = AssetVariant.deserializeTokens(app.preferredAssetTokens),
+            preferredGlob = app.assetGlobPattern,
+            pickedIndex = app.pickedAssetIndex,
+            pickedSiblingCount = app.pickedAssetSiblingCount,
+            trackedPackageName = app.packageName,
+            installedAssetName = app.installedAssetName,
+            repoApps = installedAppsDao.getAppsByRepoId(app.repoId).map { it.toDomain() },
+            installer = installer,
+        )
     }
 
     private suspend fun recordUnmatchedRelease(packageName: String) {
@@ -297,60 +219,42 @@ class InstalledAppsRepositoryImpl(
         )
     }
 
-    override suspend fun checkForUpdates(packageName: String): Boolean {
-        val app = installedAppsDao.getAppByPackage(packageName) ?: return false
-
-        if (!app.updateCheckEnabled) {
-            return false
+    override suspend fun checkForUpdates(packageName: String): Boolean =
+        checkEnabledApp(packageName, recordUnmatched = true) { app ->
+            fetchReleaseWindow(
+                owner = app.repoOwner,
+                repo = app.repoName,
+                includePreReleases = app.includePreReleases,
+                sourceHost = app.sourceHost,
+            )
         }
-
-        try {
-            val releases =
-                fetchReleaseWindow(
-                    owner = app.repoOwner,
-                    repo = app.repoName,
-                    includePreReleases = app.includePreReleases,
-                    sourceHost = app.sourceHost,
-                )
-
-            return checkAgainstWindow(app, releases, recordUnmatched = true)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Logger.e { "Failed to check updates for $packageName: ${e.message}" }
-            installedAppsDao.updateLastChecked(packageName, System.currentTimeMillis())
-        }
-
-        return false
-    }
 
     override suspend fun checkForUpdatesWithReleases(
         packageName: String,
         releases: List<GithubRelease>,
+    ): Boolean =
+        checkEnabledApp(packageName, recordUnmatched = false) { app ->
+            releases.toUpdateCheckWindow(includePreReleases = app.includePreReleases, limit = RELEASE_WINDOW)
+        }
+
+    private suspend fun checkEnabledApp(
+        packageName: String,
+        recordUnmatched: Boolean,
+        window: suspend (InstalledAppEntity) -> List<GithubRelease>,
     ): Boolean {
         val app = installedAppsDao.getAppByPackage(packageName) ?: return false
-
-        if (!app.updateCheckEnabled) {
-            return false
-        }
-
-        try {
-            val window =
-                releases.toUpdateCheckWindow(
-                    includePreReleases = app.includePreReleases,
-                    limit = RELEASE_WINDOW,
-                )
-
-            // A fed list can be shorter than the check's own window, so a miss proves nothing.
-            return checkAgainstWindow(app, window, recordUnmatched = false)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Logger.e { "Failed to check updates for $packageName: ${e.message}" }
-            installedAppsDao.updateLastChecked(packageName, System.currentTimeMillis())
-        }
-
-        return false
+        if (!app.updateCheckEnabled) return false
+        val releases =
+            try {
+                window(app)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.e { "Failed to check updates for $packageName: ${e.message}" }
+                installedAppsDao.updateLastChecked(packageName, System.currentTimeMillis())
+                return false
+            }
+        return checkAgainstWindow(app, releases, recordUnmatched)
     }
 
     private suspend fun checkAgainstWindow(
@@ -369,30 +273,7 @@ class InstalledAppsRepositoryImpl(
                 return app.isUpdateAvailable
             }
 
-            val compiledFilter =
-                AssetFilter
-                    .parse(app.assetFilterRegex)
-                    ?.onFailure { error ->
-                        Logger.w {
-                            "Invalid asset filter for $packageName " +
-                                "(${app.assetFilterRegex}): ${error.message} — ignoring"
-                        }
-                    }?.getOrNull()
-
-            val resolved =
-                resolveTrackedRelease(
-                    releases = releases,
-                    filter = compiledFilter,
-                    fallbackToOlderReleases = app.fallbackToOlderReleases,
-                    preferredVariant = app.preferredAssetVariant,
-                    preferredTokens = AssetVariant.deserializeTokens(app.preferredAssetTokens),
-                    preferredGlob = app.assetGlobPattern,
-                    pickedIndex = app.pickedAssetIndex,
-                    pickedSiblingCount = app.pickedAssetSiblingCount,
-                    trackedPackageName = app.packageName,
-                    installedAssetName = app.installedAssetName,
-                    repoApps = installedAppsDao.getAppsByRepoId(app.repoId).map { it.toDomain() },
-                )
+            val resolved = resolveTrackedReleaseFor(app, releases)
 
             if (resolved == null) {
                 Logger.d {
@@ -537,6 +418,22 @@ class InstalledAppsRepositoryImpl(
         }
 
         return false
+    }
+
+    override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease? {
+        val app = installedAppsDao.getAppByPackage(packageName) ?: return null
+
+        val releases =
+            fetchReleaseWindow(
+                owner = app.repoOwner,
+                repo = app.repoName,
+                includePreReleases = app.includePreReleases,
+                sourceHost = app.sourceHost,
+            )
+
+        if (releases.isEmpty()) return null
+
+        return resolveTrackedReleaseFor(app, releases)
     }
 
     override suspend fun checkAllForUpdates() {

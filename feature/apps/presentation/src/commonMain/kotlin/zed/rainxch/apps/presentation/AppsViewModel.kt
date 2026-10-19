@@ -1235,51 +1235,20 @@ class AppsViewModel(
     }
 
     private suspend fun lookUpUpdateTarget(app: InstalledAppUi): UpdateTarget {
-        val latestRelease =
+        val resolution =
             try {
-                appsRepository.getLatestRelease(
-                    owner = app.repoOwner,
-                    repo = app.repoName,
-                    includePreReleases = app.includePreReleases,
-                    sourceHost = app.sourceHost,
-                )
+                installedAppsRepository.resolveTrackedRelease(app.packageName)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                logger.error("Failed to fetch latest release: ${e.message}")
+                logger.error("Failed to resolve the tracked release: ${e.message}")
                 throw IllegalStateException("Failed to fetch latest release: ${e.message}")
-            }
-
-        if (latestRelease == null) {
-            throw IllegalStateException("No release found for ${app.appName}")
-        }
-
-        val installableAssets =
-            latestRelease.assets.filter { asset ->
-                installer.isAssetInstallable(asset.name)
-            }
-
-        if (installableAssets.isEmpty()) {
-            throw IllegalStateException("No installable assets found for this platform")
-        }
-
-        val variantMatch =
-            AssetVariant.resolvePreferredAsset(
-                assets = installableAssets,
-                pinnedVariant = app.preferredAssetVariant,
-                pinnedTokens = AssetVariant.deserializeTokens(app.preferredAssetTokens),
-                pinnedGlob = app.assetGlobPattern,
-                releaseTag = latestRelease.tagName,
-            )
-        val primaryAsset =
-            variantMatch
-                ?: installer.choosePrimaryAsset(installableAssets)
-                ?: throw IllegalStateException("Could not determine primary asset")
+            } ?: throw IllegalStateException("No release found for ${app.appName}")
 
         return UpdateTarget(
-            tag = latestRelease.tagName,
-            releaseId = latestRelease.id,
-            asset = primaryAsset,
+            tag = resolution.release.tagName,
+            releaseId = resolution.release.id,
+            asset = resolution.primaryAsset,
             fromStoredMatch = false,
         )
     }

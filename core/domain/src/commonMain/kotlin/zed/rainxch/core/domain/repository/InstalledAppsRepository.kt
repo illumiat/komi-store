@@ -5,6 +5,7 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
+import zed.rainxch.core.domain.utils.ResolvedRelease
 
 interface InstalledAppsRepository {
     fun getAllInstalledApps(): Flow<List<InstalledApp>>
@@ -37,6 +38,8 @@ interface InstalledAppsRepository {
         packageName: String,
         releases: List<GithubRelease>,
     ): Boolean
+
+    suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease?
 
     suspend fun checkAllForUpdates()
 

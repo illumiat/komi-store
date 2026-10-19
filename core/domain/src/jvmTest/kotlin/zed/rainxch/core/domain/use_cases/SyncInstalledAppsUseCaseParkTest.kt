@@ -364,6 +364,10 @@ class SyncInstalledAppsUseCaseParkTest {
 
         val discardedPackages: List<String> get() = discardCalls.map { it.packageName }
 
+        override suspend fun resolveTrackedRelease(
+            packageName: String,
+        ): zed.rainxch.core.domain.utils.ResolvedRelease? = null
+
         override fun getAllInstalledApps(): Flow<List<InstalledApp>> = flow { emit(apps) }
 
         override suspend fun updateApp(app: InstalledApp) {
