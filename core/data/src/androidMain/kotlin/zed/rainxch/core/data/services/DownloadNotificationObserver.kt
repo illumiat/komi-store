@@ -54,46 +54,67 @@ class DownloadNotificationObserver(
         }
 
         for ((pkg, entry) in snapshot) {
-            val previous = lastStages[pkg]
-            val stageChanged = previous != entry.stage
-            val actions = notificationActionsFor(entry.stage)
-            when {
-                DownloadNotificationAction.PAUSE in actions -> {
-                    if (previous != DownloadStage.Queued && previous != DownloadStage.Downloading) {
-                        activeSince[pkg] = SystemClock.uptimeMillis()
-                    }
-                    val now = SystemClock.uptimeMillis()
-                    val last = lastNotifiedAt[pkg] ?: 0L
-                    val shouldPost =
-                        stageChanged ||
-                            entry.progressPercent == 100 ||
-                            (now - last) >= PROGRESS_UPDATE_INTERVAL_MS
-                    if (shouldPost) {
-                        postProgress(pkg, entry, paused = false)
-                        lastNotifiedAt[pkg] = now
-                    }
-                }
-
-                DownloadNotificationAction.RESUME in actions -> {
-                    if (stageChanged) {
-                        postProgress(pkg, entry, paused = true)
-                        lastNotifiedAt[pkg] = SystemClock.uptimeMillis()
-                    }
-                    activeSince.remove(pkg)
-                }
-
-                else -> {
-                    if (previous != null && notificationActionsFor(previous).isNotEmpty()) {
-                        clearProgressSafely(pkg)
-                        lastNotifiedAt.remove(pkg)
-                    }
-                    activeSince.remove(pkg)
-                }
-            }
+            reconcileEntry(pkg, entry, lastStages[pkg])
             lastStages[pkg] = entry.stage
         }
 
         reconcileForeground(snapshot)
+    }
+
+    private fun reconcileEntry(
+        pkg: String,
+        entry: OrchestratedDownload,
+        previous: DownloadStage?,
+    ) {
+        val actions = notificationActionsFor(entry.stage)
+        when {
+            DownloadNotificationAction.PAUSE in actions -> trackProgress(pkg, entry, previous)
+            DownloadNotificationAction.RESUME in actions -> trackPaused(pkg, entry, previous)
+            else -> dropIfNotified(pkg, previous)
+        }
+    }
+
+    private fun trackProgress(
+        pkg: String,
+        entry: OrchestratedDownload,
+        previous: DownloadStage?,
+    ) {
+        if (previous != DownloadStage.Queued && previous != DownloadStage.Downloading) {
+            activeSince[pkg] = SystemClock.uptimeMillis()
+        }
+        val now = SystemClock.uptimeMillis()
+        val last = lastNotifiedAt[pkg] ?: 0L
+        val due =
+            previous != entry.stage ||
+                entry.progressPercent == 100 ||
+                (now - last) >= PROGRESS_UPDATE_INTERVAL_MS
+        if (!due) return
+
+        postProgress(pkg, entry, paused = false)
+        lastNotifiedAt[pkg] = now
+    }
+
+    private fun trackPaused(
+        pkg: String,
+        entry: OrchestratedDownload,
+        previous: DownloadStage?,
+    ) {
+        if (previous != entry.stage) {
+            postProgress(pkg, entry, paused = true)
+            lastNotifiedAt[pkg] = SystemClock.uptimeMillis()
+        }
+        activeSince.remove(pkg)
+    }
+
+    private fun dropIfNotified(
+        pkg: String,
+        previous: DownloadStage?,
+    ) {
+        if (previous != null && notificationActionsFor(previous).isNotEmpty()) {
+            clearProgressSafely(pkg)
+            lastNotifiedAt.remove(pkg)
+        }
+        activeSince.remove(pkg)
     }
 
     private fun reconcileForeground(snapshot: Map<String, OrchestratedDownload>) {

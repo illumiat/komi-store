@@ -1,7 +1,6 @@
 package zed.rainxch.core.data.download
 
 object ForegroundPrimary {
-
     fun choose(
         activePackages: Collection<String>,
         activeSince: Map<String, Long>,

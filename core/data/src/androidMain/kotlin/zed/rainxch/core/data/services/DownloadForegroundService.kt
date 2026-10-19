@@ -54,15 +54,7 @@ class DownloadForegroundService : Service() {
                         percent = percent,
                         cancelPackageName = cancelPackageName,
                     )
-                try {
-                    promote(notificationId, notification)
-                } catch (refused: RuntimeException) {
-                    // Retry with the type declared on the <service> element instead.
-                    Logger.w(refused) {
-                        "DownloadForegroundService: retrying with the manifest's service type"
-                    }
-                    promote(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST)
-                }
+                promoteSafely(notificationId, notification)
             }
         if (started.isFailure) {
             Logger.w(started.exceptionOrNull()) {
@@ -73,6 +65,21 @@ class DownloadForegroundService : Service() {
         }
 
         return START_NOT_STICKY
+    }
+
+    // Retry with the type declared on the <service> element when the runtime type is refused;
+    // a second refusal propagates to the caller, which stops the guard.
+    private fun promoteSafely(
+        notificationId: Int,
+        notification: Notification,
+    ) {
+        runCatching { promote(notificationId, notification) }
+            .onFailure { refused ->
+                Logger.w(refused) {
+                    "DownloadForegroundService: retrying with the manifest's service type"
+                }
+                promote(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST)
+            }
     }
 
     private fun promote(
@@ -99,6 +106,14 @@ class DownloadForegroundService : Service() {
             .orEmpty()
             .ifBlank { packageName }
 
+    data class Content(
+        val notificationId: Int,
+        val title: String,
+        val text: String,
+        val percent: Int?,
+        val cancelPackageName: String?,
+    )
+
     companion object {
         private const val NO_PERCENT = -1
         private const val EXTRA_NOTIFICATION_ID = "zed.rainxch.githubstore.extra.FGS_NOTIFICATION_ID"
@@ -116,18 +131,14 @@ class DownloadForegroundService : Service() {
 
         fun startIntent(
             context: Context,
-            notificationId: Int,
-            title: String,
-            text: String,
-            percent: Int?,
-            cancelPackageName: String?,
+            content: Content,
         ): Intent =
             Intent(context, DownloadForegroundService::class.java).apply {
-                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
-                putExtra(EXTRA_TITLE, title)
-                putExtra(EXTRA_TEXT, text)
-                putExtra(EXTRA_PERCENT, percent ?: NO_PERCENT)
-                putExtra(EXTRA_CANCEL_PACKAGE, cancelPackageName)
+                putExtra(EXTRA_NOTIFICATION_ID, content.notificationId)
+                putExtra(EXTRA_TITLE, content.title)
+                putExtra(EXTRA_TEXT, content.text)
+                putExtra(EXTRA_PERCENT, content.percent ?: NO_PERCENT)
+                putExtra(EXTRA_CANCEL_PACKAGE, content.cancelPackageName)
             }
     }
 }

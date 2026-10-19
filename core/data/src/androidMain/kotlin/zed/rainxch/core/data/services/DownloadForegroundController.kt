@@ -20,26 +20,32 @@ class DownloadForegroundController(
     private var foregroundPackage: String? = null
 
     fun ensureRunning(primary: OrchestratedDownload?) {
-        if (primary == null) return
-        if (degraded) return
-        if (!DownloadNotificationFactory.hasNotificationPermission(context)) return
+        val target = startable(primary) ?: return
+        if (running && target.packageName == foregroundPackage) return
 
-        val needsStart = !running || primary.packageName != foregroundPackage
-        if (!needsStart) return
+        start(target)
+    }
 
+    private fun startable(primary: OrchestratedDownload?): OrchestratedDownload? =
+        primary?.takeIf { !degraded && DownloadNotificationFactory.hasNotificationPermission(context) }
+
+    private fun start(primary: OrchestratedDownload) {
         val intent =
             DownloadForegroundService.startIntent(
                 context = context,
-                notificationId = DownloadNotificationFactory.notificationIdFor(primary.packageName),
-                title = primary.displayAppName.ifBlank { primary.packageName },
-                text =
-                    DownloadNotificationFactory.formatProgressText(
-                        versionTag = primary.releaseTag.ifBlank { primary.assetName },
-                        bytesDownloaded = primary.bytesDownloaded,
-                        totalBytes = primary.totalBytes,
+                content =
+                    DownloadForegroundService.Content(
+                        notificationId = DownloadNotificationFactory.notificationIdFor(primary.packageName),
+                        title = primary.displayAppName.ifBlank { primary.packageName },
+                        text =
+                            DownloadNotificationFactory.formatProgressText(
+                                versionTag = primary.releaseTag.ifBlank { primary.assetName },
+                                bytesDownloaded = primary.bytesDownloaded,
+                                totalBytes = primary.totalBytes,
+                            ),
+                        percent = primary.progressPercent,
+                        cancelPackageName = primary.packageName,
                     ),
-                percent = primary.progressPercent,
-                cancelPackageName = primary.packageName,
             )
         val result = runCatching { ContextCompat.startForegroundService(context, intent) }
         if (result.isFailure) {
@@ -47,15 +53,19 @@ class DownloadForegroundController(
                 "DownloadForegroundController: FGS start refused for ${primary.packageName}, " +
                     "degrading to plain notification"
             }
-            // An already-running service holds the previous primary's notification, which the
-            // observer cancels when that download ends, leaving a foreground service with no
-            // notification. Tear it down and keep the plain notification path.
-            if (running) stop()
-            degraded = true
+            degrade()
             return
         }
         running = true
         foregroundPackage = primary.packageName
+    }
+
+    // An already-running service holds the previous primary's notification, which the observer
+    // cancels when that download ends, leaving a foreground service with no notification. Tear it
+    // down and keep the plain notification path.
+    private fun degrade() {
+        if (running) stop()
+        degraded = true
     }
 
     fun stop() {

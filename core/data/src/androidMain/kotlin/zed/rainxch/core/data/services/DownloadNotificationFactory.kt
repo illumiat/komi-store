@@ -18,10 +18,13 @@ object DownloadNotificationFactory {
     const val FOREGROUND_NOTIFICATION_ID = 1006
 
     private const val NOTIFICATION_ID_BASE = 3000
+    private const val NOTIFICATION_ID_MASK = 0x00FFFFFF
     private const val PAUSE_LABEL = "Pause"
     private const val RESUME_LABEL = "Resume"
     private const val DELETE_LABEL = "Delete"
     private const val PROGRESS_MAX = 100
+    private const val BYTES_PER_UNIT = 1024.0
+    private const val UNIT_BYTES = 1024
 
     fun hasNotificationPermission(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
@@ -31,8 +34,7 @@ object DownloadNotificationFactory {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun notificationIdFor(packageName: String): Int =
-        NOTIFICATION_ID_BASE + (packageName.hashCode() and 0x00FFFFFF)
+    fun notificationIdFor(packageName: String): Int = NOTIFICATION_ID_BASE + (packageName.hashCode() and NOTIFICATION_ID_MASK)
 
     fun buildNotification(
         context: Context,
@@ -58,33 +60,35 @@ object DownloadNotificationFactory {
 
         if (cancelPackageName != null) {
             builder.addAction(
-                NotificationCompat.Action.Builder(
-                    if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
-                    if (paused) resumeLabel else pauseLabel,
-                    actionPendingIntent(
-                        context = context,
-                        packageName = cancelPackageName,
-                        action = if (paused) DownloadCancelReceiver.ACTION_RESUME else DownloadCancelReceiver.ACTION_CANCEL,
-                        uriScheme =
-                            if (paused) {
-                                DownloadCancelReceiver.URI_SCHEME_RESUME
-                            } else {
-                                DownloadCancelReceiver.URI_SCHEME_PAUSE
-                            },
-                    ),
-                ).build(),
+                NotificationCompat.Action
+                    .Builder(
+                        if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
+                        if (paused) resumeLabel else pauseLabel,
+                        actionPendingIntent(
+                            context = context,
+                            packageName = cancelPackageName,
+                            action = if (paused) DownloadCancelReceiver.ACTION_RESUME else DownloadCancelReceiver.ACTION_CANCEL,
+                            uriScheme =
+                                if (paused) {
+                                    DownloadCancelReceiver.URI_SCHEME_RESUME
+                                } else {
+                                    DownloadCancelReceiver.URI_SCHEME_PAUSE
+                                },
+                        ),
+                    ).build(),
             )
             builder.addAction(
-                NotificationCompat.Action.Builder(
-                    android.R.drawable.ic_menu_delete,
-                    deleteLabel,
-                    actionPendingIntent(
-                        context = context,
-                        packageName = cancelPackageName,
-                        action = DownloadCancelReceiver.ACTION_DISCARD,
-                        uriScheme = DownloadCancelReceiver.URI_SCHEME_DISCARD,
-                    ),
-                ).build(),
+                NotificationCompat.Action
+                    .Builder(
+                        android.R.drawable.ic_menu_delete,
+                        deleteLabel,
+                        actionPendingIntent(
+                            context = context,
+                            packageName = cancelPackageName,
+                            action = DownloadCancelReceiver.ACTION_DISCARD,
+                            uriScheme = DownloadCancelReceiver.URI_SCHEME_DISCARD,
+                        ),
+                    ).build(),
             )
         }
 
@@ -130,12 +134,14 @@ object DownloadNotificationFactory {
     }
 
     private fun formatBytes(bytes: Long): String {
-        if (bytes < 1024) return "$bytes B"
-        val kb = bytes / 1024.0
-        if (kb < 1024) return "%.1f KB".format(Locale.ROOT, kb)
-        val mb = kb / 1024.0
-        if (mb < 1024) return "%.1f MB".format(Locale.ROOT, mb)
-        val gb = mb / 1024.0
-        return "%.2f GB".format(Locale.ROOT, gb)
+        val kb = bytes / BYTES_PER_UNIT
+        val mb = kb / BYTES_PER_UNIT
+        val gb = mb / BYTES_PER_UNIT
+        return when {
+            bytes < UNIT_BYTES -> "$bytes B"
+            kb < BYTES_PER_UNIT -> "%.1f KB".format(Locale.ROOT, kb)
+            mb < BYTES_PER_UNIT -> "%.1f MB".format(Locale.ROOT, mb)
+            else -> "%.2f GB".format(Locale.ROOT, gb)
+        }
     }
 }
