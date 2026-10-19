@@ -1545,4 +1545,8 @@
     <string name="go_to_version">Go to %1$s</string>
     <string name="get_it_on_platform">Get it on %1$s</string>
     <string name="share_link">Share link</string>
+    <string name="display_mode_title">Refresh rate</string>
+    <string name="display_mode_description">Asks the display for a specific rate. Automatic leaves the system in charge.</string>
+    <string name="display_mode_auto">Automatic</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

@@ -1503,4 +1503,8 @@
     <string name="go_to_version">Vai a %1$s</string>
     <string name="get_it_on_platform">Scaricalo per %1$s</string>
     <string name="share_link">Condividi link</string>
+    <string name="display_mode_title">Frequenza di aggiornamento</string>
+    <string name="display_mode_description">Chiede al display una frequenza specifica. Automatico lascia decidere al sistema.</string>
+    <string name="display_mode_auto">Automatico</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

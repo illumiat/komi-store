@@ -1534,4 +1534,8 @@
     <string name="go_to_version">الانتقال إلى %1$s</string>
     <string name="get_it_on_platform">احصل عليه لـ %1$s</string>
     <string name="share_link">مشاركة الرابط</string>
+    <string name="display_mode_title">معدل التحديث</string>
+    <string name="display_mode_description">يطلب من الشاشة معدل تحديث محددًا. خيار «تلقائي» يترك القرار للنظام.</string>
+    <string name="display_mode_auto">تلقائي</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

@@ -1500,4 +1500,8 @@
     <string name="go_to_version">%1$s sürümüne git</string>
     <string name="get_it_on_platform">%1$s için edinin</string>
     <string name="share_link">Bağlantıyı paylaş</string>
+    <string name="display_mode_title">Yenileme hızı</string>
+    <string name="display_mode_description">Ekrandan belirli bir yenileme hızı ister. Otomatik, kararı sisteme bırakır.</string>
+    <string name="display_mode_auto">Otomatik</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

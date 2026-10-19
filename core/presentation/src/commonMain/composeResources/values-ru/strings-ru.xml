@@ -1502,4 +1502,8 @@
     <string name="go_to_version">Перейти к %1$s</string>
     <string name="get_it_on_platform">Скачать для %1$s</string>
     <string name="share_link">Поделиться ссылкой</string>
+    <string name="display_mode_title">Частота обновления</string>
+    <string name="display_mode_description">Запрашивает у экрана указанную частоту. В режиме «Авто» решает система.</string>
+    <string name="display_mode_auto">Авто</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>
