@@ -126,7 +126,8 @@ import kotlin.time.Clock.System
 import kotlin.time.ExperimentalTime
 import zed.rainxch.core.domain.system.DownloadStage as OrchestratorStage
 
-private const val RELEASES_REVALIDATE_MIN_AGE_MS = 5L * 60L * 1000L
+// The backend serves a copy up to an hour old, so re-reading a younger list can't return anything newer.
+private const val RELEASES_REVALIDATE_MIN_AGE_MS = 60L * 60L * 1000L
 
 class DetailsViewModel(
     private val repositoryId: Long,
@@ -3052,18 +3053,11 @@ class DetailsViewModel(
         }
     }
 
-    // The first paint can come from a cached copy that is hours old — the release behind it may
-    // have been edited or rebuilt in that window, and the page would keep showing the old text
-    // until the cache expired. When the load was served from the cache, quietly read the list
-    // once more and converge to it; the pull-to-refresh stays as the way to force the
-    // repository itself, not as the only way to see a rebuilt release.
     @OptIn(ExperimentalTime::class)
     private fun revalidateReleases() {
         val repo = _state.value.repository ?: return
         viewModelScope.launch {
             try {
-                // Never re-read a list that was just read: the copy in front of the page is
-                // younger than the window, and the endpoint is shared with everything else.
                 val cached =
                     detailsRepository.getCachedReleases(
                         owner = repo.owner.login,
@@ -3083,55 +3077,49 @@ class DetailsViewModel(
                     )
                 if (freshReleases.isEmpty()) return@launch
 
-                val previousSelected = _state.value.selectedRelease
-                val previousCategory = _state.value.selectedReleaseCategory
-                val carried =
-                    previousSelected?.let { prev ->
-                        freshReleases.firstOrNull { it.id == prev.id }
-                            ?: freshReleases.firstOrNull { it.tagName == prev.tagName }
-                    }
-                val selectedRelease =
-                    carried
-                        ?: freshReleases.firstInCategory(previousCategory)
-                        ?: freshReleases.firstOrNull { !it.isEffectivelyPreRelease() }
-                        ?: freshReleases.firstOrNull()
-
-                val resolvedCategory = when {
-                    carried != null -> previousCategory
-                    selectedRelease?.isEffectivelyPreRelease() == true -> ReleaseCategory.PRE_RELEASE
-                    selectedRelease != null -> ReleaseCategory.STABLE
-                    else -> previousCategory
-                }
-
-                val (installable, primary) = recomputeAssetsForRelease(
-                    selectedRelease,
-                    _state.value.installedApp,
-                )
-                val insights = computeReleaseInsights(freshReleases, _state.value.installedApp)
-
-                _state.update {
-                    it.copy(
-                        allReleases = freshReleases,
-                        releasePlatforms = platformsByRelease(freshReleases),
-                        deviceBuildReleaseIds = deviceBuildReleaseIds(freshReleases),
-                        releaseLines = releaseLines(freshReleases),
-                        selectedRelease = selectedRelease,
-                        selectedReleaseCategory = resolvedCategory,
-                        installableAssets = installable,
-                        primaryAsset = primary,
-                        stalledStableSinceDays = insights.stalledStableSinceDays,
-                        mergedChangelog = insights.mergedChangelog,
-                        mergedChangelogBaseTag = insights.mergedChangelogBaseTag,
-                        latestStableHasInstallableAsset =
-                            insights.latestStableHasInstallableAsset,
-                    )
-                }
+                _state.update { it.withFreshReleases(freshReleases) }
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
                 logger.debug("Release re-read failed for ${repo.name}: ${t.message}")
             }
         }
+    }
+
+    private fun RawDetailsState.withFreshReleases(freshReleases: List<GithubRelease>): RawDetailsState {
+        val carried =
+            selectedRelease?.let { prev ->
+                freshReleases.firstOrNull { it.id == prev.id }
+                    ?: freshReleases.firstOrNull { it.tagName == prev.tagName }
+            }
+        val newSelected =
+            carried
+                ?: freshReleases.firstInCategory(selectedReleaseCategory)
+                ?: freshReleases.firstOrNull { !it.isEffectivelyPreRelease() }
+                ?: freshReleases.firstOrNull()
+        val category =
+            when {
+                carried != null -> selectedReleaseCategory
+                newSelected?.isEffectivelyPreRelease() == true -> ReleaseCategory.PRE_RELEASE
+                newSelected != null -> ReleaseCategory.STABLE
+                else -> selectedReleaseCategory
+            }
+        val (installable, primary) = recomputeAssetsForRelease(newSelected, installedApp)
+        val insights = computeReleaseInsights(freshReleases, installedApp)
+        return copy(
+            allReleases = freshReleases,
+            releasePlatforms = platformsByRelease(freshReleases),
+            deviceBuildReleaseIds = deviceBuildReleaseIds(freshReleases),
+            releaseLines = releaseLines(freshReleases),
+            selectedRelease = newSelected,
+            selectedReleaseCategory = category,
+            installableAssets = installable,
+            primaryAsset = primary,
+            stalledStableSinceDays = insights.stalledStableSinceDays,
+            mergedChangelog = insights.mergedChangelog,
+            mergedChangelogBaseTag = insights.mergedChangelogBaseTag,
+            latestStableHasInstallableAsset = insights.latestStableHasInstallableAsset,
+        )
     }
 
     @OptIn(ExperimentalTime::class)
@@ -3141,10 +3129,6 @@ class DetailsViewModel(
         val owner = repo.owner.login
         val name = repo.name
 
-        // The user asked for a read, so it must end in one of two ways: the list on screen is
-        // the repository's, or the user is told the read did not happen. The backend re-poll
-        // (cooldown- and budget-gated) is best-effort: it can only skip refreshing the
-        // repository block itself, never the releases.
         val nowMs = System.now().toEpochMilliseconds()
         val cooledDown =
             _state.value.refreshCooldownUntilEpochMs?.let { it > nowMs } == true
@@ -3152,143 +3136,98 @@ class DetailsViewModel(
         _state.update { it.copy(isRefreshing = true) }
         viewModelScope.launch {
             try {
-
-                val refreshed = if (sourceHostParam != null) {
-                    detailsRepository.getRepositoryByOwnerAndName(
-                        owner = owner,
-                        name = name,
-                        sourceHost = sourceHostParam,
-                    )
-                } else if (cooledDown) {
-                    repo
-                } else {
-                    try {
-                        detailsRepository.refreshRepository(owner, name)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: RefreshException) {
-                        logger.warn("Refresh: repository re-poll failed (${e.kind}): ${e.message}")
-                        val cooldownUntil = e.retryAfterSeconds?.let { sec ->
-                            nowMs + sec * 1000L
-                        }
-                        _state.update {
-                            it.copy(
-                                refreshCooldownUntilEpochMs =
-                                    if (e.kind == RefreshError.COOLDOWN ||
-                                        e.kind == RefreshError.BUDGET_EXHAUSTED
-                                    ) {
-                                        cooldownUntil ?: it.refreshCooldownUntilEpochMs
-                                    } else {
-                                        it.refreshCooldownUntilEpochMs
-                                    },
-                            )
-                        }
+                val refreshed =
+                    if (sourceHostParam != null) {
+                        detailsRepository.getRepositoryByOwnerAndName(
+                            owner = owner,
+                            name = name,
+                            sourceHost = sourceHostParam,
+                        )
+                    } else if (cooledDown) {
                         repo
+                    } else {
+                        try {
+                            detailsRepository.refreshRepository(owner, name)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: RefreshException) {
+                            logger.warn("Refresh: repository re-poll failed (${e.kind}): ${e.message}")
+                            val cooldownUntil =
+                                e.retryAfterSeconds?.let { sec ->
+                                    nowMs + sec * 1000L
+                                }
+                            _state.update {
+                                it.copy(
+                                    refreshCooldownUntilEpochMs =
+                                        if (e.kind == RefreshError.COOLDOWN ||
+                                            e.kind == RefreshError.BUDGET_EXHAUSTED
+                                        ) {
+                                            cooldownUntil ?: it.refreshCooldownUntilEpochMs
+                                        } else {
+                                            it.refreshCooldownUntilEpochMs
+                                        },
+                                )
+                            }
+                            repo
+                        }
                     }
-                }
-                val releasesDeferred = async {
-                    try {
-                        detailsRepository.getAllReleases(
-                            owner = owner,
-                            repo = name,
-                            defaultBranch = refreshed.defaultBranch,
-                            sourceHost = sourceHostParam,
-                            bypassCache = true,
-                            allowStale = false,
-                            // The user asked for this read: go to the repository host, where an
-                            // edit lands, rather than a backend copy that can predate it.
-                            preferDirectSource = true,
-                        )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (t: Throwable) {
-                        logger.warn("Refresh: getAllReleases failed: ${t.message}")
-                        null
+                val releasesDeferred =
+                    async {
+                        try {
+                            detailsRepository.getAllReleases(
+                                owner = owner,
+                                repo = name,
+                                defaultBranch = refreshed.defaultBranch,
+                                sourceHost = sourceHostParam,
+                                bypassCache = true,
+                                allowStale = false,
+                                preferDirectSource = true,
+                            )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (t: Throwable) {
+                            logger.warn("Refresh: getAllReleases failed: ${t.message}")
+                            null
+                        }
                     }
-                }
-                val statsDeferred = async {
-                    try {
-                        detailsRepository.getRepoStats(
-                            owner = owner,
-                            repo = name,
-                            sourceHost = sourceHostParam,
-                        )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (t: Throwable) {
-                        logger.warn("Refresh: getRepoStats failed: ${t.message}")
-                        null
+                val statsDeferred =
+                    async {
+                        try {
+                            detailsRepository.getRepoStats(
+                                owner = owner,
+                                repo = name,
+                                sourceHost = sourceHostParam,
+                            )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (t: Throwable) {
+                            logger.warn("Refresh: getRepoStats failed: ${t.message}")
+                            null
+                        }
                     }
-                }
                 val freshReleases = releasesDeferred.await()
                 val freshStats = statsDeferred.await()
 
                 if (freshReleases == null) {
-                    // The previous list stays on screen; say so, rather than letting a failed
-                    // re-read look like a refresh that found nothing new.
                     _events.send(DetailsEvent.OnRefreshError(kind = RefreshError.UPSTREAM))
                 }
 
-                val previousSelected = _state.value.selectedRelease
-                val previousCategory = _state.value.selectedReleaseCategory
-                val carried = freshReleases?.let { list ->
-                    previousSelected?.let { prev ->
-                        list.firstOrNull { it.id == prev.id }
-                            ?: list.firstOrNull { it.tagName == prev.tagName }
-                    }
-                }
-                val selectedRelease = freshReleases?.let { list ->
-                    carried
-                        ?: list.firstInCategory(previousCategory)
-                        ?: list.firstOrNull { !it.isEffectivelyPreRelease() }
-                        ?: list.firstOrNull()
-                } ?: previousSelected
-
-                val resolvedCategory = when {
-                    carried != null -> previousCategory
-                    selectedRelease?.isEffectivelyPreRelease() == true -> ReleaseCategory.PRE_RELEASE
-                    selectedRelease != null -> ReleaseCategory.STABLE
-                    else -> previousCategory
-                }
-
-                val (installable, primary) = recomputeAssetsForRelease(
-                    selectedRelease,
-                    _state.value.installedApp,
-                )
-                val insights = computeReleaseInsights(
-                    freshReleases ?: _state.value.allReleases,
-                    _state.value.installedApp,
-                )
-
-                _state.update {
-                    it.copy(
+                _state.update { current ->
+                    (freshReleases?.let { current.withFreshReleases(it) } ?: current).copy(
                         isRefreshing = false,
                         repository = refreshed,
-                        allReleases = freshReleases ?: it.allReleases,
-                        releasePlatforms = freshReleases?.let(::platformsByRelease) ?: it.releasePlatforms,
-                        deviceBuildReleaseIds =
-                            freshReleases?.let(::deviceBuildReleaseIds) ?: it.deviceBuildReleaseIds,
-                        releaseLines = freshReleases?.let(::releaseLines) ?: it.releaseLines,
-                        releasesLoadFailed = freshReleases == null && it.releasesLoadFailed,
-                        selectedRelease = selectedRelease,
-                        selectedReleaseCategory = resolvedCategory,
-                        stats = freshStats ?: it.stats,
-                        installableAssets = installable,
-                        primaryAsset = primary,
-                        stalledStableSinceDays = insights.stalledStableSinceDays,
-                        mergedChangelog = insights.mergedChangelog,
-                        mergedChangelogBaseTag = insights.mergedChangelogBaseTag,
-                        latestStableHasInstallableAsset =
-                            insights.latestStableHasInstallableAsset,
+                        releasesLoadFailed = freshReleases == null && current.releasesLoadFailed,
+                        stats = freshStats ?: current.stats,
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RefreshException) {
                 logger.warn("Refresh failed (${e.kind}): ${e.message}")
-                val cooldownUntil = e.retryAfterSeconds?.let { sec ->
-                    System.now().toEpochMilliseconds() + sec * 1000L
-                }
+                val cooldownUntil =
+                    e.retryAfterSeconds?.let { sec ->
+                        System.now().toEpochMilliseconds() + sec * 1000L
+                    }
                 _state.update {
                     it.copy(
                         isRefreshing = false,

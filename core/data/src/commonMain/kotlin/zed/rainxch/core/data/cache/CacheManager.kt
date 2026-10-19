@@ -119,8 +119,6 @@ class CacheManager(
         )
     }
 
-    // When the still-valid entry was written — what a caller needs to decide whether reading
-    // it again is worth another request.
     suspend fun getCachedAt(key: String): Long? = cacheDao.getValid(key, now())?.cachedAt
 
     suspend fun invalidate(key: String) {

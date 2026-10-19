@@ -340,10 +340,9 @@ class DetailsRepositoryImpl(
     ): CachedReleases? {
         if (sourceHost != null) return null
         val cacheKey = "details:releases:$owner/$repo"
-        val cached = cacheManager.get<List<GithubRelease>>(cacheKey) ?: return null
-        if (cached.isEmpty()) return null
-        val cachedAt = cacheManager.getCachedAt(cacheKey) ?: return null
-        return CachedReleases(releases = cached, cachedAtEpochMs = cachedAt)
+        val cached = cacheManager.get<List<GithubRelease>>(cacheKey)?.takeIf { it.isNotEmpty() }
+        val cachedAt = cacheManager.getCachedAt(cacheKey)
+        return if (cached != null && cachedAt != null) CachedReleases(cached, cachedAt) else null
     }
 
     override suspend fun getAllReleases(
@@ -367,10 +366,7 @@ class DetailsRepositoryImpl(
             }
         }
 
-        // A read the user explicitly asked for can go to the repository host first: the host is
-        // where an edit lands, while the backend answers from a copy it keeps for an hour and
-        // offers nothing to force it. The backend stays next in line, so a host read that fails
-        // or comes back with nothing still lands on live data.
+        // The backend answers from a copy up to an hour old with no way to force it, so a user-asked read tries the host first.
         var triedDirect = false
         if (preferDirectSource) {
             triedDirect = true
@@ -406,7 +402,6 @@ class DetailsRepositoryImpl(
                 return result
             },
             onFailure = { e ->
-                // With the host read already tried first, there is nothing left to fall over to.
                 if (!shouldFallbackToGithubOrRethrow(e, isSignedIn()) || triedDirect) {
                     if (allowStale) {
                         cacheManager.getStale<List<GithubRelease>>(cacheKey)?.let { stale ->
@@ -423,8 +418,6 @@ class DetailsRepositoryImpl(
         return readReleasesFromGitHub(owner, repo, defaultBranch, cacheKey, allowStale)
     }
 
-    // The repository-host read — the request the fallback path has always made, now shared with
-    // the refresh that goes to the host first.
     private suspend fun readReleasesFromGitHub(
         owner: String,
         repo: String,
