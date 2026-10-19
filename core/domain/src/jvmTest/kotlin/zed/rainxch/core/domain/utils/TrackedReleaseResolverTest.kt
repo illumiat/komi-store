@@ -47,8 +47,8 @@ class TrackedReleaseResolverTest {
         assertEquals("v1.9", walked?.release?.tagName)
         assertEquals("MyApp-1.9.apk", walked?.primaryAsset?.name)
 
-        // Without the filter the newest release wins outright — the sibling's asset the
-        // library download used to take: the shape the shared resolution corrects.
+        // Without the filter the newest release wins outright: the sibling's asset the
+        // library download used to take.
         assertEquals("Other-2.0.apk", resolve(releases)?.primaryAsset?.name)
     }
 
