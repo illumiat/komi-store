@@ -9,12 +9,12 @@
     <ID>CyclomaticComplexMethod:InstalledAppUpdates.kt$fun InstalledApp.confirmInstall( tag: String, releaseId: Long? = null, assetId: Long? = null, assetDigest: String? = null, // Unknown must be null, never "": "" never equals a real asset name. assetName: String?, assetUrl: String?, versionName: String, versionCode: Long, signingFingerprint: String?, at: Long, isPending: Boolean = false, ): InstalledApp</ID>
     <ID>CyclomaticComplexMethod:InstalledAppUpdates.kt$fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp</ID>
     <ID>CyclomaticComplexMethod:SyncInstalledAppsUseCase.kt$SyncInstalledAppsUseCase$private suspend fun reconcileEnumerable(appsInDb: List&lt;InstalledApp&gt;)</ID>
-    <ID>CyclomaticComplexMethod:UpdateVerdict.kt$UpdateVerdict$fun decide( installed: Installed, stored: Stored, matched: Matched, skippedTag: String?, bound: Bound? = null, ): Result</ID>
+    <ID>CyclomaticComplexMethod:UpdateVerdict.kt$UpdateVerdict$fun decide( installed: Installed, stored: Stored, matched: Matched, skippedTag: String?, bound: Bound? = null, selfAttestedDigest: String? = null, ): Result</ID>
     <ID>CyclomaticComplexMethod:VersionMath.kt$VersionMath$fun preReleaseMarkerLabel(tag: String?): String?</ID>
     <ID>LargeClass:InstalledAppUpdatesTest.kt$InstalledAppUpdatesTest</ID>
     <ID>LargeClass:UpdateVerdictTest.kt$UpdateVerdictTest</ID>
     <ID>LongMethod:SyncInstalledAppsUseCase.kt$SyncInstalledAppsUseCase$private suspend fun reconcileEnumerable(appsInDb: List&lt;InstalledApp&gt;)</ID>
-    <ID>LongMethod:UpdateVerdict.kt$UpdateVerdict$fun decide( installed: Installed, stored: Stored, matched: Matched, skippedTag: String?, bound: Bound? = null, ): Result</ID>
+    <ID>LongMethod:UpdateVerdict.kt$UpdateVerdict$fun decide( installed: Installed, stored: Stored, matched: Matched, skippedTag: String?, bound: Bound? = null, selfAttestedDigest: String? = null, ): Result</ID>
     <ID>LongParameterList:DownloadProgressNotifier.kt$DownloadProgressNotifier$( packageName: String, appName: String, versionTag: String, percent: Int?, bytesDownloaded: Long, totalBytes: Long?, paused: Boolean = false, )</ID>
     <ID>LongParameterList:InstalledAppUpdates.kt$( tag: String, releaseId: Long? = null, assetId: Long? = null, assetDigest: String? = null, // Unknown must be null, never "": "" never equals a real asset name. assetName: String?, assetUrl: String?, versionName: String, versionCode: Long, signingFingerprint: String?, at: Long, isPending: Boolean = false, )</ID>
     <ID>LongParameterList:InstalledAppsRepository.kt$InstalledAppsRepository$( packageName: String, newTag: String, newReleaseId: Long?, newAssetId: Long?, newAssetDigest: String?, newAssetName: String?, newAssetUrl: String?, newVersionName: String, newVersionCode: Long, signingFingerprint: String?, isPendingInstall: Boolean = true, )</ID>

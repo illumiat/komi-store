@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import zed.rainxch.core.data.dto.GitHubStarredResponse
+import zed.rainxch.core.data.dto.GitHubStarredResponseWithTimestamp
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.StarredRepoDao
 import zed.rainxch.core.data.mappers.toDomain
@@ -206,6 +207,7 @@ class StarredRepositoryImpl(
                 while (true) {
                     val response =
                         httpClient.get("/user/starred") {
+                            header("Accept", "application/vnd.github.star+json")
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -221,11 +223,11 @@ class StarredRepositoryImpl(
                         )
                     }
 
-                    val repos: List<GitHubStarredResponse> = response.body()
+                    val repos: List<GitHubStarredResponseWithTimestamp> = response.body()
 
                     if (repos.isEmpty()) break
 
-                    allRepos.addAll(repos)
+                    allRepos.addAll(repos.map { it.repo.copy(starredAt = it.starredAt) })
 
                     if (repos.size < perPage) break
                     page++
@@ -240,43 +242,37 @@ class StarredRepositoryImpl(
                         allRepos.map { repo ->
                             async {
                                 semaphore.withPermit {
-                                    val release =
-                                        checkForValidAssets(repo.owner.login, repo.name)
-                                    if (release != null) {
-                                        val installedApps = installedAppsDao.getAppsByRepoId(repo.id)
-                                        val firstInstalled = installedApps.firstOrNull { !it.isPendingInstall }
-                                        zed.rainxch.core.domain.model.repository.StarredRepository(
-                                            repoId = repo.id,
-                                            repoName = repo.name,
-                                            repoOwner = repo.owner.login,
-                                            repoOwnerAvatarUrl = repo.owner.avatarUrl,
-                                            repoDescription = repo.description,
-                                            primaryLanguage = repo.language,
-                                            repoUrl = repo.htmlUrl,
-                                            stargazersCount = repo.stargazersCount,
-                                            forksCount = repo.forksCount,
-                                            openIssuesCount = repo.openIssuesCount,
-                                            isInstalled = firstInstalled != null,
-                                            installedPackageName = firstInstalled?.packageName,
-                                            latestVersion = release.version,
-                                            latestReleaseUrl = release.url,
-                                            starredAt =
-                                                repo.starredAt?.let {
-                                                    Instant.parse(it).toEpochMilliseconds()
-                                                },
-                                            addedAt = now,
-                                            lastSyncedAt = now,
-                                        )
-                                    } else {
-                                        null
-                                    }
+                                    val release = checkForValidAssets(repo.owner.login, repo.name)
+                                    val installedApps = installedAppsDao.getAppsByRepoId(repo.id)
+                                    val firstInstalled = installedApps.firstOrNull { !it.isPendingInstall }
+
+                                    zed.rainxch.core.domain.model.repository.StarredRepository(
+                                        repoId = repo.id,
+                                        repoName = repo.name,
+                                        repoOwner = repo.owner.login,
+                                        repoOwnerAvatarUrl = repo.owner.avatarUrl,
+                                        repoDescription = repo.description,
+                                        primaryLanguage = repo.language,
+                                        repoUrl = repo.htmlUrl,
+                                        stargazersCount = repo.stargazersCount,
+                                        forksCount = repo.forksCount,
+                                        openIssuesCount = repo.openIssuesCount,
+                                        isInstalled = firstInstalled != null,
+                                        installedPackageName = firstInstalled?.packageName,
+                                        latestVersion = release?.version,
+                                        latestReleaseUrl = release?.url,
+                                        starredAt =
+                                            repo.starredAt?.let {
+                                                Instant.parse(it).toEpochMilliseconds()
+                                            },
+                                        addedAt = now,
+                                        lastSyncedAt = now,
+                                    )
                                 }
                             }
                         }
 
-                    deferredResults.awaitAll().filterNotNull().let { validRepos ->
-                        starredRepos.addAll(validRepos)
-                    }
+                    starredRepos.addAll(deferredResults.awaitAll())
                 }
 
                 starredRepoDao.replaceAllStarred(starredRepos.map { it.toEntity() })

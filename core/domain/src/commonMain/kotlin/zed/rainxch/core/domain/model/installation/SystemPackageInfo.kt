@@ -6,6 +6,8 @@ data class SystemPackageInfo(
     val versionCode: Long,
     val isInstalled: Boolean,
     val signingFingerprint: String?,
+    // Null on desktop, which has no installed APK to read.
+    val apkPath: String? = null,
 ) {
     companion object {
         const val UNKNOWN_VERSION_NAME: String = "unknown"

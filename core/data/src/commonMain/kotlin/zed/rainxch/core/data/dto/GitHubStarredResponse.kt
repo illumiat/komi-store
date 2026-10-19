@@ -4,6 +4,12 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class GitHubStarredResponseWithTimestamp(
+    @SerialName("starred_at") val starredAt: String? = null,
+    val repo: GitHubStarredResponse,
+)
+
+@Serializable
 data class GitHubStarredResponse(
     val id: Long,
     val name: String,

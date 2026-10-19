@@ -16,6 +16,7 @@ import zed.rainxch.core.data.dto.GithubDeviceTokenSuccessDto
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.network.BackendApiClient
+import zed.rainxch.core.data.network.DesktopDigestVerifier
 import zed.rainxch.core.data.network.ForgejoClientRegistry
 import zed.rainxch.core.data.network.GitHubClientProvider
 import zed.rainxch.core.domain.model.account.HostToken
@@ -26,7 +27,9 @@ import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
 import zed.rainxch.core.domain.model.error.RateLimitInfo
+import zed.rainxch.core.domain.model.installation.DeviceApp
 import zed.rainxch.core.domain.model.installation.InstallSource
+import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.settings.ProxyConfig
 import zed.rainxch.core.domain.model.system.SystemArchitecture
 import zed.rainxch.core.domain.repository.HostTokenRepository
@@ -35,6 +38,7 @@ import zed.rainxch.core.domain.repository.UserSessionRepository
 import zed.rainxch.core.domain.system.InstallOutcome
 import zed.rainxch.core.domain.system.Installer
 import zed.rainxch.core.domain.system.InstallerInfoExtractor
+import zed.rainxch.core.domain.system.PackageMonitor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -208,7 +212,21 @@ class InstalledAppsUpdateCheckWindowTest {
                     proxyConfigFlow = MutableStateFlow(offlineProxy),
                     hostTokenRepository = FakeHostTokenRepository(),
                 ),
+            packageMonitor = NoPackageMonitor,
+            digestVerifier = DesktopDigestVerifier(),
         )
+
+    private object NoPackageMonitor : PackageMonitor {
+        override suspend fun isPackageInstalled(packageName: String): Boolean = false
+
+        override suspend fun getInstalledPackageInfo(packageName: String): SystemPackageInfo? = null
+
+        override suspend fun getAllInstalledPackageNames(): Set<String> = emptySet()
+
+        override suspend fun getAllInstalledApps(): List<DeviceApp> = emptyList()
+
+        override fun canEnumerateInstalledPackages(): Boolean = false
+    }
 
     private fun app(
         packageName: String,

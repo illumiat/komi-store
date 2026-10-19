@@ -35,8 +35,10 @@ import zed.rainxch.core.domain.model.installation.clearPending
 import zed.rainxch.core.domain.model.installation.confirmInstall
 import zed.rainxch.core.domain.model.installation.markPending
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
+import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.Installer
+import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.utils.AssetFilter
 import zed.rainxch.core.domain.utils.AssetOwnership
 import zed.rainxch.core.domain.utils.AssetVariant
@@ -52,6 +54,8 @@ class InstalledAppsRepositoryImpl(
     private val clientProvider: GitHubClientProvider,
     private val backendApiClient: zed.rainxch.core.data.network.BackendApiClient,
     private val forgejoClientRegistry: zed.rainxch.core.data.network.ForgejoClientRegistry,
+    private val packageMonitor: PackageMonitor,
+    private val digestVerifier: DigestVerifier,
 ) : InstalledAppsRepository {
     private val checkAllMutex = Mutex()
 
@@ -416,6 +420,25 @@ class InstalledAppsRepositoryImpl(
                     null
                 }
 
+            // A rolling tag reuses one tag string across builds. Without a binding, only the
+            // installed file can tell whether the release is the build the device runs.
+            val tagNeedsSelfAttestation =
+                VersionMath.isTimestampTrackedTag(matchedRelease.tagName) ||
+                    VersionMath.detectScheme(matchedRelease.tagName) == VersionMath.Scheme.Unknown
+            val tagRunsRelease =
+                VersionMath.isExactSameVersion(matchedRelease.tagName, app.installedVersion)
+            val selfAttestationApplies =
+                bound == null && primaryAsset.digest != null && tagRunsRelease && tagNeedsSelfAttestation
+            val selfAttestedDigest =
+                if (selfAttestationApplies) {
+                    packageMonitor
+                        .getInstalledPackageInfo(packageName)
+                        ?.apkPath
+                        ?.let { apkPath -> digestVerifier.computeSha256(apkPath) }
+                } else {
+                    null
+                }
+
             val verdict =
                 UpdateVerdict.decide(
                     installed =
@@ -447,6 +470,7 @@ class InstalledAppsRepositoryImpl(
                         ),
                     skippedTag = app.skippedReleaseTag,
                     bound = bound,
+                    selfAttestedDigest = selfAttestedDigest,
                 )
 
             if (verdict.skipBecameStale) {
@@ -461,6 +485,7 @@ class InstalledAppsRepositoryImpl(
                     "storedPublishedAt=${app.latestReleasePublishedAt} " +
                     "matchedPublishedAt=${matchedRelease.publishedAt} " +
                     "bound=${bound != null} " +
+                    "attested=${selfAttestedDigest ?: "-"} " +
                     "isUpdate=$isUpdateAvailable"
             }
 
