@@ -402,6 +402,16 @@
     <string name="days_ago">%1$d d ago</string>
     <string name="dismiss">Dismiss</string>
     <string name="sync_starred_failed">Failed to sync starred repos</string>
+    <plurals name="starred_hidden_repos_count">
+        <item quantity="one">%1$d starred repo hidden</item>
+        <item quantity="other">%1$d starred repos hidden</item>
+    </plurals>
+    <string name="starred_hidden_repos_show">Show</string>
+    <string name="starred_hidden_repos_hide">Hide</string>
+    <string name="starred_hidden_reason_no_releases">No releases yet</string>
+    <string name="starred_hidden_reason_prerelease_only">Only prereleases so far</string>
+    <string name="starred_hidden_reason_no_matching_asset">No installable file for this device</string>
+    <string name="starred_hidden_reason_probe_failed">Could not check for an installable release</string>
 
 
     <string name="failed_to_load_repositories">Failed to load repositories</string>

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import zed.rainxch.core.presentation.components.ScrollbarContainer
@@ -57,8 +59,10 @@ import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.utils.arrowKeyScroll
+import zed.rainxch.core.domain.model.repository.StarredExclusionReason
 import zed.rainxch.githubstore.core.presentation.res.*
 import zed.rainxch.starred.presentation.components.StarredRepositoryItem
+import zed.rainxch.starred.presentation.model.StarredRepositoryUi
 import zed.rainxch.starred.presentation.model.StarredSortRule
 
 @Composable
@@ -127,8 +131,7 @@ fun StarredReposScreen(
                     )
                 }
 
-                state.starredRepositories.isEmpty() && !state.isSyncing -> {
-                    EmptyStateContent(
+                state.starredRepositories.isEmpty() && !state.isSyncing -> {                    EmptyStateContent(
                         title = stringResource(Res.string.no_starred_repos),
                         message = stringResource(Res.string.star_repos_hint),
                         icon = Icons.Default.Star,
@@ -180,6 +183,24 @@ fun StarredReposScreen(
                                     modifier = Modifier.fillMaxSize()
                                         .arrowKeyScroll(gridState, autoFocus = true),
                                 ) {
+                                    // The withheld repositories are listed here instead of
+                                    // being dropped during sync, so the count and the reasons
+                                    // are visible rather than implied (#1040, #784).
+                                    if (state.hiddenRepositories.isNotEmpty()) {
+                                        item(
+                                            key = "hidden-starred-header",
+                                            span = StaggeredGridItemSpan.FullLine,
+                                        ) {
+                                            HiddenRepositoriesHeader(
+                                                count = state.hiddenRepositories.size,
+                                                isExpanded = state.isShowingHidden,
+                                                onClick = {
+                                                    onAction(StarredReposAction.OnToggleHiddenRepos)
+                                                },
+                                            )
+                                        }
+                                    }
+
                                     items(
                                         items = state.filteredRepositories,
                                         key = { it.repoId },
@@ -201,6 +222,18 @@ fun StarredReposScreen(
                                             },
                                             modifier = Modifier.animateItem(),
                                         )
+                                    }
+
+                                    if (state.isShowingHidden) {
+                                        items(
+                                            items = state.hiddenRepositories,
+                                            key = { "hidden-${it.repoId}" },
+                                        ) { repo ->
+                                            HiddenRepositoryRow(
+                                                repository = repo,
+                                                modifier = Modifier.animateItem(),
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -401,6 +434,108 @@ private fun EmptyStateContent(
         }
     }
 }
+
+/**
+ * Header for the repositories the installability check withheld.
+ *
+ * Rendering a count with a disclosure control is the point of #1040: the previous behaviour
+ * dropped these rows during sync, so "Last synced: just now" could sit above an incomplete
+ * list with nothing on screen to suggest anything was missing.
+ */
+@Composable
+private fun HiddenRepositoriesHeader(
+    count: Int,
+    isExpanded: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = LocalPersonality.current.colors
+
+    KomiSurface(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+        elevation = KomiSurfaceElevation.Flat,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            KomiText(
+                text =
+                    pluralStringResource(
+                        Res.plurals.starred_hidden_repos_count,
+                        count,
+                        count,
+                    ),
+                role = KomiTextRole.Body,
+                color = colors.onSurfaceVariant,
+                uppercase = false,
+                modifier = Modifier.weight(1f),
+            )
+            KomiText(
+                text =
+                    stringResource(
+                        if (isExpanded) {
+                            Res.string.starred_hidden_repos_hide
+                        } else {
+                            Res.string.starred_hidden_repos_show
+                        },
+                    ),
+                role = KomiTextRole.Label,
+                color = colors.primary,
+                uppercase = false,
+            )
+        }
+    }
+}
+
+/**
+ * One withheld repository and the reason it is withheld. Kept deliberately compact: the card
+ * style would imply it is offerable, which is exactly the confusion this section removes.
+ */
+@Composable
+private fun HiddenRepositoryRow(
+    repository: StarredRepositoryUi,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LocalPersonality.current.colors
+
+    KomiSurface(
+        modifier = modifier.fillMaxWidth(),
+        elevation = KomiSurfaceElevation.Flat,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            KomiText(
+                text = "${repository.repoOwner}/${repository.repoName}",
+                role = KomiTextRole.Body,
+                color = colors.onSurface,
+                uppercase = false,
+            )
+            KomiText(
+                text = exclusionReasonLabel(repository.exclusionReason),
+                role = KomiTextRole.Label,
+                color = colors.onSurfaceVariant,
+                uppercase = false,
+            )
+        }
+    }
+}
+
+@Composable
+private fun exclusionReasonLabel(reason: StarredExclusionReason?): String =
+    when (reason) {
+        StarredExclusionReason.NO_RELEASES -> stringResource(Res.string.starred_hidden_reason_no_releases)
+        StarredExclusionReason.PRERELEASE_ONLY ->
+            stringResource(Res.string.starred_hidden_reason_prerelease_only)
+        StarredExclusionReason.NO_MATCHING_ASSET ->
+            stringResource(Res.string.starred_hidden_reason_no_matching_asset)
+        StarredExclusionReason.PROBE_FAILED ->
+            stringResource(Res.string.starred_hidden_reason_probe_failed)
+        null -> stringResource(Res.string.starred_hidden_reason_probe_failed)
+    }
 
 @Preview
 @Composable

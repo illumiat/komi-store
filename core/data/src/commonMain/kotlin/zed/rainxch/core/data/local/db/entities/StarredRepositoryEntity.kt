@@ -23,4 +23,10 @@ data class StarredRepositoryEntity(
     val starredAt: Long?,
     val addedAt: Long,
     val lastSyncedAt: Long,
+    /**
+     * Name of a [zed.rainxch.core.domain.model.repository.StarredExclusionReason]; null for
+     * repositories that are offered for install. Stored as text so an unknown reason from a
+     * newer build degrades to "hidden" rather than crashing the mapper.
+     */
+    val exclusionReason: String? = null,
 )

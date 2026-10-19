@@ -42,8 +42,19 @@ class StarredReposViewModel(
     private val _state = MutableStateFlow(StarredReposState())
     val state =
         _state
-            .map { it.copy(filteredRepositories = filterStarred(it.starredRepositories, it.searchQuery)) }
-            .flowOn(Dispatchers.Default)
+            .map { current ->
+                // The stored list holds both halves; the split happens here so the screen can
+                // never accidentally render an excluded repository as installable (#1040).
+                val visible = current.starredRepositories.filter { it.exclusionReason == null }
+                val withheld = current.starredRepositories.filter { it.exclusionReason != null }
+
+                current.copy(
+                    filteredRepositories =
+                        filterStarred(visible.toImmutableList(), current.searchQuery),
+                    hiddenRepositories =
+                        filterStarred(withheld.toImmutableList(), current.searchQuery),
+                )
+            }.flowOn(Dispatchers.Default)
             .onStart {
                 if (!hasLoadedInitialData) {
                     checkAuthAndLoad()
@@ -225,6 +236,10 @@ class StarredReposViewModel(
 
             StarredReposAction.OnDismissError -> {
                 _state.update { it.copy(errorMessage = null) }
+            }
+
+            StarredReposAction.OnToggleHiddenRepos -> {
+                _state.update { it.copy(isShowingHidden = !it.isShowingHidden) }
             }
 
             is StarredReposAction.OnSearchChange -> {

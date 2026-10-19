@@ -22,13 +22,14 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import zed.rainxch.core.data.dto.GitHubStarredResponse
+import zed.rainxch.core.data.dto.GitHubStarredItem
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.StarredRepoDao
 import zed.rainxch.core.data.mappers.toDomain
 import zed.rainxch.core.data.mappers.toEntity
 import zed.rainxch.core.data.network.GitHubClientProvider
 import zed.rainxch.core.domain.model.error.RateLimitException
+import zed.rainxch.core.domain.model.repository.StarredExclusionReason
 import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.domain.repository.StarredRepository
 import kotlin.coroutines.cancellation.CancellationException
@@ -47,6 +48,13 @@ class StarredRepositoryImpl(
 
     companion object {
         private const val SYNC_THRESHOLD_MS = 24 * 60 * 60 * 1000L
+
+        /**
+         * Makes the starred endpoints answer with `{starred_at, repo}` entries instead of
+         * bare repository objects. Without it `starred_at` is not part of the response at
+         * all, so the stored star time was always null (#822).
+         */
+        private const val STARRED_MEDIA_TYPE = "application/vnd.github.star+json"
     }
 
     override fun getAllStarred(): Flow<List<zed.rainxch.core.domain.model.repository.StarredRepository>> =
@@ -103,13 +111,14 @@ class StarredRepositoryImpl(
                     return@withContext Result.failure(IllegalArgumentException("Username is empty"))
                 }
 
-                val allRepos = mutableListOf<GitHubStarredResponse>()
+                val allRepos = mutableListOf<GitHubStarredItem>()
                 var page = 1
                 val perPage = 100
 
                 while (true) {
                     val response =
                         httpClient.get("/users/$sanitized/starred") {
+                            header("Accept", STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -124,7 +133,7 @@ class StarredRepositoryImpl(
                         return@withContext Result.failure(Exception(reason))
                     }
 
-                    val repos: List<GitHubStarredResponse> = response.body()
+                    val repos: List<GitHubStarredItem> = response.body()
                     if (repos.isEmpty()) break
                     allRepos.addAll(repos)
                     if (repos.size < perPage) break
@@ -136,12 +145,13 @@ class StarredRepositoryImpl(
                     coroutineScope {
                         val semaphore = Semaphore(25)
                         allRepos
-                            .map { repo ->
+                            .map { item ->
+                                val repo = item.repo
                                 async {
                                     semaphore.withPermit {
-                                        val release =
+                                        val probe =
                                             checkForValidAssets(repo.owner.login, repo.name, ::matchesAnyPlatform)
-                                                ?: return@withPermit null
+                                        val release = probe as? AssetProbe.Installable
                                         val installedApps = installedAppsDao.getAppsByRepoId(repo.id)
                                         val firstInstalled =
                                             installedApps.firstOrNull { !it.isPendingInstall }
@@ -158,19 +168,20 @@ class StarredRepositoryImpl(
                                             openIssuesCount = repo.openIssuesCount,
                                             isInstalled = firstInstalled != null,
                                             installedPackageName = firstInstalled?.packageName,
-                                            latestVersion = release.version,
-                                            latestReleaseUrl = release.url,
+                                            latestVersion = release?.version,
+                                            latestReleaseUrl = release?.url,
                                             starredAt =
-                                                repo.starredAt?.let {
+                                                item.starredAt?.let {
                                                     Instant.parse(it).toEpochMilliseconds()
                                                 },
                                             addedAt = now,
                                             lastSyncedAt = now,
+                                            exclusionReason =
+                                                (probe as? AssetProbe.NotInstallable)?.reason,
                                         )
                                     }
                                 }
                             }.awaitAll()
-                            .filterNotNull()
                     }
 
                 Result.success(results)
@@ -199,13 +210,14 @@ class StarredRepositoryImpl(
                     return@withContext Result.success(Unit)
                 }
 
-                val allRepos = mutableListOf<GitHubStarredResponse>()
+                val allRepos = mutableListOf<GitHubStarredItem>()
                 var page = 1
                 val perPage = 100
 
                 while (true) {
                     val response =
                         httpClient.get("/user/starred") {
+                            header("Accept", STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -221,7 +233,7 @@ class StarredRepositoryImpl(
                         )
                     }
 
-                    val repos: List<GitHubStarredResponse> = response.body()
+                    val repos: List<GitHubStarredItem> = response.body()
 
                     if (repos.isEmpty()) break
 
@@ -237,45 +249,44 @@ class StarredRepositoryImpl(
                 coroutineScope {
                     val semaphore = Semaphore(25)
                     val deferredResults =
-                        allRepos.map { repo ->
+                        allRepos.map { item ->
+                            val repo = item.repo
                             async {
                                 semaphore.withPermit {
-                                    val release =
+                                    val probe =
                                         checkForValidAssets(repo.owner.login, repo.name)
-                                    if (release != null) {
-                                        val installedApps = installedAppsDao.getAppsByRepoId(repo.id)
-                                        val firstInstalled = installedApps.firstOrNull { !it.isPendingInstall }
-                                        zed.rainxch.core.domain.model.repository.StarredRepository(
-                                            repoId = repo.id,
-                                            repoName = repo.name,
-                                            repoOwner = repo.owner.login,
-                                            repoOwnerAvatarUrl = repo.owner.avatarUrl,
-                                            repoDescription = repo.description,
-                                            primaryLanguage = repo.language,
-                                            repoUrl = repo.htmlUrl,
-                                            stargazersCount = repo.stargazersCount,
-                                            forksCount = repo.forksCount,
-                                            openIssuesCount = repo.openIssuesCount,
-                                            isInstalled = firstInstalled != null,
-                                            installedPackageName = firstInstalled?.packageName,
-                                            latestVersion = release.version,
-                                            latestReleaseUrl = release.url,
-                                            starredAt =
-                                                repo.starredAt?.let {
-                                                    Instant.parse(it).toEpochMilliseconds()
-                                                },
-                                            addedAt = now,
-                                            lastSyncedAt = now,
-                                        )
-                                    } else {
-                                        null
-                                    }
+                                    val release = probe as? AssetProbe.Installable
+                                    val installedApps = installedAppsDao.getAppsByRepoId(repo.id)
+                                    val firstInstalled = installedApps.firstOrNull { !it.isPendingInstall }
+                                    zed.rainxch.core.domain.model.repository.StarredRepository(
+                                        repoId = repo.id,
+                                        repoName = repo.name,
+                                        repoOwner = repo.owner.login,
+                                        repoOwnerAvatarUrl = repo.owner.avatarUrl,
+                                        repoDescription = repo.description,
+                                        primaryLanguage = repo.language,
+                                        repoUrl = repo.htmlUrl,
+                                        stargazersCount = repo.stargazersCount,
+                                        forksCount = repo.forksCount,
+                                        openIssuesCount = repo.openIssuesCount,
+                                        isInstalled = firstInstalled != null,
+                                        installedPackageName = firstInstalled?.packageName,
+                                        latestVersion = release?.version,
+                                        latestReleaseUrl = release?.url,
+                                        starredAt =
+                                            item.starredAt?.let {
+                                                Instant.parse(it).toEpochMilliseconds()
+                                            },
+                                        addedAt = now,
+                                        lastSyncedAt = now,
+                                        exclusionReason = (probe as? AssetProbe.NotInstallable)?.reason,
+                                    )
                                 }
                             }
                         }
 
-                    deferredResults.awaitAll().filterNotNull().let { validRepos ->
-                        starredRepos.addAll(validRepos)
+                    deferredResults.awaitAll().let { allSynced ->
+                        starredRepos.addAll(allSynced)
                     }
                 }
 
@@ -325,25 +336,27 @@ class StarredRepositoryImpl(
         owner: String,
         repo: String,
         matcher: (String) -> Boolean = ::matchesPlatform,
-    ): StableReleaseInfo? {
+    ): AssetProbe {
         val backendResult = backendApiClient.getReleases(owner, repo, perPage = 10)
         backendResult.fold(
             onSuccess = { releases ->
-                val stable =
-                    releases.firstOrNull { it.draft != true && it.prerelease != true }
-                        ?: return null
-                if (stable.assets.isEmpty()) return null
-                return if (stable.assets.any { asset -> matcher(asset.name) }) {
-                    StableReleaseInfo(version = stable.tagName, url = stable.htmlUrl)
-                } else {
-                    null
-                }
+                return probeFor(
+                    releases.map { release ->
+                        ReleaseShape(
+                            isStable = release.draft != true && release.prerelease != true,
+                            assetNames = release.assets.map { it.name },
+                            tag = release.tagName,
+                            url = release.htmlUrl,
+                        )
+                    },
+                    matcher,
+                )
             },
             onFailure = { error ->
                 if (!zed.rainxch.core.data.network
                         .shouldFallbackToGithubOrRethrow(error)
                 ) {
-                    return null
+                    return AssetProbe.NotInstallable(StarredExclusionReason.PROBE_FAILED)
                 }
             },
         )
@@ -356,42 +369,31 @@ class StarredRepositoryImpl(
                 }
 
             if (!releasesResponse.status.isSuccess()) {
-                return null
+                return AssetProbe.NotInstallable(StarredExclusionReason.PROBE_FAILED)
             }
 
             val allReleases: List<GithubReleaseNetworkModel> = releasesResponse.body()
 
-            val stableRelease =
-                allReleases.firstOrNull {
-                    it.draft != true && it.prerelease != true
-                } ?: return null
-
-            if (stableRelease.assets.isEmpty()) {
-                return null
-            }
-
-            val relevantAssets =
-                stableRelease.assets.filter { asset -> matcher(asset.name) }
-
-            if (relevantAssets.isNotEmpty()) {
-                StableReleaseInfo(version = stableRelease.tagName, url = stableRelease.htmlUrl)
-            } else {
-                null
-            }
+            probeFor(
+                allReleases.map { release ->
+                    ReleaseShape(
+                        isStable = release.draft != true && release.prerelease != true,
+                        assetNames = release.assets.map { it.name },
+                        tag = release.tagName,
+                        url = release.htmlUrl,
+                    )
+                },
+                matcher,
+            )
         } catch (e: RateLimitException) {
             throw e
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Logger.w(e) { "Failed to check valid assets for $owner/$repo" }
-            null
+            AssetProbe.NotInstallable(StarredExclusionReason.PROBE_FAILED)
         }
     }
-
-    private data class StableReleaseInfo(
-        val version: String?,
-        val url: String?,
-    )
 
     @Serializable
     private data class GithubReleaseNetworkModel(
@@ -407,4 +409,53 @@ class StarredRepositoryImpl(
     private data class AssetNetworkModel(
         val name: String,
     )
+}
+
+/**
+ * One release, reduced to what the installability decision needs.
+ *
+ * Both the backend and the direct GitHub path produce releases of different types but answer
+ * the same three questions, so they are normalised here rather than duplicating the decision.
+ */
+internal data class ReleaseShape(
+    val isStable: Boolean,
+    val assetNames: List<String>,
+    val tag: String?,
+    val url: String?,
+)
+
+internal sealed interface AssetProbe {
+    data class Installable(
+        val version: String?,
+        val url: String?,
+    ) : AssetProbe
+
+    data class NotInstallable(
+        val reason: StarredExclusionReason,
+    ) : AssetProbe
+}
+
+/**
+ * Turns a release list into either the installable release or the reason there is none.
+ *
+ * Every branch that used to eturn null now names itself, which is what lets the sync keep
+ * the repository and lets the screen explain why it is hidden (#1040).
+ */
+internal fun probeFor(
+    releases: List<ReleaseShape>,
+    matcher: (String) -> Boolean,
+): AssetProbe {
+    if (releases.isEmpty()) {
+        return AssetProbe.NotInstallable(StarredExclusionReason.NO_RELEASES)
+    }
+
+    val stable =
+        releases.firstOrNull { it.isStable }
+            ?: return AssetProbe.NotInstallable(StarredExclusionReason.PRERELEASE_ONLY)
+
+    return if (stable.assetNames.any(matcher)) {
+        AssetProbe.Installable(version = stable.tag, url = stable.url)
+    } else {
+        AssetProbe.NotInstallable(StarredExclusionReason.NO_MATCHING_ASSET)
+    }
 }

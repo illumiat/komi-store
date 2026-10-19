@@ -33,4 +33,11 @@ sealed interface StarredReposAction {
     data class OnSortRuleSelected(
         val sortRule: StarredSortRule,
     ) : StarredReposAction
+
+    /**
+     * Expands or collapses the section listing starred repositories that the installability
+     * check withheld. The section exists so an omission is explainable instead of silent
+     * (#1040, #784).
+     */
+    data object OnToggleHiddenRepos : StarredReposAction
 }

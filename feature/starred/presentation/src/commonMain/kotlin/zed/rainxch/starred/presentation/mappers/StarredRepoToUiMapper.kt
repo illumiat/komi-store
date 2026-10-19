@@ -23,4 +23,5 @@ fun StarredRepository.toStarredRepositoryUi(
     latestRelease = latestVersion,
     latestReleaseUrl = latestReleaseUrl,
     starredAt = starredAt,
+    exclusionReason = exclusionReason,
 )
