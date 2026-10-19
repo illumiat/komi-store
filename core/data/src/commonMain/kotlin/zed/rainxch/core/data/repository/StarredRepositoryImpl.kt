@@ -5,11 +5,13 @@ package zed.rainxch.core.data.repository
 import co.touchlab.kermit.Logger
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.put
+import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -23,11 +25,13 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import zed.rainxch.core.data.dto.GitHubStarredItem
+import zed.rainxch.core.data.dto.parseStarredPage
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.StarredRepoDao
 import zed.rainxch.core.data.mappers.toDomain
 import zed.rainxch.core.data.mappers.toEntity
 import zed.rainxch.core.data.network.GitHubClientProvider
+import zed.rainxch.core.data.network.gitHubJson
 import zed.rainxch.core.domain.model.error.RateLimitException
 import zed.rainxch.core.domain.model.repository.StarredExclusionReason
 import zed.rainxch.core.domain.model.system.Platform
@@ -118,7 +122,7 @@ class StarredRepositoryImpl(
                 while (true) {
                     val response =
                         httpClient.get("/users/$sanitized/starred") {
-                            header("Accept", STARRED_MEDIA_TYPE)
+                            acceptGitHubMediaType(STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -133,13 +137,14 @@ class StarredRepositoryImpl(
                         return@withContext Result.failure(Exception(reason))
                     }
 
-                    val repos: List<GitHubStarredItem> = response.body()
+                    val repos = parseStarredPage(gitHubJson, response.body())
                     if (repos.isEmpty()) break
                     allRepos.addAll(repos)
                     if (repos.size < perPage) break
                     page++
                 }
 
+                warnIfTheMediaTypeWasIgnored(allRepos)
                 val now = Clock.System.now().toEpochMilliseconds()
                 val results =
                     coroutineScope {
@@ -149,42 +154,30 @@ class StarredRepositoryImpl(
                                 val repo = item.repo
                                 async {
                                     semaphore.withPermit {
-                                        val probe =
-                                            checkForValidAssets(repo.owner.login, repo.name, ::matchesAnyPlatform)
-                                        val release = probe as? AssetProbe.Installable
-                                        val installedApps = installedAppsDao.getAppsByRepoId(repo.id)
-                                        val firstInstalled =
-                                            installedApps.firstOrNull { !it.isPendingInstall }
-                                        zed.rainxch.core.domain.model.repository.StarredRepository(
-                                            repoId = repo.id,
-                                            repoName = repo.name,
-                                            repoOwner = repo.owner.login,
-                                            repoOwnerAvatarUrl = repo.owner.avatarUrl,
-                                            repoDescription = repo.description,
-                                            primaryLanguage = repo.language,
-                                            repoUrl = repo.htmlUrl,
-                                            stargazersCount = repo.stargazersCount,
-                                            forksCount = repo.forksCount,
-                                            openIssuesCount = repo.openIssuesCount,
-                                            isInstalled = firstInstalled != null,
-                                            installedPackageName = firstInstalled?.packageName,
-                                            latestVersion = release?.version,
-                                            latestReleaseUrl = release?.url,
-                                            starredAt =
-                                                item.starredAt?.let {
-                                                    Instant.parse(it).toEpochMilliseconds()
-                                                },
-                                            addedAt = now,
-                                            lastSyncedAt = now,
-                                            exclusionReason =
-                                                (probe as? AssetProbe.NotInstallable)?.reason,
+                                        buildRow(
+                                            item = item,
+                                            installedPackageNameOrNull =
+                                                installedAppsDao
+                                                    .getAppsByRepoId(repo.id)
+                                                    .firstOrNull { !it.isPendingInstall }
+                                                    ?.packageName,
+                                            probe =
+                                                checkForValidAssets(
+                                                    repo.owner.login,
+                                                    repo.name,
+                                                    ::matchesAnyPlatform,
+                                                ),
+                                            now = now,
                                         )
                                     }
                                 }
                             }.awaitAll()
                     }
 
-                Result.success(results)
+                // The import flow advertises installable repos only, and it persists nothing,
+                // so the "keep the row with a reason" rule does not apply here: an entry with
+                // an exclusion reason has nothing to import and must not become a candidate.
+                Result.success(results.filter { it.exclusionReason == null })
             } catch (e: RateLimitException) {
                 Result.failure(e)
             } catch (e: CancellationException) {
@@ -217,7 +210,7 @@ class StarredRepositoryImpl(
                 while (true) {
                     val response =
                         httpClient.get("/user/starred") {
-                            header("Accept", STARRED_MEDIA_TYPE)
+                            acceptGitHubMediaType(STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -233,7 +226,7 @@ class StarredRepositoryImpl(
                         )
                     }
 
-                    val repos: List<GitHubStarredItem> = response.body()
+                    val repos = parseStarredPage(gitHubJson, response.body())
 
                     if (repos.isEmpty()) break
 
@@ -243,6 +236,7 @@ class StarredRepositoryImpl(
                     page++
                 }
 
+                warnIfTheMediaTypeWasIgnored(allRepos)
                 val now = Clock.System.now().toEpochMilliseconds()
                 val starredRepos = mutableListOf<zed.rainxch.core.domain.model.repository.StarredRepository>()
 
@@ -253,33 +247,15 @@ class StarredRepositoryImpl(
                             val repo = item.repo
                             async {
                                 semaphore.withPermit {
-                                    val probe =
-                                        checkForValidAssets(repo.owner.login, repo.name)
-                                    val release = probe as? AssetProbe.Installable
-                                    val installedApps = installedAppsDao.getAppsByRepoId(repo.id)
-                                    val firstInstalled = installedApps.firstOrNull { !it.isPendingInstall }
-                                    zed.rainxch.core.domain.model.repository.StarredRepository(
-                                        repoId = repo.id,
-                                        repoName = repo.name,
-                                        repoOwner = repo.owner.login,
-                                        repoOwnerAvatarUrl = repo.owner.avatarUrl,
-                                        repoDescription = repo.description,
-                                        primaryLanguage = repo.language,
-                                        repoUrl = repo.htmlUrl,
-                                        stargazersCount = repo.stargazersCount,
-                                        forksCount = repo.forksCount,
-                                        openIssuesCount = repo.openIssuesCount,
-                                        isInstalled = firstInstalled != null,
-                                        installedPackageName = firstInstalled?.packageName,
-                                        latestVersion = release?.version,
-                                        latestReleaseUrl = release?.url,
-                                        starredAt =
-                                            item.starredAt?.let {
-                                                Instant.parse(it).toEpochMilliseconds()
-                                            },
-                                        addedAt = now,
-                                        lastSyncedAt = now,
-                                        exclusionReason = (probe as? AssetProbe.NotInstallable)?.reason,
+                                    buildRow(
+                                        item = item,
+                                        installedPackageNameOrNull =
+                                            installedAppsDao
+                                                .getAppsByRepoId(repo.id)
+                                                .firstOrNull { !it.isPendingInstall }
+                                                ?.packageName,
+                                        probe = checkForValidAssets(repo.owner.login, repo.name),
+                                        now = now,
                                     )
                                 }
                             }
@@ -302,6 +278,71 @@ class StarredRepositoryImpl(
                 Result.failure(e)
             }
         }
+
+    /**
+     * The star time is the whole point of asking for `star+json`. If an entire listing
+     * arrives without one, the request went out with the generic media type (a proxy, or the
+     * default Accept winning) and the sort has silently degraded to alphabetical - worth
+     * saying out loud rather than rediscovering it from a bug report (#822).
+     */
+    private fun warnIfTheMediaTypeWasIgnored(items: List<GitHubStarredItem>) {
+        if (items.isNotEmpty() && items.all { it.starredAt == null }) {
+            Logger.w {
+                "Starred listing returned ${'$'}{items.size} entries without starred_at; " +
+                    "the star+json media type was not honoured, so ordering falls back to name"
+            }
+        }
+    }
+
+    private fun buildRow(
+        item: GitHubStarredItem,
+        installedPackageNameOrNull: String?,
+        probe: AssetProbe,
+        now: Long,
+    ): zed.rainxch.core.domain.model.repository.StarredRepository {
+        val repo = item.repo
+
+        // `when` over the sealed result rather than two `as?` casts: a future probe variant
+        // must be handled here. With casts it would fall through to "installable, no version"
+        // and be persisted that way - precisely the silent failure this change removes.
+        val version: String?
+        val releaseUrl: String?
+        val exclusionReason: StarredExclusionReason?
+        when (probe) {
+            is AssetProbe.Installable -> {
+                version = probe.version
+                releaseUrl = probe.url
+                exclusionReason = null
+            }
+
+            is AssetProbe.NotInstallable -> {
+                version = null
+                releaseUrl = null
+                exclusionReason = probe.reason
+            }
+        }
+
+        return zed.rainxch.core.domain.model.repository.StarredRepository(
+            repoId = repo.id,
+            repoName = repo.name,
+            repoOwner = repo.owner.login,
+            repoOwnerAvatarUrl = repo.owner.avatarUrl,
+            repoDescription = repo.description,
+            primaryLanguage = repo.language,
+            repoUrl = repo.htmlUrl,
+            stargazersCount = repo.stargazersCount,
+            forksCount = repo.forksCount,
+            openIssuesCount = repo.openIssuesCount,
+            isInstalled = installedPackageNameOrNull != null,
+            installedPackageName = installedPackageNameOrNull,
+            latestVersion = version,
+            latestReleaseUrl = releaseUrl,
+            starredAt = item.starredAt.toEpochMillisecondsOrNull(),
+            addedAt = now,
+            lastSyncedAt = now,
+            exclusionReason = exclusionReason,
+        )
+    }
 
     private fun matchesPlatform(assetName: String): Boolean {
         val name = assetName.lowercase()
@@ -438,7 +479,7 @@ internal sealed interface AssetProbe {
 /**
  * Turns a release list into either the installable release or the reason there is none.
  *
- * Every branch that used to eturn null now names itself, which is what lets the sync keep
+ * Every branch that used to `return null` now names itself, which is what lets the sync keep
  * the repository and lets the screen explain why it is hidden (#1040).
  */
 internal fun probeFor(
@@ -458,4 +499,37 @@ internal fun probeFor(
     } else {
         AssetProbe.NotInstallable(StarredExclusionReason.NO_MATCHING_ASSET)
     }
+}
+
+/**
+ * Parses a GitHub `starred_at` timestamp.
+ *
+ * The value is external input and the field is only newly populated, so it is parsed
+ * defensively: a malformed entry must cost only its ordering hint. Throwing here would
+ * happen inside the `async` that builds the row, cancel the enclosing `coroutineScope`, and
+ * fail the whole sync - writing nothing at all.
+ */
+internal fun String?.toEpochMillisecondsOrNull(): Long? {
+    val raw = this ?: return null
+    return try {
+        Instant.parse(raw).toEpochMilliseconds()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Logger.w(e) { "Unparsable starred_at '$raw'; treating the entry as oldest" }
+        null
+    }
+}
+
+/**
+ * Sets an Accept media type, replacing whatever `defaultRequest` configured.
+ *
+ * Ktor's `header()` appends, and `HttpClientFactory.defaultRequest` already sends
+ * `application/vnd.github+json`. Appending ours would put two Accept values on the request
+ * and leave the server free to answer with the generic shape - which carries no
+ * `starred_at`, i.e. exactly what this change exists to fix.
+ */
+private fun HttpRequestBuilder.acceptGitHubMediaType(mediaType: String) {
+    headers.remove(HttpHeaders.Accept)
+    header(HttpHeaders.Accept, mediaType)
 }

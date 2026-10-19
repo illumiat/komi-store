@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 21,
-    "identityHash": "6ae6edbde87596bb8c4b23f57ae810af",
+    "identityHash": "423da97987281a32dbe47df8194b7e05",
     "entities": [
       {
         "tableName": "installed_apps",
@@ -489,7 +489,7 @@
       },
       {
         "tableName": "starred_repos",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`repoId` INTEGER NOT NULL, `repoName` TEXT NOT NULL, `repoOwner` TEXT NOT NULL, `repoOwnerAvatarUrl` TEXT NOT NULL, `repoDescription` TEXT, `primaryLanguage` TEXT, `repoUrl` TEXT NOT NULL, `stargazersCount` INTEGER NOT NULL, `forksCount` INTEGER NOT NULL, `openIssuesCount` INTEGER NOT NULL, `isInstalled` INTEGER NOT NULL, `installedPackageName` TEXT, `latestVersion` TEXT, `latestReleaseUrl` TEXT, `starredAt` INTEGER, `addedAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER NOT NULL, `exclusionReason` TEXT, PRIMARY KEY(`repoId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`repoId` INTEGER NOT NULL, `repoName` TEXT NOT NULL, `repoOwner` TEXT NOT NULL, `repoOwnerAvatarUrl` TEXT NOT NULL, `repoDescription` TEXT, `primaryLanguage` TEXT, `repoUrl` TEXT NOT NULL, `stargazersCount` INTEGER NOT NULL, `forksCount` INTEGER NOT NULL, `openIssuesCount` INTEGER NOT NULL, `isInstalled` INTEGER NOT NULL, `installedPackageName` TEXT, `latestVersion` TEXT, `latestReleaseUrl` TEXT, `starredAt` INTEGER, `addedAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER NOT NULL, `exclusionReason` TEXT DEFAULT NULL, PRIMARY KEY(`repoId`))",
         "fields": [
           {
             "fieldPath": "repoId",
@@ -590,7 +590,8 @@
           {
             "fieldPath": "exclusionReason",
             "columnName": "exclusionReason",
-            "affinity": "TEXT"
+            "affinity": "TEXT",
+            "defaultValue": "NULL"
           }
         ],
         "primaryKey": {
@@ -900,7 +901,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6ae6edbde87596bb8c4b23f57ae810af')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '423da97987281a32dbe47df8194b7e05')"
     ]
   }
 }

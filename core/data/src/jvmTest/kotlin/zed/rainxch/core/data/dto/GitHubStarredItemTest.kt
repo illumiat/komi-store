@@ -7,9 +7,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
- * `GET /user/starred` answers in two different shapes depending on the requested media
- * type. These tests pin the one we now rely on, so a future refactor cannot quietly go
- * back to the bare shape and lose the star time again (#822).
+ * `GET /user/starred` answers in two different shapes depending on the requested media type.
+ * These tests pin both, so a future refactor cannot quietly go back to the bare shape and
+ * lose the star time again (#822), and a host that ignores the media type cannot break the
+ * sync by answering with the bare shape instead of the wrapper.
  */
 class GitHubStarredItemTest {
     private val json =
@@ -49,7 +50,7 @@ class GitHubStarredItemTest {
             ]
             """.trimIndent()
 
-        val items = json.decodeFromString<List<GitHubStarredItem>>(payload)
+        val items = parseStarredPage(json, json.parseToJsonElement(payload))
 
         assertEquals(1, items.size)
         val item = items.single()
@@ -62,11 +63,24 @@ class GitHubStarredItemTest {
     fun `an entry without a star time keeps the repository and stays unsorted-last`() {
         val payload = """[{ "repo": $repoJson }]""".trimIndent()
 
-        val item = json.decodeFromString<List<GitHubStarredItem>>(payload).single()
+        val item = parseStarredPage(json, json.parseToJsonElement(payload)).single()
 
         // The repository is still usable; only the ordering hint is missing.
         assertNull(item.starredAt)
         assertNotNull(item.repo)
         assertEquals("Hello-World", item.repo.name)
+    }
+
+    @Test
+    fun `a bare repository entry is normalised instead of failing the whole page`() {
+        // What a host returns when it ignores the star+json media type. Decoding must not
+        // throw: one unexpected shape would otherwise fail the entire sync and write nothing.
+        val payload = """[$repoJson]""".trimIndent()
+
+        val item = parseStarredPage(json, json.parseToJsonElement(payload)).single()
+
+        assertNull(item.starredAt)
+        assertEquals("Hello-World", item.repo.name)
+        assertEquals(1296269L, item.repo.id)
     }
 }

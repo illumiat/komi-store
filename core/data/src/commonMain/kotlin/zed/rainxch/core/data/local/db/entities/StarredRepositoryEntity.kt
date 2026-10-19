@@ -1,5 +1,6 @@
 package zed.rainxch.core.data.local.db.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -27,6 +28,11 @@ data class StarredRepositoryEntity(
      * Name of a [zed.rainxch.core.domain.model.repository.StarredExclusionReason]; null for
      * repositories that are offered for install. Stored as text so an unknown reason from a
      * newer build degrades to "hidden" rather than crashing the mapper.
+     *
+     * `defaultValue` is spelled out so the exported schema, the DDL a fresh install generates
+     * and the DDL MIGRATION_20_21 produces all agree. Room compares a column's default on
+     * open, and every other nullable column added this way in this schema declares it too.
      */
+    @ColumnInfo(defaultValue = "NULL")
     val exclusionReason: String? = null,
 )

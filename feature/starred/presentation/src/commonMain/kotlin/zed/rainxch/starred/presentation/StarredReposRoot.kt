@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
@@ -30,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -39,6 +41,7 @@ import kotlinx.collections.immutable.toPersistentList
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import zed.rainxch.core.domain.model.repository.StarredExclusionReason
 import zed.rainxch.core.presentation.components.ScrollbarContainer
 import zed.rainxch.core.presentation.components.bars.KomiTopBar
 import zed.rainxch.core.presentation.components.bars.KomiTopBarSize
@@ -59,7 +62,6 @@ import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.utils.arrowKeyScroll
-import zed.rainxch.core.domain.model.repository.StarredExclusionReason
 import zed.rainxch.githubstore.core.presentation.res.*
 import zed.rainxch.starred.presentation.components.StarredRepositoryItem
 import zed.rainxch.starred.presentation.model.StarredRepositoryUi
@@ -131,7 +133,8 @@ fun StarredReposScreen(
                     )
                 }
 
-                state.starredRepositories.isEmpty() && !state.isSyncing -> {                    EmptyStateContent(
+                state.starredRepositories.isEmpty() && !state.isSyncing -> {
+                    EmptyStateContent(
                         title = stringResource(Res.string.no_starred_repos),
                         message = stringResource(Res.string.star_repos_hint),
                         icon = Icons.Default.Star,
@@ -199,6 +202,26 @@ fun StarredReposScreen(
                                                 },
                                             )
                                         }
+
+                                        // Directly after the header, not after the whole list:
+                                        // the disclosure would otherwise reveal content at the
+                                        // far end of a long list, with only the label changing
+                                        // where the user tapped.
+                                        if (state.isShowingHidden) {
+                                            items(
+                                                items = state.hiddenRepositories,
+                                                key = { "hidden-${it.repoId}" },
+                                                // Full-line, matching the header and the compact
+                                                // row's intent: a narrow adaptive-grid cell would
+                                                // make a withheld repo look like a normal card.
+                                                span = { StaggeredGridItemSpan.FullLine },
+                                            ) { repo ->
+                                                HiddenRepositoryRow(
+                                                    repository = repo,
+                                                    modifier = Modifier.animateItem(),
+                                                )
+                                            }
+                                        }
                                     }
 
                                     items(
@@ -222,18 +245,6 @@ fun StarredReposScreen(
                                             },
                                             modifier = Modifier.animateItem(),
                                         )
-                                    }
-
-                                    if (state.isShowingHidden) {
-                                        items(
-                                            items = state.hiddenRepositories,
-                                            key = { "hidden-${it.repoId}" },
-                                        ) { repo ->
-                                            HiddenRepositoryRow(
-                                                repository = repo,
-                                                modifier = Modifier.animateItem(),
-                                            )
-                                        }
                                     }
                                 }
                             }
@@ -449,12 +460,27 @@ private fun HiddenRepositoriesHeader(
     onClick: () -> Unit,
 ) {
     val colors = LocalPersonality.current.colors
+    val expandedLabel =
+        stringResource(
+            if (isExpanded) {
+                Res.string.starred_hidden_repos_hide
+            } else {
+                Res.string.starred_hidden_repos_show
+            },
+        )
 
     KomiSurface(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick),
+                // `toggleable` rather than `clickable`: this control reveals a section, so a
+                // screen reader has to announce that it is a control and whether the section
+                // is currently expanded. AppsSectionHeader is the established pattern here.
+                .toggleable(
+                    value = isExpanded,
+                    role = Role.Button,
+                    onValueChange = { onClick() },
+                ),
         elevation = KomiSurfaceElevation.Flat,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     ) {
@@ -475,14 +501,7 @@ private fun HiddenRepositoriesHeader(
                 modifier = Modifier.weight(1f),
             )
             KomiText(
-                text =
-                    stringResource(
-                        if (isExpanded) {
-                            Res.string.starred_hidden_repos_hide
-                        } else {
-                            Res.string.starred_hidden_repos_show
-                        },
-                    ),
+                text = expandedLabel,
                 role = KomiTextRole.Label,
                 color = colors.primary,
                 uppercase = false,
@@ -514,18 +533,23 @@ private fun HiddenRepositoryRow(
                 color = colors.onSurface,
                 uppercase = false,
             )
-            KomiText(
-                text = exclusionReasonLabel(repository.exclusionReason),
-                role = KomiTextRole.Label,
-                color = colors.onSurfaceVariant,
-                uppercase = false,
-            )
+            // A row only reaches this composable from `hiddenRepositories`, which is built from
+            // `exclusionReason != null`. Taking the reason as non-null keeps the label from
+            // having to invent an explanation it cannot know.
+            repository.exclusionReason?.let { reason ->
+                KomiText(
+                    text = exclusionReasonLabel(reason),
+                    role = KomiTextRole.Label,
+                    color = colors.onSurfaceVariant,
+                    uppercase = false,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun exclusionReasonLabel(reason: StarredExclusionReason?): String =
+private fun exclusionReasonLabel(reason: StarredExclusionReason): String =
     when (reason) {
         StarredExclusionReason.NO_RELEASES -> stringResource(Res.string.starred_hidden_reason_no_releases)
         StarredExclusionReason.PRERELEASE_ONLY ->
@@ -534,7 +558,6 @@ private fun exclusionReasonLabel(reason: StarredExclusionReason?): String =
             stringResource(Res.string.starred_hidden_reason_no_matching_asset)
         StarredExclusionReason.PROBE_FAILED ->
             stringResource(Res.string.starred_hidden_reason_probe_failed)
-        null -> stringResource(Res.string.starred_hidden_reason_probe_failed)
     }
 
 @Preview
