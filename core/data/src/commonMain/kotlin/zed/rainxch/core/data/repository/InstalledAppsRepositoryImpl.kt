@@ -376,16 +376,15 @@ class InstalledAppsRepositoryImpl(
             // device does not run. True no matter how the build arrived — sideloaded, refreshed
             // while checking was off, or after the stored identity was cleared. Only asked for
             // tags version math cannot speak for (unknown schemes, opaque markers).
+            val tagNeedsSelfAttestation =
+                VersionMath.isTimestampTrackedTag(matchedRelease.tagName) ||
+                    VersionMath.detectScheme(matchedRelease.tagName) == VersionMath.Scheme.Unknown
+            val tagRunsRelease =
+                VersionMath.isExactSameVersion(matchedRelease.tagName, app.installedVersion)
+            val selfAttestationApplies =
+                bound == null && primaryAsset.digest != null && tagRunsRelease && tagNeedsSelfAttestation
             val selfAttestedDigest =
-                if (
-                    bound == null &&
-                    primaryAsset.digest != null &&
-                    VersionMath.isExactSameVersion(matchedRelease.tagName, app.installedVersion) &&
-                    (
-                        VersionMath.isTimestampTrackedTag(matchedRelease.tagName) ||
-                            VersionMath.detectScheme(matchedRelease.tagName) == VersionMath.Scheme.Unknown
-                    )
-                ) {
+                if (selfAttestationApplies) {
                     packageMonitor
                         .getInstalledPackageInfo(packageName)
                         ?.apkPath

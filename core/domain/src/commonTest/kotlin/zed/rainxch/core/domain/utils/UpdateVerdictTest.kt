@@ -951,7 +951,6 @@ class UpdateVerdictTest {
         assertTrue(bound.isUpdateAvailable)
     }
 
-
     @Test
     fun an_asset_replaced_in_place_with_identical_bytes_is_not_a_new_build() {
         val result =
@@ -976,7 +975,6 @@ class UpdateVerdictTest {
             )
         assertFalse(result.isUpdateAvailable)
     }
-
 
     // The gate leans on shapes, not on parsing quirks: a tag that is not a version at all leaves
     // version math with nothing to stand on, while a semantic version keeps the bytes out of it.
@@ -1019,13 +1017,11 @@ class UpdateVerdictTest {
                 storedAssetDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 matchedAssetDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 selfAttestedDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
             )
         assertFalse(result.isUpdateAvailable)
     }
 
     @Test
-
     fun a_skip_survives_an_in_place_replacement_of_identical_bytes() {
         val result =
             decide(
@@ -1103,7 +1099,6 @@ class UpdateVerdictTest {
     }
 
     @Test
-
     fun attested_evidence_stays_out_of_reconcilable_tags() {
         // Same semver string: version math already speaks, the bytes are not consulted.
         val result =
@@ -1127,6 +1122,5 @@ class UpdateVerdictTest {
                 skippedTag = "testbuild-all-prs-20261007",
             )
         assertFalse(result.isUpdateAvailable)
-
     }
 }

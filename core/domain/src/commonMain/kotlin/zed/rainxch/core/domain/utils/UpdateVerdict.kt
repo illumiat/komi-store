@@ -141,13 +141,11 @@ object UpdateVerdict {
         // evidence — it reports; sameness is also evidence — it keeps the other voices from
         // reporting. A digest that cannot be compared drops out and leaves the decision to the
         // existing paths.
+        val tagNeedsSelfAttestation =
+            timestampTracked || VersionMath.detectScheme(matched.tag) == VersionMath.Scheme.Unknown
+        val hasBothDigests = selfAttestedDigest != null && matched.assetDigest != null
         val selfAttestedSameFile =
-            if (
-                selfAttestedDigest != null &&
-                matched.assetDigest != null &&
-                sameTag &&
-                (timestampTracked || VersionMath.detectScheme(matched.tag) == VersionMath.Scheme.Unknown)
-            ) {
+            if (hasBothDigests && sameTag && tagNeedsSelfAttestation) {
                 selfAttestedDigest == matched.assetDigest
             } else {
                 null

@@ -435,6 +435,8 @@ class DefaultDownloadOrchestratorParkTest {
             filePath: String,
             expectedDigest: String,
         ): String? = null
+
+        override suspend fun computeSha256(filePath: String): String? = null
     }
 
     private object FakeInstaller : Installer {
