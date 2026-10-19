@@ -36,6 +36,7 @@ import zed.rainxch.core.domain.model.installation.InstallerType
 import zed.rainxch.core.domain.model.repository.DiscoveryPlatform
 import zed.rainxch.core.domain.model.settings.AppLanguages
 import zed.rainxch.core.domain.model.settings.TranslationProvider
+import zed.rainxch.core.domain.repository.SYSTEM_DEFAULT_DISPLAY_MODE_ID
 import zed.rainxch.core.domain.repository.TweaksRepository
 
 class TweaksRepositoryImpl(
@@ -239,6 +240,13 @@ class TweaksRepositoryImpl(
     override suspend fun setScrollbarEnabled(enabled: Boolean) {
         migrationDeferred.await()
         ksafe.safePut(K_SCROLLBAR_ENABLED, enabled)
+    }
+
+    override fun getDisplayModeId(): Flow<Int> = gatedGetFlow(K_DISPLAY_MODE_ID, SYSTEM_DEFAULT_DISPLAY_MODE_ID)
+
+    override suspend fun setDisplayModeId(modeId: Int) {
+        migrationDeferred.await()
+        ksafe.safePut(K_DISPLAY_MODE_ID, modeId)
     }
 
     override fun getContentWidth(): Flow<ContentWidth> =
@@ -582,6 +590,7 @@ class TweaksRepositoryImpl(
         private const val K_INCLUDE_PRE_RELEASES = "include_pre_releases"
         private const val K_HIDE_SEEN_ENABLED = "hide_seen_enabled"
         private const val K_SCROLLBAR_ENABLED = "scrollbar_enabled"
+        private const val K_DISPLAY_MODE_ID = "display_mode_id"
         private const val K_TRANSLATION_PROVIDER = "translation_provider"
         private const val K_YOUDAO_APP_KEY = "youdao_app_key"
         private const val K_YOUDAO_APP_SECRET = "youdao_app_secret"
