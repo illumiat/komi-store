@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.core.content.ContextCompat
 import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,7 +23,10 @@ import zed.rainxch.core.data.services.UpdateScheduler
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
+import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
+import zed.rainxch.core.domain.model.installation.PendingInstallResolution
 import zed.rainxch.core.domain.model.installation.normalizeInstalledTag
+import zed.rainxch.core.domain.model.installation.pendingInstallResolution
 import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
@@ -68,14 +72,6 @@ class GithubStoreApp : Application() {
                 logger.warn("$it - Download notification observer start failed")
             }
         }
-
-        // Deliberately no startup sweep of `.part` / `.part.meta` here. Such a sweep would have to
-        // pass an empty claim set (the in-memory registry starts empty), and an empty claim set
-        // means "nothing is claimed", which is exactly the time-based deletion this design removed.
-        // A partial left by a paused or killed download is still *wanted* — dropping the bytes on
-        // launch would make pause/resume impossible across a restart. The one-shot lazy sweep in
-        // DefaultDownloadOrchestrator now owns cleanup: it runs at the first enqueue and counts the
-        // just-enqueued asset as a claim, so it never deletes the partial it is about to resume.
 
         scheduleBackgroundUpdateChecks()
         registerSelfAsInstalledApp()
@@ -260,6 +256,8 @@ class GithubStoreApp : Application() {
 
                 repo.saveInstalledApp(selfApp)
                 Logger.i("Komi Store App: App added")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Logger.e(e) { "Komi Store App: Failed to register self as installed app" }
             }
@@ -299,32 +297,32 @@ class GithubStoreApp : Application() {
         try {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName)
-            if (systemInfo != null) {
-                val targetCode = existing.latestVersionCode ?: 0L
-                val installReachedTarget = targetCode > 0L && systemInfo.versionCode >= targetCode
-                val resolvedTag =
-                    if (installReachedTarget) {
-                        existing.pendingInstallVersion ?: existing.latestVersion
-                            ?: systemInfo.versionName
-                    } else {
-                        existing.installedVersion
-                    }
-                repo.updateApp(
-                    existing.resolvePendingFromSystem(
-                        resolvedTag = resolvedTag,
-                        versionName = systemInfo.versionName,
-                        versionCode = systemInfo.versionCode,
-                    ),
-                )
-                repo.setPendingInstallFilePath(packageName, path = null)
-                Logger.i {
-                    "Resolved self-update pending install: ${systemInfo.versionName} (code=${systemInfo.versionCode}, tag=$resolvedTag)"
+            when (val resolution = existing.pendingInstallResolution(systemInfo)) {
+                PendingInstallResolution.Keep -> {
+                    Logger.i { "Kept parked self-update (target not proven)" }
                 }
-            } else {
-                repo.updatePendingStatus(packageName, false)
-                repo.setPendingInstallFilePath(packageName, path = null)
-                Logger.i { "Resolved self-update pending install (no system info)" }
+
+                is PendingInstallResolution.Reached -> {
+                    repo.updateApp(existing.resolvePendingFromSystem(resolution))
+                    try {
+                        val disposal =
+                            repo.discardParkedInstall(packageName, existing.pendingInstallFilePath)
+                        if (disposal == ParkedInstallDisposal.Discarded) {
+                            Logger.i {
+                                "Resolved self-update pending install: ${resolution.versionName} (code=${resolution.versionCode}, tag=${resolution.resolvedTag})"
+                            }
+                        } else {
+                            Logger.w { "Parked self-update is not gone yet; the next sync will retry" }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.e(e) { "Parked self-update not discarded; the next sync will retry" }
+                    }
+                }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Logger.e(e) { "Failed to resolve self-update pending install" }
         }

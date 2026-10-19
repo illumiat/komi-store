@@ -1,8 +1,5 @@
 package zed.rainxch.core.domain.system
 
-// What a stage means to a screen that is only drawing progress. The library and the details screen
-// translate from here into their own state types, so "is this stage live" gets one answer instead
-// of being re-derived in every consumer, where the tables can drift apart.
 enum class DownloadStagePhase {
     Live,
     Installing,
@@ -19,6 +16,7 @@ enum class DownloadStagePhase {
 
                 DownloadStage.Installing -> Installing
 
+                DownloadStage.Paused,
                 DownloadStage.AwaitingInstall,
                 DownloadStage.Completed,
                 DownloadStage.Cancelled,

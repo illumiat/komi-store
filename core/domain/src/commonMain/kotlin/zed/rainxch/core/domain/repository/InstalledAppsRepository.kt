@@ -2,6 +2,7 @@ package zed.rainxch.core.domain.repository
 
 import kotlinx.coroutines.flow.Flow
 import zed.rainxch.core.domain.model.installation.InstalledApp
+import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 
 interface InstalledAppsRepository {
@@ -103,15 +104,17 @@ interface InstalledAppsRepository {
         assetName: String? = null,
     )
 
-    // Both metadata parameters are required on purpose: the write binds them unconditionally, so
-    // omitting one would silently erase a parked version or asset name that tag resolution reads
-    // back later. Clearing is what setPendingInstallFilePath above is for.
     suspend fun markAwaitingInstall(
         packageName: String,
         path: String,
         version: String?,
         assetName: String?,
     )
+
+    suspend fun discardParkedInstall(
+        packageName: String,
+        expectedPath: String?,
+    ): ParkedInstallDisposal
 
     suspend fun previewMatchingAssets(
         owner: String,

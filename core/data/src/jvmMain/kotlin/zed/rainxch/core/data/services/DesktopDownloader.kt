@@ -1,7 +1,6 @@
 package zed.rainxch.core.data.services
 
 import co.touchlab.kermit.Logger
-import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -25,8 +24,9 @@ import zed.rainxch.core.data.download.PartialDisposal
 import zed.rainxch.core.data.download.PartialIdentity
 import zed.rainxch.core.data.download.PartialNaming
 import zed.rainxch.core.data.download.PartialOwnership
-import zed.rainxch.core.data.download.PartialReuse
 import zed.rainxch.core.data.download.PartialRetry
+import zed.rainxch.core.data.download.PartialReuse
+import zed.rainxch.core.data.download.ProgressThrottle
 import zed.rainxch.core.data.download.RangeDecision
 import zed.rainxch.core.data.download.RangeRequest
 import zed.rainxch.core.data.network.GithubAssetAuth
@@ -37,6 +37,7 @@ import zed.rainxch.core.domain.model.settings.ProxyScope
 import zed.rainxch.core.domain.network.AssetIdentity
 import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.network.Downloader
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.Authenticator
@@ -48,6 +49,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.coroutineContext
 
 class DesktopDownloader(
     private val files: FileLocationsProvider,
@@ -61,13 +63,37 @@ class DesktopDownloader(
 
     private val nameLocks = ConcurrentHashMap<String, Mutex>()
 
-    private fun buildClient(): OkHttpClient {
+    private val clientLock = Any()
+    private var cachedConfig: ProxyConfig? = null
+    private var cachedClient: OkHttpClient? = null
+
+    private fun downloadClient(): OkHttpClient {
+        val config = ProxyManager.currentConfig(ProxyScope.DOWNLOAD)
+        if (!config.isCacheable()) return buildClient(config)
+        synchronized(clientLock) {
+            cachedClient?.takeIf { cachedConfig == config }?.let { return it }
+            cachedClient?.connectionPool?.evictAll()
+            return buildClient(config).also {
+                cachedConfig = config
+                cachedClient = it
+            }
+        }
+    }
+
+    private fun ProxyConfig.isCacheable(): Boolean =
+        when (this) {
+            ProxyConfig.None, is ProxyConfig.Http -> true
+            ProxyConfig.System -> false
+            is ProxyConfig.Socks -> username == null || password == null
+        }
+
+    private fun buildClient(config: ProxyConfig): OkHttpClient {
         Authenticator.setDefault(null)
 
         return OkHttpClient
             .Builder()
             .apply {
-                when (val config = ProxyManager.currentConfig(ProxyScope.DOWNLOAD)) {
+                when (config) {
                     is ProxyConfig.None -> {
                         proxy(Proxy.NO_PROXY)
                     }
@@ -114,7 +140,7 @@ class DesktopDownloader(
     ): Flow<DownloadProgress> =
 
         flow {
-            val client = buildClient()
+            val client = downloadClient()
 
             val dir = File(files.userDownloadsDir())
             if (!dir.exists()) dir.mkdirs()
@@ -159,7 +185,6 @@ class DesktopDownloader(
                             )
                             break
                         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                            // An interruption keeps the partial: deletion is never driven by cancellation.
                             throw e
                         } catch (e: PartialRestart) {
                             if (restartsMade >= MAX_RESTARTS) {
@@ -176,7 +201,6 @@ class DesktopDownloader(
                         } catch (e: PartialTerminal) {
                             throw e
                         } catch (e: Exception) {
-                            // A cancelled Call surfaces as a plain IOException; do not turn that into a retry.
                             coroutineContext.ensureActive()
                             if (!PartialRetry.hasAttemptsLeft(attemptsMade + 1)) {
                                 Logger.e(e) {
@@ -214,8 +238,6 @@ class DesktopDownloader(
         emit: suspend (DownloadProgress) -> Unit,
     ) {
         val stored = readIdentity(metaFile)
-        // A null identity cannot be verified, so decideReuse fails closed and the transfer
-        // starts from zero rather than resuming bytes it cannot prove.
         val reusable =
             PartialOwnership.decideReuse(
                 partExists = partFile.exists(),
@@ -227,9 +249,6 @@ class DesktopDownloader(
         if (!reusable) {
             partFile.delete()
             metaFile.delete()
-            // Truncate rather than trust the delete: a handle another process holds makes it fail
-            // silently on Windows, and `resumeFrom` below is read from the file, not the decision.
-            // Failing closed costs one re-download; failing open costs a corrupt APK.
             if (partFile.exists()) {
                 val truncated =
                     runCatching { FileOutputStream(partFile, false).close() }
@@ -264,8 +283,6 @@ class DesktopDownloader(
         val request = buildRequest(url, RangeRequest.headerValue(resumeFrom))
         val call = client.newCall(request)
         activeDownloads[downloadId] = call
-        // A cancel that arrived before this Call existed: failing it here reaches the same
-        // PartialAborted path, which stops the transfer without deleting the bytes.
         if (cancelRequested.remove(downloadId)) call.cancel()
         val cancellationHandle =
             coroutineContext[kotlinx.coroutines.Job]?.invokeOnCompletion { cause ->
@@ -273,7 +290,6 @@ class DesktopDownloader(
             }
         try {
             call.execute().use { response ->
-                // The offset here is the only proof the server honoured our `Range`.
                 val contentRange = ContentRange.parse(response.header("Content-Range"))
                 val decision = RangeRequest.decide(response.code, resumeFrom, contentRange)
                 if (decision == RangeDecision.RESTART) {
@@ -291,7 +307,6 @@ class DesktopDownloader(
                 }
 
                 val total = totalBytes(response, resumeFrom, contentRange)
-                // Total disagreeing with the sidecar means a rolling tag reused the name: start over.
                 if (decision == RangeDecision.APPEND &&
                     resumeFrom > 0L &&
                     stored != null &&
@@ -304,10 +319,6 @@ class DesktopDownloader(
                     throw PartialRestart()
                 }
 
-                // Write the sidecar before any byte, so a kill mid-transfer always leaves a partial a
-                // later attempt can attribute. The identity recorded here is what makes the next
-                // attempt's digest/assetId comparison meaningful; with only the size, a same-size
-                // re-upload would resume into garbage.
                 writeIdentity(
                     metaFile,
                     identity?.let {
@@ -324,8 +335,9 @@ class DesktopDownloader(
                 val base = if (append) resumeFrom else 0L
 
                 response.body.byteStream().use { input ->
-                    FileOutputStream(partFile, append).use { output ->
+                    BufferedOutputStream(FileOutputStream(partFile, append), DEFAULT_BUFFER_SIZE).use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        val throttle = ProgressThrottle()
                         var downloaded = base
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
@@ -335,7 +347,8 @@ class DesktopDownloader(
                                 total?.takeIf { it > 0L }?.let {
                                     ((downloaded * 100L) / it).toInt()
                                 }
-                            emit(DownloadProgress(downloaded, total, percent))
+                            val progress = DownloadProgress(downloaded, total, percent)
+                            if (throttle.shouldEmit(progress)) emit(progress)
                         }
                     }
                 }
@@ -347,7 +360,6 @@ class DesktopDownloader(
                     )
                 }
                 if (total != null && total > 0L && finalLength != total) {
-                    // A truncated stream is still a valid prefix: keep it so the retry resumes.
                     throw kotlinx.io.IOException(
                         "Incomplete download: got $finalLength of $total bytes",
                     )
@@ -364,8 +376,6 @@ class DesktopDownloader(
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {
-            // A direct cancelDownload cancels the Call but not this coroutine; without this guard
-            // the retry loop would start the transfer again. The partial is kept either way.
             if (call.isCanceled()) {
                 coroutineContext.ensureActive()
                 throw PartialAborted(e)
@@ -376,7 +386,10 @@ class DesktopDownloader(
         }
     }
 
-    private suspend fun buildRequest(url: String, rangeHeader: String?): Request =
+    private suspend fun buildRequest(
+        url: String,
+        rangeHeader: String?,
+    ): Request =
         Request
             .Builder()
             .url(url)
@@ -399,7 +412,10 @@ class DesktopDownloader(
             null
         }
 
-    private fun writeIdentity(metaFile: File, identity: PartialIdentity) {
+    private fun writeIdentity(
+        metaFile: File,
+        identity: PartialIdentity,
+    ) {
         try {
             metaFile.writeText(identity.serialize())
         } catch (e: Exception) {
@@ -407,7 +423,11 @@ class DesktopDownloader(
         }
     }
 
-    private fun totalBytes(response: Response, resumeFrom: Long, contentRange: ContentRange?): Long? {
+    private fun totalBytes(
+        response: Response,
+        resumeFrom: Long,
+        contentRange: ContentRange?,
+    ): Long? {
         val declared = contentRange?.total
         if (declared != null && declared > 0L) return declared
         val contentLength = response.body.contentLength()
@@ -417,14 +437,21 @@ class DesktopDownloader(
 
     private suspend fun githubToken(): String? =
         try {
-            tokenStore.currentToken()?.accessToken?.trim()?.takeIf { it.isNotEmpty() }
+            tokenStore
+                .currentToken()
+                ?.accessToken
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (_: Exception) {
             null
         }
 
-    private fun moveAtomic(source: File, target: File) {
+    private fun moveAtomic(
+        source: File,
+        target: File,
+    ) {
         try {
             Files.move(
                 source.toPath(),
@@ -444,14 +471,13 @@ class DesktopDownloader(
 
             val names = dir.list()?.toList().orEmpty()
             val liveNames = claimedNames + idsByName.keys
-            // Only legacy partials are reached by name. A canonical `<asset>.part` can be a
-            // *finished* download whose asset is called `<asset>.part`, and the delete would
-            // destroy it; canonical names are reached through their sidecar instead.
             val legacyPartNames = names.filter { PartialNaming.isLegacyPartFile(it) }
             val metaNames = names.filter { PartialNaming.isMetaFile(it) }
             val assetNames =
-                (legacyPartNames.mapNotNull { PartialNaming.assetNameOfPart(it) } +
-                    metaNames.mapNotNull { PartialNaming.assetNameOfMeta(it) }).toSet()
+                (
+                    legacyPartNames.mapNotNull { PartialNaming.assetNameOfPart(it) } +
+                        metaNames.mapNotNull { PartialNaming.assetNameOfMeta(it) }
+                ).toSet()
 
             var removed = 0
             for (assetName in assetNames) {
@@ -467,8 +493,6 @@ class DesktopDownloader(
                 removed += applyVerdict(verdict, part, meta)
 
                 if (assetName in liveNames) continue
-                // Legacy <asset>.part-<uuid> partials carry no sidecar, so the part-without-meta
-                // rule disposes of them.
                 legacyPartNames
                     .filter { PartialNaming.assetNameOfPart(it) == assetName && it != part.name }
                     .map { File(dir, it) }
@@ -478,7 +502,11 @@ class DesktopDownloader(
             removed
         }
 
-    private fun applyVerdict(verdict: OrphanVerdict, part: File, meta: File): Int {
+    private fun applyVerdict(
+        verdict: OrphanVerdict,
+        part: File,
+        meta: File,
+    ): Int {
         var removed = 0
         when (verdict) {
             OrphanVerdict.KEEP -> Unit
@@ -520,13 +548,10 @@ class DesktopDownloader(
 
     override suspend fun cancelDownload(fileName: String): Boolean =
         withContext(Dispatchers.IO) {
-
             val ids = idsByName.remove(fileName)?.toList().orEmpty()
             if (ids.isEmpty()) return@withContext false
 
             for (id in ids) {
-                // Record before looking for the Call: with none registered yet there is nothing to
-                // cancel, and the transfer picks the request up when it registers one.
                 cancelRequested.add(id)
                 activeDownloads.remove(id)?.takeIf { !it.isCanceled() }?.cancel()
             }
@@ -538,8 +563,6 @@ class DesktopDownloader(
             cancelDownload(fileName)
 
             val dir = File(files.userDownloadsDir())
-            // Take the same per-name lock the writer holds: deleting out from under an open handle
-            // fails on Windows and races the move elsewhere.
             val lock = nameLocks[fileName]
             if (lock == null) {
                 deletePartialPair(dir, fileName)
@@ -548,7 +571,10 @@ class DesktopDownloader(
             }
         }
 
-    private fun deletePartialPair(dir: File, safeName: String): Boolean {
+    private fun deletePartialPair(
+        dir: File,
+        safeName: String,
+    ): Boolean {
         val partRemoved = File(dir, PartialNaming.part(safeName)).delete()
         val metaRemoved = File(dir, PartialNaming.meta(safeName)).delete()
         return partRemoved || metaRemoved
@@ -556,12 +582,16 @@ class DesktopDownloader(
 
     private class PartialRestart : Exception()
 
-    private class PartialTerminal(message: String) : Exception(message)
+    private class PartialTerminal(
+        message: String,
+    ) : Exception(message)
 
-    private class PartialAborted(cause: Throwable) : Exception(cause)
+    private class PartialAborted(
+        cause: Throwable,
+    ) : Exception(cause)
 
     companion object {
-        private const val DEFAULT_BUFFER_SIZE = 8 * 1024
+        private const val DEFAULT_BUFFER_SIZE = 64 * 1024
         private const val MAX_RESTARTS = 2
     }
 }
