@@ -5,11 +5,13 @@ package zed.rainxch.core.data.repository
 import co.touchlab.kermit.Logger
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.put
+import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -24,11 +26,13 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import zed.rainxch.core.data.dto.GitHubStarredResponse
 import zed.rainxch.core.data.dto.GitHubStarredResponseWithTimestamp
+import zed.rainxch.core.data.dto.parseStarredPage
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.StarredRepoDao
 import zed.rainxch.core.data.mappers.toDomain
 import zed.rainxch.core.data.mappers.toEntity
 import zed.rainxch.core.data.network.GitHubClientProvider
+import zed.rainxch.core.data.network.gitHubJson
 import zed.rainxch.core.domain.model.error.RateLimitException
 import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.domain.repository.StarredRepository
@@ -48,6 +52,13 @@ class StarredRepositoryImpl(
 
     companion object {
         private const val SYNC_THRESHOLD_MS = 24 * 60 * 60 * 1000L
+
+        /**
+         * Makes a starred endpoint answer with `{starred_at, repo}` entries. Without it the
+         * entry is the bare repository and `starred_at` does not exist at all, which is what
+         * left the "Recently starred" sort falling back to its name tie-breaker (#822).
+         */
+        private const val STARRED_MEDIA_TYPE = "application/vnd.github.star+json"
     }
 
     override fun getAllStarred(): Flow<List<zed.rainxch.core.domain.model.repository.StarredRepository>> =
@@ -111,6 +122,7 @@ class StarredRepositoryImpl(
                 while (true) {
                     val response =
                         httpClient.get("/users/$sanitized/starred") {
+                            acceptGitHubMediaType(STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -125,9 +137,9 @@ class StarredRepositoryImpl(
                         return@withContext Result.failure(Exception(reason))
                     }
 
-                    val repos: List<GitHubStarredResponse> = response.body()
+                    val repos = parseStarredPage(gitHubJson, response.body())
                     if (repos.isEmpty()) break
-                    allRepos.addAll(repos)
+                    allRepos.addAll(repos.map { it.repo.copy(starredAt = it.starredAt) })
                     if (repos.size < perPage) break
                     page++
                 }
@@ -161,10 +173,7 @@ class StarredRepositoryImpl(
                                             installedPackageName = firstInstalled?.packageName,
                                             latestVersion = release.version,
                                             latestReleaseUrl = release.url,
-                                            starredAt =
-                                                repo.starredAt?.let {
-                                                    Instant.parse(it).toEpochMilliseconds()
-                                                },
+                                            starredAt = repo.starredAt.toEpochMillisecondsOrNull(),
                                             addedAt = now,
                                             lastSyncedAt = now,
                                         )
@@ -207,7 +216,7 @@ class StarredRepositoryImpl(
                 while (true) {
                     val response =
                         httpClient.get("/user/starred") {
-                            header("Accept", "application/vnd.github.star+json")
+                            acceptGitHubMediaType(STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -223,7 +232,7 @@ class StarredRepositoryImpl(
                         )
                     }
 
-                    val repos: List<GitHubStarredResponseWithTimestamp> = response.body()
+                    val repos = parseStarredPage(gitHubJson, response.body())
 
                     if (repos.isEmpty()) break
 
@@ -261,10 +270,7 @@ class StarredRepositoryImpl(
                                         installedPackageName = firstInstalled?.packageName,
                                         latestVersion = release?.version,
                                         latestReleaseUrl = release?.url,
-                                        starredAt =
-                                            repo.starredAt?.let {
-                                                Instant.parse(it).toEpochMilliseconds()
-                                            },
+                                        starredAt = repo.starredAt.toEpochMillisecondsOrNull(),
                                         addedAt = now,
                                         lastSyncedAt = now,
                                     )
@@ -403,4 +409,35 @@ class StarredRepositoryImpl(
     private data class AssetNetworkModel(
         val name: String,
     )
+}
+
+/**
+ * Sets an Accept media type, replacing whatever `defaultRequest` configured.
+ *
+ * Ktor's `header()` appends, and `HttpClientFactory.defaultRequest` already sends
+ * `application/vnd.github+json`. Appending ours put two Accept values on the request and
+ * left the server free to answer with the generic shape, which carries no `starred_at`.
+ */
+private fun HttpRequestBuilder.acceptGitHubMediaType(mediaType: String) {
+    headers.remove(HttpHeaders.Accept)
+    header(HttpHeaders.Accept, mediaType)
+}
+
+/**
+ * Parses a GitHub `starred_at` timestamp.
+ *
+ * The value is external input, and the parse runs inside the `async` that builds a row. An
+ * unguarded throw would cancel the enclosing `coroutineScope` and fail the whole sync, so a
+ * malformed entry costs only its ordering hint.
+ */
+internal fun String?.toEpochMillisecondsOrNull(): Long? {
+    val raw = this ?: return null
+    return try {
+        Instant.parse(raw).toEpochMilliseconds()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IllegalArgumentException) {
+        Logger.w(e) { "Unparsable starred_at '$raw'; treating the entry as oldest" }
+        null
+    }
 }
