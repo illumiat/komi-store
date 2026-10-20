@@ -6,6 +6,30 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class UpdateVerdictTest {
+    // The id changed because the asset was re-uploaded, but the bytes did not: a locally
+    // confirmed digest that equals the release's digest must keep the verdict at "no update".
+    @Test
+    fun a_confirmed_matching_digest_makes_a_republished_tag_a_non_update() {
+        val digest = "sha256:aaaa"
+        val result =
+            decide(
+                installedTag = "2.0.5",
+                installedVersionName = "2.0.5",
+                matchedTag = "v2.0.5",
+                matchedPublishedAt = "2026-10-20T00:00:00Z",
+                matchedAssetId = 900L,
+                matchedAssetDigest = digest,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 899L,
+                        assetDigest = digest,
+                        releasePublishedAt = "2026-10-01T00:00:00Z",
+                    ),
+            )
+
+        assertFalse(result.isUpdateAvailable)
+    }
+
     // A real device reports versionName "2.0.5" while the tag is "v2.0.5". That name match
     // used to short-circuit the verdict before the re-release check could run.
     @Test

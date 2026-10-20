@@ -19,7 +19,6 @@ import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
 import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
 import zed.rainxch.core.data.local.db.dao.recordUnmatchedRelease
-import zed.rainxch.core.data.local.db.dao.resolveInstalledReleasePublishedAt
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
@@ -272,18 +271,16 @@ class InstalledAppsRepositoryImpl(
 
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
-            val installedPublishedAt =
-                installedAppsDao.resolveInstalledReleasePublishedAt(app, releases)
             val bound =
-                if (app.installedAssetId != null || app.installedAssetDigest != null) {
-                    UpdateVerdict.Bound(
-                        assetId = app.installedAssetId,
-                        assetDigest = app.installedAssetDigest,
-                        releasePublishedAt = installedPublishedAt,
-                    )
-                } else {
-                    null
-                }
+                resolveInstalledBinding(
+                    app = app,
+                    releases = releases,
+                    matchedRelease = matchedRelease,
+                    matchedAsset = primaryAsset,
+                    dao = installedAppsDao,
+                    packageMonitor = packageMonitor,
+                    verifier = digestVerifier,
+                )
 
             // A rolling tag reuses one tag string across builds. Without a binding, only the
             // installed file can tell whether the release is the build the device runs.
