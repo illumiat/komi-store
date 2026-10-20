@@ -130,6 +130,13 @@ class TweaksRepositoryImpl(
     override fun getInstallerType(): Flow<InstallerType> =
         gatedGetFlow(K_INSTALLER_TYPE, "").map { InstallerType.fromName(it.ifEmpty { null }) }
 
+    override fun getExternalInstallerPackage(): Flow<String> = gatedGetFlow(K_EXTERNAL_INSTALLER, "")
+
+    override suspend fun setExternalInstallerPackage(packageName: String) {
+        migrationDeferred.await()
+        ksafe.safePut(K_EXTERNAL_INSTALLER, packageName)
+    }
+
     override suspend fun setInstallerType(type: InstallerType) {
         migrationDeferred.await()
         ksafe.safePut(K_INSTALLER_TYPE, type.name)
@@ -583,6 +590,7 @@ class TweaksRepositoryImpl(
         private const val K_DISCOVERY_PLATFORMS = "discovery_platforms"
         private const val K_AUTO_DETECT_CLIPBOARD = "auto_detect_clipboard_links"
         private const val K_INSTALLER_TYPE = "installer_type"
+        private const val K_EXTERNAL_INSTALLER = "external_installer_package"
         private const val K_INSTALLER_ATTRIBUTION = "installer_attribution"
         private const val K_AUTO_UPDATE = "auto_update_enabled"
         private const val K_UPDATE_CHECK_ENABLED = "update_check_enabled"

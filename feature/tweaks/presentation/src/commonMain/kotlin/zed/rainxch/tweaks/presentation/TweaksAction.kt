@@ -88,6 +88,14 @@ sealed interface TweaksAction {
         val scope: ProxyScope,
     ) : TweaksAction
 
+    data class OnExternalInstallerPickerOpenChanged(
+        val open: Boolean,
+    ) : TweaksAction
+
+    data class OnExternalInstallerSelected(
+        val packageName: String,
+    ) : TweaksAction
+
     data class OnInstallerTypeSelected(
         val type: InstallerType,
     ) : TweaksAction
