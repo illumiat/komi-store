@@ -518,6 +518,8 @@ class DefaultDownloadOrchestrator(
                         releaseId = releaseId,
                         assetId = spec.asset.id,
                         assetDigest = spec.asset.digest,
+                        releasePublishedAt =
+                            app.latestReleasePublishedAt.takeIf { app.latestReleaseId == spec.releaseId },
                     ).withLatestSnapshot(
                         version = spec.releaseTag,
                         assetName = spec.asset.name,
@@ -551,7 +553,10 @@ class DefaultDownloadOrchestrator(
             }
         val releasePublishedAt =
             try {
-                installedAppsRepository.getAppByPackage(spec.packageName)?.latestReleasePublishedAt
+                installedAppsRepository
+                    .getAppByPackage(spec.packageName)
+                    ?.takeIf { spec.releaseId != null && it.latestReleaseId == spec.releaseId }
+                    ?.latestReleasePublishedAt
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

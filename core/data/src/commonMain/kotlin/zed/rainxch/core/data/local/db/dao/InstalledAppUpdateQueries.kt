@@ -24,15 +24,6 @@ internal suspend fun InstalledAppDao.adoptMatchedTag(
     )
 }
 
-internal suspend fun InstalledAppDao.backfillInstalledReleasePublishedAt(
-    packageName: String,
-    stored: String?,
-    fromWindow: String?,
-) {
-    if (fromWindow == null || fromWindow == stored) return
-    setInstalledReleasePublishedAt(packageName, fromWindow)
-}
-
 // The window is the fresher record; the stored value only covers a release the window no
 // longer carries (deleted upstream, or rotated out by newer releases). Backfill on a hit.
 internal suspend fun InstalledAppDao.resolveInstalledReleasePublishedAt(
