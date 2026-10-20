@@ -17,6 +17,9 @@ import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
+import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
+import zed.rainxch.core.data.local.db.dao.recordUnmatchedRelease
+import zed.rainxch.core.data.local.db.dao.resolveInstalledReleasePublishedAt
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
@@ -201,24 +204,6 @@ class InstalledAppsRepositoryImpl(
         )
     }
 
-    private suspend fun recordUnmatchedRelease(packageName: String) {
-        installedAppsDao.clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
-    }
-
-    private suspend fun adoptMatchedTag(
-        app: InstalledAppEntity,
-        matchedTag: String,
-        isUpdateAvailable: Boolean,
-    ) {
-        installedAppsDao.updateInstalledVersion(
-            packageName = app.packageName,
-            installedVersion = matchedTag,
-            installedVersionName = app.installedVersionName,
-            installedVersionCode = app.installedVersionCode,
-            isUpdateAvailable = isUpdateAvailable,
-        )
-    }
-
     override suspend fun checkForUpdates(packageName: String): Boolean =
         checkEnabledApp(packageName, recordUnmatched = true) { app ->
             fetchReleaseWindow(
@@ -281,21 +266,20 @@ class InstalledAppsRepositoryImpl(
                         "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
                 }
                 if (!recordUnmatched) return app.isUpdateAvailable
-                recordUnmatchedRelease(packageName)
+                installedAppsDao.recordUnmatchedRelease(packageName)
                 return false
             }
 
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
+            val installedPublishedAt =
+                installedAppsDao.resolveInstalledReleasePublishedAt(app, releases)
             val bound =
                 if (app.installedAssetId != null || app.installedAssetDigest != null) {
                     UpdateVerdict.Bound(
                         assetId = app.installedAssetId,
                         assetDigest = app.installedAssetDigest,
-                        releasePublishedAt =
-                            app.installedReleaseId?.let { id ->
-                                releases.firstOrNull { it.id == id }?.publishedAt
-                            },
+                        releasePublishedAt = installedPublishedAt,
                     )
                 } else {
                     null
@@ -398,7 +382,7 @@ class InstalledAppsRepositoryImpl(
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
                 )
             if (shouldRewriteTag) {
-                adoptMatchedTag(
+                installedAppsDao.adoptMatchedTag(
                     app = app,
                     matchedTag = matchedRelease.tagName,
                     isUpdateAvailable = isUpdateAvailable,
@@ -465,6 +449,7 @@ class InstalledAppsRepositoryImpl(
         newReleaseId: Long?,
         newAssetId: Long?,
         newAssetDigest: String?,
+        newReleasePublishedAt: String?,
         newAssetName: String?,
         newAssetUrl: String?,
         newVersionName: String,
@@ -500,6 +485,7 @@ class InstalledAppsRepositoryImpl(
                     releaseId = newReleaseId,
                     assetId = newAssetId,
                     assetDigest = newAssetDigest,
+                    releasePublishedAt = newReleasePublishedAt,
                     assetName = newAssetName,
                     assetUrl = newAssetUrl,
                     versionName = newVersionName,
@@ -682,12 +668,18 @@ class InstalledAppsRepositoryImpl(
         path: String,
         version: String?,
         assetName: String?,
+        releaseId: Long?,
+        assetId: Long?,
+        releasePublishedAt: String?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
             path = path,
             version = version,
             assetName = assetName,
+            releaseId = releaseId,
+            assetId = assetId,
+            releasePublishedAt = releasePublishedAt,
         )
     }
 
