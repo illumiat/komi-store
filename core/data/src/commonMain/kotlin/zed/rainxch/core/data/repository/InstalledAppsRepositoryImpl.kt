@@ -22,6 +22,7 @@ import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
 import zed.rainxch.core.data.mappers.toEntity
 import zed.rainxch.core.data.mappers.toReleaseWindow
+import zed.rainxch.core.data.mappers.toUpdateCheckWindow
 import zed.rainxch.core.data.network.GitHubClientProvider
 import zed.rainxch.core.data.network.executeRequest
 import zed.rainxch.core.domain.model.account.github.GithubRelease
@@ -220,8 +221,48 @@ class InstalledAppsRepositoryImpl(
         )
     }
 
-    // A park that matches the installed APK byte for byte is finished, whatever its tag says:
-    // test builds reuse one versionCode, so the version number alone can never prove the install.
+    override suspend fun checkForUpdates(packageName: String): Boolean =
+        checkEnabledApp(packageName, recordUnmatched = true) { app ->
+            fetchReleaseWindow(
+                owner = app.repoOwner,
+                repo = app.repoName,
+                includePreReleases = app.includePreReleases,
+                sourceHost = app.sourceHost,
+            )
+        }
+
+    override suspend fun checkForUpdatesWithReleases(
+        packageName: String,
+        releases: List<GithubRelease>,
+    ): Boolean =
+        checkEnabledApp(packageName, recordUnmatched = false) { app ->
+            releases.toUpdateCheckWindow(includePreReleases = app.includePreReleases, limit = RELEASE_WINDOW)
+        }
+
+    private suspend fun checkEnabledApp(
+        packageName: String,
+        recordUnmatched: Boolean,
+        window: suspend (InstalledAppEntity) -> List<GithubRelease>,
+    ): Boolean {
+        val stored = installedAppsDao.getAppByPackage(packageName) ?: return false
+        if (!stored.updateCheckEnabled) return false
+        val app = settleParkIfInstalledBytes(stored)
+        val releases =
+            try {
+                window(app)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.e { "Failed to check updates for $packageName: ${e.message}" }
+                installedAppsDao.updateLastChecked(packageName, System.currentTimeMillis())
+                return false
+            }
+        return checkAgainstWindow(app, releases, recordUnmatched)
+    }
+
+    // Test builds reuse one versionCode, so the bytes are the only proof the park landed.
+    // The parked digest is the strongest record; older parks fall back to their file, then to
+    // the release digest of the installed build.
     private suspend fun settleParkIfInstalledBytes(app: InstalledAppEntity): InstalledAppEntity {
         if (!app.isPendingInstall) return app
         val parkedPath = app.pendingInstallFilePath
@@ -262,9 +303,6 @@ class InstalledAppsRepositoryImpl(
         return installedAppsDao.getAppByPackage(app.packageName) ?: app
     }
 
-    // Test builds reuse one versionCode, so the bytes are the only proof the park landed. The
-    // parked digest is the strongest record; older parks fall back to their file, then to the
-    // release digest of the installed build.
     private suspend fun parkedBytesMatch(
         app: InstalledAppEntity,
         parkedPath: String,
@@ -299,24 +337,14 @@ class InstalledAppsRepositoryImpl(
             null
         }
 
-    override suspend fun checkForUpdates(packageName: String): Boolean {
-        val stored = installedAppsDao.getAppByPackage(packageName) ?: return false
-
-        if (!stored.updateCheckEnabled) {
-            return false
-        }
-
-        val app = settleParkIfInstalledBytes(stored)
+    private suspend fun checkAgainstWindow(
+        app: InstalledAppEntity,
+        releases: List<GithubRelease>,
+        recordUnmatched: Boolean,
+    ): Boolean {
+        val packageName = app.packageName
 
         try {
-            val releases =
-                fetchReleaseWindow(
-                    owner = app.repoOwner,
-                    repo = app.repoName,
-                    includePreReleases = app.includePreReleases,
-                    sourceHost = app.sourceHost,
-                )
-
             // An empty window is a failed fetch (backend error, rate limit, network), not
             // proof the repo lost its releases. Keep what the last good check found and
             // leave lastCheckedAt alone so the next check retries.
@@ -332,6 +360,7 @@ class InstalledAppsRepositoryImpl(
                     "No matching release found for ${app.appName} in window of ${releases.size}; " +
                         "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
                 }
+                if (!recordUnmatched) return app.isUpdateAvailable
                 recordUnmatchedRelease(packageName)
                 return false
             }
