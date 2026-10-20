@@ -20,8 +20,7 @@
     <ID>CyclomaticComplexMethod:DesktopInstaller.kt$DesktopInstaller$private fun determineLinuxPackageType(): LinuxPackageType</ID>
     <ID>CyclomaticComplexMethod:DhizukuInstallerServiceImpl.kt$DhizukuInstallerServiceImpl$override fun installPackage( pfd: ParcelFileDescriptor, fileSize: Long, expectedPackageName: String?, expectedVersionCode: Long, installerPackageName: String?, ): Int</ID>
     <ID>CyclomaticComplexMethod:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$override suspend fun resolveMatches(candidates: List&lt;ExternalAppCandidate&gt;): List&lt;RepoMatchResult&gt;</ID>
-    <ID>CyclomaticComplexMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun checkForUpdates(packageName: String): Boolean</ID>
-    <ID>CyclomaticComplexMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private fun resolveTrackedRelease( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, ): ResolvedRelease?</ID>
+    <ID>CyclomaticComplexMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private suspend fun checkAgainstWindow( app: InstalledAppEntity, releases: List&lt;GithubRelease&gt;, recordUnmatched: Boolean, ): Boolean</ID>
     <ID>CyclomaticComplexMethod:ProxyRepositoryImpl.kt$ProxyRepositoryImpl$private suspend fun migrateIfNeeded()</ID>
     <ID>CyclomaticComplexMethod:RateLimitInterceptor.kt$RateLimitInterceptor.Plugin$private fun parseRateLimitFromHeaders(headers: Headers): RateLimitInfo?</ID>
     <ID>CyclomaticComplexMethod:StarredRepositoryImpl.kt$StarredRepositoryImpl$override suspend fun fetchStarredForUsername( username: String, ): Result&lt;List&lt;zed.rainxch.core.domain.model.repository.StarredRepository&gt;&gt;</ID>
@@ -53,8 +52,7 @@
     <ID>LongMethod:DesktopInstaller.kt$DesktopInstaller$private fun runCommandInTerminal( command: String, terminals: List&lt;LinuxTerminal&gt;, )</ID>
     <ID>LongMethod:DhizukuInstallerServiceImpl.kt$DhizukuInstallerServiceImpl$override fun installPackage( pfd: ParcelFileDescriptor, fileSize: Long, expectedPackageName: String?, expectedVersionCode: Long, installerPackageName: String?, ): Int</ID>
     <ID>LongMethod:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$override suspend fun resolveMatches(candidates: List&lt;ExternalAppCandidate&gt;): List&lt;RepoMatchResult&gt;</ID>
-    <ID>LongMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun checkForUpdates(packageName: String): Boolean</ID>
-    <ID>LongMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private fun resolveTrackedRelease( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, ): ResolvedRelease?</ID>
+    <ID>LongMethod:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private suspend fun checkAgainstWindow( app: InstalledAppEntity, releases: List&lt;GithubRelease&gt;, recordUnmatched: Boolean, ): Boolean</ID>
     <ID>LongMethod:PackageEventReceiver.kt$PackageEventReceiver$private suspend fun handleExternalInstall( packageName: String, app: zed.rainxch.core.domain.model.installation.InstalledApp, repo: InstalledAppsRepository, monitor: PackageMonitor, )</ID>
     <ID>LongMethod:PackageEventReceiver.kt$PackageEventReceiver$private suspend fun onPackageInstalled(packageName: String)</ID>
     <ID>LongMethod:ProxyRepositoryImpl.kt$ProxyRepositoryImpl$private suspend fun migrateIfNeeded()</ID>
@@ -63,16 +61,15 @@
     <ID>LongMethod:StarredRepositoryImpl.kt$StarredRepositoryImpl$override suspend fun syncStarredRepos(forceRefresh: Boolean): Result&lt;Unit&gt;</ID>
     <ID>LongMethod:UserSessionRepositoryImpl.kt$UserSessionRepositoryImpl$override fun getUser(): Flow&lt;UserProfile?&gt;</ID>
     <ID>LongParameterList:AndroidDownloader.kt$AndroidDownloader$( client: OkHttpClient, url: String, partFile: File, metaFile: File, destination: File, downloadId: String, identity: AssetIdentity?, emit: suspend (DownloadProgress) -&gt; Unit, )</ID>
-    <ID>LongParameterList:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$( private val downloader: Downloader, private val multiSourceDownloader: MultiSourceDownloader, private val digestVerifier: DigestVerifier, private val installer: Installer, private val installedAppsRepository: InstalledAppsRepository, private val pendingInstallNotifier: PendingInstallNotifier, private val appScope: CoroutineScope, private val systemInstallSerializer: SystemInstallSerializer, private val tokenStore: TokenStore, )</ID>
+    <ID>LongParameterList:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$( private val downloader: Downloader, private val multiSourceDownloader: MultiSourceDownloader, private val assetSourceRefetcher: AssetSourceRefetcher, private val digestVerifier: DigestVerifier, private val installer: Installer, private val installedAppsRepository: InstalledAppsRepository, private val pendingInstallNotifier: PendingInstallNotifier, private val appScope: CoroutineScope, private val systemInstallSerializer: SystemInstallSerializer, private val tokenStore: TokenStore, )</ID>
+    <ID>LongParameterList:DefaultDownloadOrchestratorAssetRefetchTest.kt$DefaultDownloadOrchestratorAssetRefetchTest$( downloader: Downloader, multi: MultiSourceDownloader, verifier: DigestVerifier, repo: InstalledAppsRepository, notifier: PendingInstallNotifier, refetcher: AssetSourceRefetcher, scope: CoroutineScope, )</ID>
     <ID>LongParameterList:DesktopDownloader.kt$DesktopDownloader$( client: OkHttpClient, url: String, partFile: File, metaFile: File, destination: File, downloadId: String, identity: AssetIdentity?, emit: suspend (DownloadProgress) -&gt; Unit, )</ID>
     <ID>LongParameterList:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$( private val scanner: ExternalAppScanner, private val externalLinkDao: ExternalLinkDao, private val installedAppDao: InstalledAppDao, private val signingFingerprintDao: SigningFingerprintDao, private val ksafe: KSafe, private val legacyDataStore: DataStore&lt;Preferences&gt;, private val externalMatchApi: ExternalMatchApi, private val backendClient: BackendApiClient, private val forgejoClientRegistry: ForgejoClientRegistry, private val tweaksRepository: TweaksRepository, private val starredRepository: StarredRepository, )</ID>
     <ID>LongParameterList:InstalledAppDao.kt$InstalledAppDao$( packageName: String, available: Boolean, version: String?, assetName: String?, assetUrl: String?, assetSize: Long?, releaseId: Long?, assetId: Long?, assetDigest: String?, releaseNotes: String?, timestamp: Long, latestVersionName: String?, latestVersionCode: Long?, latestReleasePublishedAt: String?, )</ID>
     <ID>LongParameterList:InstalledAppDao.kt$InstalledAppDao$( packageName: String, variant: String?, tokens: String?, glob: String?, pickedIndex: Int?, siblingCount: Int?, )</ID>
     <ID>LongParameterList:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$( private val database: AppDatabase, private val installedAppsDao: InstalledAppDao, private val historyDao: UpdateHistoryDao, private val installer: Installer, private val clientProvider: GitHubClientProvider, private val backendApiClient: zed.rainxch.core.data.network.BackendApiClient, private val forgejoClientRegistry: zed.rainxch.core.data.network.ForgejoClientRegistry, private val packageMonitor: PackageMonitor, private val digestVerifier: DigestVerifier, )</ID>
-    <ID>LongParameterList:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, )</ID>
     <ID>LongParameterList:SilentInstallerDispatcher.kt$SilentInstallerDispatcher$( private val androidContext: Context, private val androidInstaller: Installer, private val shizukuServiceManager: ShizukuServiceManager, private val dhizukuServiceManager: DhizukuServiceManager, private val rootServiceManager: RootServiceManager, private val tweaksRepository: TweaksRepository, private val scope: CoroutineScope, )</ID>
     <ID>LoopWithTooManyJumpStatements:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$while</ID>
-    <ID>LoopWithTooManyJumpStatements:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$for</ID>
     <ID>LoopWithTooManyJumpStatements:ManifestHintExtractor.kt$ManifestHintExtractor$for</ID>
     <ID>LoopWithTooManyJumpStatements:PartialDownload.kt$PartialIdentity.Companion$for</ID>
     <ID>LoopWithTooManyJumpStatements:StarredRepositoryImpl.kt$StarredRepositoryImpl$while</ID>
@@ -190,6 +187,8 @@
     <ID>ReturnCount:BackendExternalMatchApi.kt$BackendExternalMatchApi$override suspend fun match(request: ExternalMatchRequest): Result&lt;ExternalMatchResponse&gt;</ID>
     <ID>ReturnCount:BackendRateLimitTracker.kt$BackendRateLimitTracker$fun shouldPreempt(): Boolean</ID>
     <ID>ReturnCount:CacheManager.kt$CacheManager$suspend inline fun &lt;reified T&gt; get(key: String): T?</ID>
+    <ID>ReturnCount:DefaultAssetSourceRefetcher.kt$DefaultAssetSourceRefetcher$override suspend fun refetch(spec: DownloadSpec): DownloadSpec?</ID>
+    <ID>ReturnCount:DefaultAssetSourceRefetcher.kt$internal fun assetReplacementFor( spec: DownloadSpec, window: List&lt;GithubRelease&gt;, ): DownloadSpec?</ID>
     <ID>ReturnCount:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$override suspend fun installPending(packageName: String): InstallOutcome?</ID>
     <ID>ReturnCount:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$private suspend fun adoptUntrackedDownload( entry: OrchestratedDownload?, filePath: String, outcome: InstallOutcome, )</ID>
     <ID>ReturnCount:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$private suspend fun authenticatedGithubAssetUrl(spec: DownloadSpec): String?</ID>
@@ -212,10 +211,10 @@
     <ID>ReturnCount:ExternalImportRepositoryImpl.kt$ExternalImportRepositoryImpl$private suspend fun migrateLegacyInitialScanFlag()</ID>
     <ID>ReturnCount:GithubAssetAuth.kt$GithubAssetAuth$fun isGithubHost(url: String): Boolean</ID>
     <ID>ReturnCount:HttpClientFactory.android.kt$internal fun resolveAndroidSystemProxy(): Proxy</ID>
-    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$fun belongsElsewhere( asset: GithubAsset, releaseTag: String, releaseAssets: List&lt;GithubAsset&gt;, ): Boolean</ID>
-    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun checkForUpdates(packageName: String): Boolean</ID>
     <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun previewMatchingAssets( owner: String, repo: String, regex: String?, includePreReleases: Boolean, fallbackToOlderReleases: Boolean, ): MatchingPreview</ID>
-    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private fun resolveTrackedRelease( releases: List&lt;GithubRelease&gt;, filter: AssetFilter?, fallbackToOlderReleases: Boolean, preferredVariant: String?, preferredTokens: Set&lt;String&gt;, preferredGlob: String?, pickedIndex: Int?, pickedSiblingCount: Int?, trackedPackageName: String, installedAssetName: String?, repoApps: List&lt;InstalledApp&gt;, ): ResolvedRelease?</ID>
+    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease?</ID>
+    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private suspend fun checkAgainstWindow( app: InstalledAppEntity, releases: List&lt;GithubRelease&gt;, recordUnmatched: Boolean, ): Boolean</ID>
+    <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private suspend fun checkEnabledApp( packageName: String, recordUnmatched: Boolean, window: suspend (InstalledAppEntity) -&gt; List&lt;GithubRelease&gt;, ): Boolean</ID>
     <ID>ReturnCount:InstalledAppsRepositoryImpl.kt$InstalledAppsRepositoryImpl$private suspend fun fetchReleaseWindow( owner: String, repo: String, includePreReleases: Boolean, sourceHost: String? = null, ): List&lt;GithubRelease&gt;</ID>
     <ID>ReturnCount:InstallerSourceClassifier.kt$InstallerSourceClassifier$fun classify( packageName: String, applicationInfo: ApplicationInfo?, ): InstallerKind</ID>
     <ID>ReturnCount:ManifestHintExtractor.kt$ManifestHintExtractor$fun extract(metaData: Bundle?): ManifestHint?</ID>
@@ -274,6 +273,7 @@
     <ID>TooGenericExceptionCaught:BootReceiver.kt$BootReceiver$t: Throwable</ID>
     <ID>TooGenericExceptionCaught:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$e: Exception</ID>
     <ID>TooGenericExceptionCaught:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$retry: Exception</ID>
     <ID>TooGenericExceptionCaught:DefaultDownloadOrchestrator.kt$DefaultDownloadOrchestrator$t: Throwable</ID>
     <ID>TooGenericExceptionCaught:DesktopAppLauncher.kt$DesktopAppLauncher$e: Exception</ID>
     <ID>TooGenericExceptionCaught:DesktopBrowserHelper.kt$DesktopBrowserHelper$e: Exception</ID>

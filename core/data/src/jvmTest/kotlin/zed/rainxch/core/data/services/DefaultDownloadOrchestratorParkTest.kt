@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import zed.rainxch.core.data.data_source.TokenStore
+import zed.rainxch.core.data.download.AssetSourceRefetcher
 import zed.rainxch.core.data.dto.GithubDeviceTokenSuccessDto
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
@@ -65,6 +66,7 @@ class DefaultDownloadOrchestratorParkTest {
     ) = DefaultDownloadOrchestrator(
         downloader = FakeDownloader(parkedPath),
         multiSourceDownloader = FakeMultiSourceDownloader,
+        assetSourceRefetcher = StubAssetSourceRefetcher,
         digestVerifier = FakeDigestVerifier,
         installer = installer,
         installedAppsRepository = repository,
@@ -243,6 +245,10 @@ class DefaultDownloadOrchestratorParkTest {
             fileExtension = "apk",
         )
 
+    private object StubAssetSourceRefetcher : AssetSourceRefetcher {
+        override suspend fun refetch(spec: DownloadSpec): DownloadSpec? = null
+    }
+
     private companion object {
         const val AWAIT_PARK_MS = 10_000L
     }
@@ -255,6 +261,13 @@ class DefaultDownloadOrchestratorParkTest {
     )
 
     private class RecordingInstalledAppsRepository : InstalledAppsRepository {
+        override suspend fun checkForUpdatesWithReleases(
+            packageName: String,
+            releases: List<zed.rainxch.core.domain.model.account.github.GithubRelease>,
+        ): Boolean = false
+
+        override suspend fun resolveTrackedRelease(packageName: String): zed.rainxch.core.domain.utils.ResolvedRelease? = null
+
         val awaitingInstallWrites = mutableListOf<ParkWrite>()
         val pendingInstallFilePathWrites = mutableListOf<String?>()
         val savedApps = mutableListOf<InstalledApp>()

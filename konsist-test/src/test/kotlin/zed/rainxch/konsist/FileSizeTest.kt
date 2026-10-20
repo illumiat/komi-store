@@ -44,7 +44,6 @@ class FileSizeTest {
                 "feature/auth/presentation/src/commonMain/kotlin/zed/rainxch/auth/presentation/AuthenticationRoot.kt",
                 "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsRoot.kt",
                 "core/data/src/commonMain/kotlin/zed/rainxch/core/data/services/DefaultDownloadOrchestrator.kt",
-                "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
             )
     }
 }

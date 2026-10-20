@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import zed.rainxch.core.data.download.AssetSourceGoneException
 import zed.rainxch.core.data.download.PartialIdentity
 import zed.rainxch.core.data.download.PartialNaming
 import zed.rainxch.core.data.download.PartialRetry
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -184,6 +186,31 @@ class ResumeAgainstServerTest {
             }
         }
 
+    @Test
+    fun a_gone_asset_drops_the_partial_and_fails_without_retrying() =
+        runBlocking {
+            withServer(Mode.GONE) { server ->
+                withTempDownloadsDir { dir ->
+                    writeResumablePartial(dir)
+                    val downloader = newDownloader(dir)
+
+                    assertFailsWith<AssetSourceGoneException> {
+                        downloader
+                            .download(
+                                url = server.url,
+                                suggestedFileName = scopedName,
+                                bypassMirror = true,
+                                identity = identity,
+                            ).toList()
+                    }
+
+                    assertEquals(1, server.requestCount)
+                    assertTrue(!File(dir, PartialNaming.part(scopedName)).exists())
+                    assertTrue(!File(dir, PartialNaming.meta(scopedName)).exists())
+                }
+            }
+        }
+
     private enum class Mode {
         HONOUR_RANGE,
 
@@ -192,6 +219,8 @@ class ResumeAgainstServerTest {
         IGNORE_RANGE,
 
         FAIL_FIRST_REQUEST,
+
+        GONE,
     }
 
     private class RangeServer(
@@ -228,6 +257,12 @@ class ResumeAgainstServerTest {
 
             if (mode == Mode.FAIL_FIRST_REQUEST && requestLog.size == 1) {
                 exchange.sendResponseHeaders(500, -1)
+                exchange.close()
+                return
+            }
+
+            if (mode == Mode.GONE) {
+                exchange.sendResponseHeaders(404, -1)
                 exchange.close()
                 return
             }

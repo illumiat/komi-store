@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import zed.rainxch.core.data.data_source.TokenStore
+import zed.rainxch.core.data.download.AssetSourceGoneException
 import zed.rainxch.core.data.download.ContentRange
 import zed.rainxch.core.data.download.FinishedFileReuse
 import zed.rainxch.core.data.download.OrphanPolicy
@@ -206,7 +207,7 @@ class AndroidDownloader(
                             }
                         } catch (e: PartialAborted) {
                             throw e.cause ?: e
-                        } catch (e: PartialTerminal) {
+                        } catch (e: AssetSourceGoneException) {
                             throw e
                         } catch (e: Exception) {
                             coroutineContext.ensureActive()
@@ -309,7 +310,7 @@ class AndroidDownloader(
                     if (PartialDisposal.shouldDiscardPartial(response.code, explicitDiscard = false)) {
                         partFile.delete()
                         metaFile.delete()
-                        throw PartialTerminal("Unexpected code ${response.code}")
+                        throw AssetSourceGoneException(response.code)
                     }
                     throw kotlinx.io.IOException("Unexpected code ${response.code}")
                 }
@@ -596,10 +597,6 @@ class AndroidDownloader(
     }
 
     private class PartialRestart : Exception()
-
-    private class PartialTerminal(
-        message: String,
-    ) : Exception(message)
 
     private class PartialAborted(
         cause: Throwable,

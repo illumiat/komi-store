@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import zed.rainxch.core.data.data_source.TokenStore
+import zed.rainxch.core.data.download.AssetSourceRefetcher
 import zed.rainxch.core.data.dto.GithubDeviceTokenSuccessDto
 import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.apk.ApkPackageInfo
@@ -65,6 +66,7 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
     ) = DefaultDownloadOrchestrator(
         downloader = downloader,
         multiSourceDownloader = multi,
+        assetSourceRefetcher = StubAssetSourceRefetcher,
         digestVerifier = verifier,
         installer = StubInstaller,
         installedAppsRepository = StubInstalledAppsRepository(),
@@ -120,6 +122,10 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
             assertEquals(2, verifier.calls.size)
             assertEquals("Checksum mismatch — file may have been tampered with", entry.errorMessage)
         }
+
+    private object StubAssetSourceRefetcher : AssetSourceRefetcher {
+        override suspend fun refetch(spec: DownloadSpec): DownloadSpec? = null
+    }
 
     private companion object {
         const val AWAIT_MS = 10_000L
@@ -240,6 +246,13 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
     }
 
     private class StubInstalledAppsRepository : InstalledAppsRepository {
+        override suspend fun checkForUpdatesWithReleases(
+            packageName: String,
+            releases: List<zed.rainxch.core.domain.model.account.github.GithubRelease>,
+        ): Boolean = false
+
+        override suspend fun resolveTrackedRelease(packageName: String): zed.rainxch.core.domain.utils.ResolvedRelease? = null
+
         override suspend fun setPendingInstallFilePath(
             packageName: String,
             path: String?,
