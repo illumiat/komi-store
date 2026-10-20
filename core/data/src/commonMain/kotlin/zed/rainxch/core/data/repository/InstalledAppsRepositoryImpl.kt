@@ -17,6 +17,8 @@ import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
+import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
+import zed.rainxch.core.data.local.db.dao.recordUnmatchedRelease
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
@@ -57,6 +59,14 @@ class InstalledAppsRepositoryImpl(
     private val packageMonitor: PackageMonitor,
     private val digestVerifier: DigestVerifier,
 ) : InstalledAppsRepository {
+    private val parkedInstallSettler =
+        ParkedInstallSettler(
+            dao = installedAppsDao,
+            packageMonitor = packageMonitor,
+            digestVerifier = digestVerifier,
+            discard = { packageName, path -> discardParkedInstall(packageName, path) },
+        )
+
     private val checkAllMutex = Mutex()
 
     private val httpClient: HttpClient get() = clientProvider.client
@@ -201,24 +211,6 @@ class InstalledAppsRepositoryImpl(
         )
     }
 
-    private suspend fun recordUnmatchedRelease(packageName: String) {
-        installedAppsDao.clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
-    }
-
-    private suspend fun adoptMatchedTag(
-        app: InstalledAppEntity,
-        matchedTag: String,
-        isUpdateAvailable: Boolean,
-    ) {
-        installedAppsDao.updateInstalledVersion(
-            packageName = app.packageName,
-            installedVersion = matchedTag,
-            installedVersionName = app.installedVersionName,
-            installedVersionCode = app.installedVersionCode,
-            isUpdateAvailable = isUpdateAvailable,
-        )
-    }
-
     override suspend fun checkForUpdates(packageName: String): Boolean =
         checkEnabledApp(packageName, recordUnmatched = true) { app ->
             fetchReleaseWindow(
@@ -242,8 +234,9 @@ class InstalledAppsRepositoryImpl(
         recordUnmatched: Boolean,
         window: suspend (InstalledAppEntity) -> List<GithubRelease>,
     ): Boolean {
-        val app = installedAppsDao.getAppByPackage(packageName) ?: return false
-        if (!app.updateCheckEnabled) return false
+        val stored = installedAppsDao.getAppByPackage(packageName) ?: return false
+        if (!stored.updateCheckEnabled) return false
+        val app = parkedInstallSettler.settleIfInstalled(stored)
         val releases =
             try {
                 window(app)
@@ -281,7 +274,7 @@ class InstalledAppsRepositoryImpl(
                         "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
                 }
                 if (!recordUnmatched) return app.isUpdateAvailable
-                recordUnmatchedRelease(packageName)
+                installedAppsDao.recordUnmatchedRelease(packageName)
                 return false
             }
 
@@ -398,7 +391,7 @@ class InstalledAppsRepositoryImpl(
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
                 )
             if (shouldRewriteTag) {
-                adoptMatchedTag(
+                installedAppsDao.adoptMatchedTag(
                     app = app,
                     matchedTag = matchedRelease.tagName,
                     isUpdateAvailable = isUpdateAvailable,
@@ -686,12 +679,14 @@ class InstalledAppsRepositoryImpl(
         path: String,
         version: String?,
         assetName: String?,
+        assetDigest: String?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
             path = path,
             version = version,
             assetName = assetName,
+            digest = assetDigest,
         )
     }
 

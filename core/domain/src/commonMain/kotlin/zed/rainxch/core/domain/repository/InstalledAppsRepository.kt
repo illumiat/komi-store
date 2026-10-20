@@ -120,6 +120,7 @@ interface InstalledAppsRepository {
         path: String,
         version: String?,
         assetName: String?,
+        assetDigest: String? = null,
     )
 
     suspend fun discardParkedInstall(
