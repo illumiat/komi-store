@@ -1,7 +1,6 @@
 package zed.rainxch.core.data.services
 
 import co.touchlab.kermit.Logger
-import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -26,8 +25,8 @@ import zed.rainxch.core.data.download.PartialDisposal
 import zed.rainxch.core.data.download.PartialIdentity
 import zed.rainxch.core.data.download.PartialNaming
 import zed.rainxch.core.data.download.PartialOwnership
-import zed.rainxch.core.data.download.PartialReuse
 import zed.rainxch.core.data.download.PartialRetry
+import zed.rainxch.core.data.download.PartialReuse
 import zed.rainxch.core.data.download.RangeDecision
 import zed.rainxch.core.data.download.RangeRequest
 import zed.rainxch.core.data.network.GithubAssetAuth
@@ -49,6 +48,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.coroutineContext
 
 class DesktopDownloader(
     private val files: FileLocationsProvider,
@@ -364,7 +364,10 @@ class DesktopDownloader(
         }
     }
 
-    private suspend fun buildRequest(url: String, rangeHeader: String?): Request =
+    private suspend fun buildRequest(
+        url: String,
+        rangeHeader: String?,
+    ): Request =
         Request
             .Builder()
             .url(url)
@@ -387,7 +390,10 @@ class DesktopDownloader(
             null
         }
 
-    private fun writeIdentity(metaFile: File, identity: PartialIdentity) {
+    private fun writeIdentity(
+        metaFile: File,
+        identity: PartialIdentity,
+    ) {
         try {
             metaFile.writeText(identity.serialize())
         } catch (e: Exception) {
@@ -395,7 +401,11 @@ class DesktopDownloader(
         }
     }
 
-    private fun totalBytes(response: Response, resumeFrom: Long, contentRange: ContentRange?): Long? {
+    private fun totalBytes(
+        response: Response,
+        resumeFrom: Long,
+        contentRange: ContentRange?,
+    ): Long? {
         val declared = contentRange?.total
         if (declared != null && declared > 0L) return declared
         val contentLength = response.body.contentLength()
@@ -405,14 +415,21 @@ class DesktopDownloader(
 
     private suspend fun githubToken(): String? =
         try {
-            tokenStore.currentToken()?.accessToken?.trim()?.takeIf { it.isNotEmpty() }
+            tokenStore
+                .currentToken()
+                ?.accessToken
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (_: Exception) {
             null
         }
 
-    private fun moveAtomic(source: File, target: File) {
+    private fun moveAtomic(
+        source: File,
+        target: File,
+    ) {
         try {
             Files.move(
                 source.toPath(),
@@ -435,8 +452,10 @@ class DesktopDownloader(
             val legacyPartNames = names.filter { PartialNaming.isLegacyPartFile(it) }
             val metaNames = names.filter { PartialNaming.isMetaFile(it) }
             val assetNames =
-                (legacyPartNames.mapNotNull { PartialNaming.assetNameOfPart(it) } +
-                    metaNames.mapNotNull { PartialNaming.assetNameOfMeta(it) }).toSet()
+                (
+                    legacyPartNames.mapNotNull { PartialNaming.assetNameOfPart(it) } +
+                        metaNames.mapNotNull { PartialNaming.assetNameOfMeta(it) }
+                ).toSet()
 
             var removed = 0
             for (assetName in assetNames) {
@@ -461,7 +480,11 @@ class DesktopDownloader(
             removed
         }
 
-    private fun applyVerdict(verdict: OrphanVerdict, part: File, meta: File): Int {
+    private fun applyVerdict(
+        verdict: OrphanVerdict,
+        part: File,
+        meta: File,
+    ): Int {
         var removed = 0
         when (verdict) {
             OrphanVerdict.KEEP -> Unit
@@ -503,7 +526,6 @@ class DesktopDownloader(
 
     override suspend fun cancelDownload(fileName: String): Boolean =
         withContext(Dispatchers.IO) {
-
             val ids = idsByName.remove(fileName)?.toList().orEmpty()
             if (ids.isEmpty()) return@withContext false
 
@@ -527,7 +549,10 @@ class DesktopDownloader(
             }
         }
 
-    private fun deletePartialPair(dir: File, safeName: String): Boolean {
+    private fun deletePartialPair(
+        dir: File,
+        safeName: String,
+    ): Boolean {
         val partRemoved = File(dir, PartialNaming.part(safeName)).delete()
         val metaRemoved = File(dir, PartialNaming.meta(safeName)).delete()
         return partRemoved || metaRemoved
@@ -535,9 +560,13 @@ class DesktopDownloader(
 
     private class PartialRestart : Exception()
 
-    private class PartialTerminal(message: String) : Exception(message)
+    private class PartialTerminal(
+        message: String,
+    ) : Exception(message)
 
-    private class PartialAborted(cause: Throwable) : Exception(cause)
+    private class PartialAborted(
+        cause: Throwable,
+    ) : Exception(cause)
 
     companion object {
         private const val DEFAULT_BUFFER_SIZE = 8 * 1024

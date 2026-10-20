@@ -30,6 +30,7 @@ import zed.rainxch.core.domain.model.account.github.isEffectivelyPreRelease
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
+import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.clearPending
 import zed.rainxch.core.domain.model.installation.confirmInstall
 import zed.rainxch.core.domain.model.installation.markPending
@@ -259,50 +260,63 @@ class InstalledAppsRepositoryImpl(
         return checkAgainstWindow(app, releases, recordUnmatched)
     }
 
-    // A park that matches the installed APK byte for byte is finished, whatever its tag says:
-    // test builds reuse one versionCode, so the version number alone can never prove the install.
+    // Test builds reuse one versionCode, so the bytes are the only proof the park landed.
+    // The parked digest is the strongest record; older parks fall back to their file, then to
+    // the release digest of the installed build.
     private suspend fun settleParkIfInstalledBytes(app: InstalledAppEntity): InstalledAppEntity {
         if (!app.isPendingInstall) return app
         val parkedPath = app.pendingInstallFilePath
-        val parkedDigest = app.pendingInstallAssetDigest
         val system = packageMonitor.getInstalledPackageInfo(app.packageName)
-        val installedHash = system?.apkPath?.let { hashOrNull(it) }
-        val digestMatch =
-            parkedDigest != null &&
-                installedHash != null &&
-                normalizeDigest(parkedDigest) == normalizeDigest(installedHash)
-        // Parks written before the digest column existed only have the file itself.
-        val fileMatch =
-            parkedDigest == null &&
-                parkedPath != null &&
-                installedHash != null &&
-                hashOrNull(parkedPath) == installedHash
-        val bytesMatch = digestMatch || fileMatch
         return when {
             parkedPath.isNullOrBlank() -> {
                 clearDeadPark(app)
             }
 
-            system != null && bytesMatch -> {
-                runCatching { discardParkedInstall(app.packageName, parkedPath) }
-                installedAppsDao.updateApp(
-                    app
-                        .toDomain()
-                        .settlePendingFromSystem(
-                            versionName = system.versionName,
-                            versionCode = system.versionCode,
-                        ).clearPending()
-                        .toEntity(),
-                )
-                Logger.i {
-                    "Updates: the parked build for ${app.packageName} is the installed one; settled"
-                }
-                installedAppsDao.getAppByPackage(app.packageName) ?: app
+            system != null && parkedBytesMatch(app, parkedPath, system) -> {
+                settleFinishedPark(app, parkedPath, system)
             }
 
             else -> {
                 app
             }
+        }
+    }
+
+    private suspend fun settleFinishedPark(
+        app: InstalledAppEntity,
+        parkedPath: String,
+        system: SystemPackageInfo,
+    ): InstalledAppEntity {
+        runCatching { discardParkedInstall(app.packageName, parkedPath) }
+        installedAppsDao.updateApp(
+            app
+                .toDomain()
+                .settlePendingFromSystem(
+                    versionName = system.versionName,
+                    versionCode = system.versionCode,
+                ).clearPending()
+                .toEntity(),
+        )
+        Logger.i {
+            "Updates: the parked build for ${app.packageName} is the installed one; settled"
+        }
+        return installedAppsDao.getAppByPackage(app.packageName) ?: app
+    }
+
+    private suspend fun parkedBytesMatch(
+        app: InstalledAppEntity,
+        parkedPath: String,
+        system: SystemPackageInfo,
+    ): Boolean {
+        val installedHash = system.apkPath?.let { hashOrNull(it) }
+        val parkedDigest = app.pendingInstallAssetDigest
+        val cloudDigest = app.latestAssetDigest
+        return when {
+            installedHash == null -> false
+            parkedDigest != null -> normalizeDigest(parkedDigest) == normalizeDigest(installedHash)
+            hashOrNull(parkedPath) == installedHash -> true
+            cloudDigest != null -> normalizeDigest(cloudDigest) == normalizeDigest(installedHash)
+            else -> false
         }
     }
 
