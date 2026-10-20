@@ -221,6 +221,7 @@ class AutoUpdateWorker(
                         releaseId = currentApp.latestReleaseId,
                         assetId = currentApp.latestAssetId,
                         assetDigest = currentApp.latestAssetDigest,
+                        releasePublishedAt = currentApp.latestReleasePublishedAt,
                     ).withLatestSnapshot(
                         version = latestVersion,
                         assetName = assetName,

@@ -43,12 +43,14 @@ interface InstalledAppsRepository {
 
     suspend fun checkAllForUpdates()
 
+    @Suppress("LongParameterList")
     suspend fun updateAppVersion(
         packageName: String,
         newTag: String,
         newReleaseId: Long?,
         newAssetId: Long?,
         newAssetDigest: String?,
+        newReleasePublishedAt: String? = null,
         newAssetName: String?,
         newAssetUrl: String?,
         newVersionName: String,
@@ -121,6 +123,9 @@ interface InstalledAppsRepository {
         version: String?,
         assetName: String?,
         assetDigest: String? = null,
+        releaseId: Long? = null,
+        assetId: Long? = null,
+        releasePublishedAt: String? = null,
     )
 
     suspend fun discardParkedInstall(

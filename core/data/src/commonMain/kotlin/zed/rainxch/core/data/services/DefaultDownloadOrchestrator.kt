@@ -509,6 +509,8 @@ class DefaultDownloadOrchestrator(
                         releaseId = releaseId,
                         assetId = spec.asset.id,
                         assetDigest = spec.asset.digest,
+                        releasePublishedAt =
+                            app.latestReleasePublishedAt.takeIf { app.latestReleaseId == spec.releaseId },
                     ).withLatestSnapshot(
                         version = spec.releaseTag,
                         assetName = spec.asset.name,
@@ -526,20 +528,39 @@ class DefaultDownloadOrchestrator(
         }
     }
 
+    private suspend fun parkedFileDigest(
+        spec: DownloadSpec,
+        filePath: String,
+    ): String? =
+        try {
+            digestVerifier.computeSha256(filePath)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Orchestrator: could not hash the parked file for ${spec.packageName}" }
+            null
+        }
+
+    private suspend fun parkedReleasePublishedAt(spec: DownloadSpec): String? =
+        try {
+            installedAppsRepository
+                .getAppByPackage(spec.packageName)
+                ?.takeIf { spec.releaseId != null && it.latestReleaseId == spec.releaseId }
+                ?.latestReleasePublishedAt
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Orchestrator: could not read the parked release timestamp" }
+            null
+        }
+
     private suspend fun parkForUser(
         spec: DownloadSpec,
         filePath: String,
         notify: Boolean,
     ) {
-        val downloadedDigest =
-            try {
-                digestVerifier.computeSha256(filePath)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Logger.w(e) { "Orchestrator: could not hash the parked file for ${spec.packageName}" }
-                null
-            }
+        val downloadedDigest = parkedFileDigest(spec, filePath)
+        val releasePublishedAt = parkedReleasePublishedAt(spec)
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
@@ -547,6 +568,9 @@ class DefaultDownloadOrchestrator(
                 version = spec.releaseTag,
                 assetName = spec.asset.name,
                 assetDigest = downloadedDigest,
+                releaseId = spec.releaseId,
+                assetId = spec.asset.id.takeIf { it > 0L },
+                releasePublishedAt = releasePublishedAt,
             )
         } catch (e: CancellationException) {
             throw e
