@@ -38,8 +38,8 @@ fun createGitHubHttpClient(
     userSessionRepository: UserSessionRepository? = null,
     hostTokenRepository: HostTokenRepository? = null,
     proxyConfig: ProxyConfig = ProxyConfig.System,
-): HttpClient {
-    return createPlatformHttpClient(proxyConfig)
+): HttpClient =
+    createPlatformHttpClient(proxyConfig)
         .config {
             install(RateLimitInterceptor) {
                 this.rateLimitRepository = rateLimitRepository
@@ -92,7 +92,6 @@ fun createGitHubHttpClient(
                 }
             }
         }.also { it.installMirrorRewrite() }
-}
 
 private fun HttpClientConfig<*>.installGitHubRetry() {
     install(HttpRequestRetry) {
