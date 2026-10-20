@@ -68,6 +68,7 @@ fun InstalledApp.confirmInstall(
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
     )
 }
 
@@ -318,6 +319,7 @@ fun InstalledApp.observeExternalInstall(
         installedReleaseId = null,
         installedAssetId = null,
         installedAssetDigest = null,
+        installedReleasePublishedAt = null,
         isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
     )
 }
@@ -326,12 +328,14 @@ fun InstalledApp.markPending(
     releaseId: Long?,
     assetId: Long?,
     assetDigest: String?,
+    releasePublishedAt: String? = null,
 ): InstalledApp =
     copy(
         isPendingInstall = true,
         pendingInstallReleaseId = releaseId,
         pendingInstallAssetId = assetId,
         pendingInstallAssetDigest = assetDigest,
+        pendingInstallReleasePublishedAt = releasePublishedAt,
     )
 
 fun InstalledApp.clearPending(): InstalledApp =
@@ -340,6 +344,7 @@ fun InstalledApp.clearPending(): InstalledApp =
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
     )
 
 fun InstalledApp.withLatestSnapshot(

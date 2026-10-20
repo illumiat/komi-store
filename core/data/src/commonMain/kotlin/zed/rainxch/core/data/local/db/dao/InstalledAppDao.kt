@@ -270,6 +270,7 @@ interface InstalledAppDao {
                pendingInstallAssetName = :assetName,
                pendingInstallReleaseId = :releaseId,
                pendingInstallAssetId = :assetId,
+               pendingInstallAssetDigest = NULL,
                pendingInstallReleasePublishedAt = :releasePublishedAt,
                isPendingInstall = 1
          WHERE packageName = :packageName
