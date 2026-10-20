@@ -47,6 +47,28 @@ internal suspend fun resolveInstalledBinding(
     )
 }
 
+// The decision is a pure function so the trigger rules are testable without a device; only
+// the hashing itself needs the platform.
+internal data class DigestConfirmationInput(
+    val installedAssetId: Long?,
+    val installedAssetDigest: String?,
+    val installedVersion: String,
+    val matchedTag: String,
+    val matchedDigest: String?,
+    val matchedPublishedAt: String?,
+    val installedPublishedAt: String?,
+)
+
+internal fun shouldConfirmDigest(input: DigestConfirmationInput): Boolean {
+    val legacyWithoutDigest =
+        input.installedAssetDigest == null &&
+            input.installedAssetId != null &&
+            input.matchedDigest != null
+    return legacyWithoutDigest &&
+        VersionMath.isExactSameVersion(input.matchedTag, input.installedVersion) &&
+        VersionMath.publishedAtAfter(input.matchedPublishedAt, input.installedPublishedAt)
+}
+
 @Suppress("LongParameterList")
 private suspend fun confirmInstalledDigest(
     app: InstalledAppEntity,
@@ -57,14 +79,18 @@ private suspend fun confirmInstalledDigest(
     installedApkPath: String?,
     verifier: DigestVerifier,
 ): String? {
-    val legacyWithoutDigest =
-        app.installedAssetDigest == null &&
-            app.installedAssetId != null &&
-            matchedDigest != null
-    val runsTag = VersionMath.isExactSameVersion(matchedTag, app.installedVersion)
-    val timestampMoved = VersionMath.publishedAtAfter(matchedPublishedAt, installedPublishedAt)
+    val confirmation =
+        DigestConfirmationInput(
+            installedAssetId = app.installedAssetId,
+            installedAssetDigest = app.installedAssetDigest,
+            installedVersion = app.installedVersion,
+            matchedTag = matchedTag,
+            matchedDigest = matchedDigest,
+            matchedPublishedAt = matchedPublishedAt,
+            installedPublishedAt = installedPublishedAt,
+        )
     return when {
-        !legacyWithoutDigest || !runsTag || !timestampMoved -> null
+        !shouldConfirmDigest(confirmation) -> null
         installedApkPath == null -> null
         else -> verifier.computeSha256(installedApkPath)
     }
