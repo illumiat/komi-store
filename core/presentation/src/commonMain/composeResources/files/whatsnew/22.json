@@ -9,6 +9,12 @@
       "bullets": [
         "Traditional Chinese (繁體中文) is now available — switch to it anytime under Tweaks → Language."
       ]
+    },
+    {
+      "type": "FIXED",
+      "bullets": [
+        "Apps that ship nightly or rolling builds under a reused tag, like \"nightly\", now get an update notice when a new build lands, and no longer re-offer the build you already have."
+      ]
     }
   ]
 }

@@ -33,7 +33,6 @@
     <string name="redirecting_message">Możesz już korzystać z aplikacji. Przekierowywanie…</string>
     <string name="try_again">Spróbuj ponownie</string>
 
-    <string name="auth_error_with_message">Błąd: %1$s</string>
 
     <string name="enter_code_on_github">Wprowadź ten kod na GitHubie:</string>
     <string name="copy_code">Kopiuj kod</string>
@@ -308,8 +307,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Odinstaluj</string>
     <string name="open_app">Otwórz</string>
-    <string name="downgrade_requires_uninstall">Obniżenie wersji wymaga odinstalowania</string>
-    <string name="downgrade_warning_message">Instalacja wersji %1$s wymaga odinstalowania bieżącej wersji (%2$s). Dane aplikacji zostaną utracone.</string>
+    <string name="downgrade_warning_title">Wybrano starszą wersję</string>
+    <string name="downgrade_warning_message">%1$s jest niższa niż zainstalowana %2$s.\nAndroid może odmówić instalacji niższej wersji.\nJeśli odmówi, zainstalowana %2$s pozostaje bez zmian.</string>
+    <string name="downgrade_warning_uninstall_note">Odinstalowanie %1$s usuwa dane aplikacji.</string>
     <string name="uninstall_first">Najpierw odinstaluj</string>
     <string name="install_version">Zainstaluj %1$s</string>
     <string name="failed_to_open_app">Nie udało się otworzyć %1$s</string>
@@ -784,7 +784,6 @@
     <string name="feedback_send_via_github">Otwórz jako Issue w GitHub</string>
     <string name="feedback_send_success_email">Dziękujemy — otwieramy klienta poczty.</string>
     <string name="feedback_send_success_github">Dziękujemy — otwieramy przeglądarkę.</string>
-    <string name="feedback_send_error">Nie udało się otworzyć kanału opinii: %1$s</string>
 
     <!-- ═══════════════════════════════════════════════════════════════
          E5 — Mirror feature
@@ -816,7 +815,6 @@
     <string name="mirror_test_http_error">Serwer lustrzany zwrócił %1$d</string>
     <string name="mirror_test_timeout">Przekroczono limit czasu po 5s</string>
     <string name="mirror_test_dns_fail">Nie można rozwiązać nazwy hosta</string>
-    <string name="mirror_test_other">Niepowodzenie: %1$s</string>
     <string name="mirror_deploy_your_own_hint">Wszystkie serwery lustrzane niedostępne? Możesz uruchomić własny w 5 minut — sprawdź dokumentację.</string>
     <string name="mirror_removed_toast">%1$s nie jest już dostępny, przełączono na GitHub bezpośrednio.</string>
 
@@ -1031,16 +1029,8 @@
     <string name="adaptive_pick_repo_subtitle">Dotknij dowolnej karty po lewej, aby zobaczyć jej szczegóły tutaj.</string>
     <string name="adaptive_pick_repo_title">Wybierz repozytorium</string>
     <string name="apps_section_pending_installs">Gotowe do instalacji</string>
-    <string name="apps_two_pane_advanced_settings">Ustawienia zaawansowane</string>
-    <string name="apps_two_pane_detail_section_actions">Szybkie akcje</string>
-    <string name="apps_two_pane_detail_section_settings">Ustawienia</string>
-    <string name="apps_two_pane_detail_section_status">Status</string>
-    <string name="apps_two_pane_empty_subtitle">Wybierz dowolną aplikację po lewej, aby zobaczyć jej szczegóły i akcje.</string>
-    <string name="apps_two_pane_empty_title">Wybierz aplikację</string>
-    <string name="apps_two_pane_installed_label">Zainstalowana</string>
-    <string name="apps_two_pane_latest_label">Najnowsza</string>
-    <string name="apps_two_pane_open_repo">Otwórz repozytorium</string>
-    <string name="apps_two_pane_pick_variant">Wybierz wariant</string>
+    <string name="apps_section_in_progress">W toku</string>
+    <string name="download_failed">Pobieranie nie powiodło się</string>
     <string name="apps_updates_banner_hide">Ukryj listę</string>
     <string name="apps_updates_banner_show">Zobacz listę</string>
     <string name="apps_updates_banner_subtitle">Przejrzyj lub zaktualizuj wszystko naraz.</string>
@@ -1114,7 +1104,6 @@
     <string name="host_tokens_undo_action">Cofnij</string>
     <string name="host_tokens_undo_failed">Nie udało się przywrócić tokena dla %1$s</string>
     <string name="host_tokens_undo_snackbar">Usunięto token dla %1$s</string>
-    <string name="host_tokens_validation_failed">Weryfikacja nie powiodła się: %1$s</string>
     <string name="host_tokens_validation_failed_fallback">nieznany błąd</string>
     <string name="host_tokens_validation_host_invalid">Nieprawidłowy host</string>
     <string name="host_tokens_validation_host_required">Host jest wymagany</string>
@@ -1406,6 +1395,8 @@
     <string name="repo_pages_pr_draft">Wersja robocza</string>
 
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
+    <string name="feed_layout_description_grid">Przełącz na widok siatki</string>
+    <string name="feed_layout_description_list">Przełącz na widok listy</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>
@@ -1456,4 +1447,10 @@
     <string name="sidebar_categories">Kategorie</string>
     <string name="sidebar_platform">Platforma</string>
     <string name="tweaks_privacy_usage_data_section">Dane użytkowania</string>
+    <string name="no_build_for_this_device">Brak wersji dla tego urządzenia</string>
+    <string name="newer_releases_no_build_for_device">Nowsze wydania nie mają wersji dla tego urządzenia</string>
+    <string name="latest_for_platform">Najnowsza dla %1$s</string>
+    <string name="go_to_version">Przejdź do %1$s</string>
+    <string name="get_it_on_platform">Pobierz na %1$s</string>
+    <string name="share_link">Udostępnij link</string>
 </resources>

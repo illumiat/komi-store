@@ -1,10 +1,8 @@
 package zed.rainxch.home.presentation
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,10 +12,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.Composable
@@ -39,6 +38,7 @@ import zed.rainxch.core.domain.isAndroid
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
 import zed.rainxch.core.presentation.components.buttons.KomiIconButton
+import zed.rainxch.core.presentation.components.buttons.RepoLayoutToggle
 import zed.rainxch.core.presentation.components.cards.DiscoveryRepoCard
 import zed.rainxch.core.presentation.components.cards.KomiRepoCardFeed
 import zed.rainxch.core.presentation.components.dividers.KomiHorizontalDivider
@@ -46,6 +46,7 @@ import zed.rainxch.core.presentation.components.overlays.KomiToastState
 import zed.rainxch.core.presentation.components.overlays.rememberKomiToastState
 import zed.rainxch.core.presentation.components.progress.KomiCircularProgress
 import zed.rainxch.core.presentation.components.refresh.KomiPullToRefresh
+import zed.rainxch.core.presentation.components.refresh.drivesPullToRefresh
 import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
@@ -54,7 +55,8 @@ import zed.rainxch.core.presentation.personality.usesDecor
 import zed.rainxch.core.presentation.personality.ClassicPersonality
 import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
-import zed.rainxch.core.presentation.utils.constrainedContentWidth
+import zed.rainxch.core.presentation.layout.CardGridSpec
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.feed_empty_title
 import zed.rainxch.githubstore.core.presentation.res.feed_end_cap
@@ -77,7 +79,7 @@ fun HomeRoot(
     viewModel: HomeViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    val listState = rememberLazyStaggeredGridState()
     val coroutineScope = rememberCoroutineScope()
     val toastState = rememberKomiToastState()
 
@@ -104,12 +106,11 @@ fun HomeRoot(
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HomeScreen(
     state: HomeState,
     toastState: KomiToastState,
-    listState: LazyListState,
+    listState: LazyStaggeredGridState,
     onAction: (HomeAction) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
@@ -117,7 +118,7 @@ private fun HomeScreen(
     val reachedEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
-            val lastIndex = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val lastIndex = info.visibleItemsInfo.maxOfOrNull { it.index } ?: -1
             lastIndex >= info.totalItemsCount - 4
         }
     }
@@ -134,6 +135,10 @@ private fun HomeScreen(
                 title = stringResource(Res.string.home_masthead_title),
                 titleAccent = stringResource(Res.string.home_masthead_subtitle),
                 actions = {
+                    RepoLayoutToggle(
+                        isGridLayout = state.isGridLayout,
+                        onToggle = { onAction(HomeAction.OnToggleGridLayout) },
+                    )
                     if (!isDesktop()) {
                         KomiIconButton(
                             icon = Icons.Rounded.Tune,
@@ -164,13 +169,11 @@ private fun HomeScreen(
                     )
                 }
             } else {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    HomeChartFeed(
-                        state = state,
-                        listState = listState,
-                        onAction = onAction
-                    )
-                }
+                HomeChartFeed(
+                    state = state,
+                    listState = listState,
+                    onAction = onAction
+                )
             }
         }
 
@@ -213,82 +216,96 @@ private fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BoxScope.HomeChartFeed(
+private fun HomeChartFeed(
     state: HomeState,
-    listState: LazyListState,
+    listState: LazyStaggeredGridState,
     onAction: (HomeAction) -> Unit,
 ) {
     val colors = LocalPersonality.current.colors
+    val gridPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 32.dp)
+    val cells =
+        rememberWidthCappedStaggeredCells(
+            contentPadding = gridPadding,
+            maxCardWidth = if (state.isGridLayout) CardGridSpec.ChartCompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+        )
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.constrainedContentWidth().fillMaxSize().align(Alignment.TopCenter),
-        contentPadding = PaddingValues(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+    Column(
+        modifier = Modifier.fillMaxSize(),
     ) {
-        stickyHeader(key = "home_chart_tabs", contentType = "tabs") {
-            Column(modifier = Modifier.fillMaxWidth().background(colors.background)) {
-                HomeChartTabs(
-                    selected = state.selectedChart,
-                    onSelect = { onAction(HomeAction.OnChartSelected(it)) },
-                )
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(colors.background)
+                    .drivesPullToRefresh(),
+        ) {
+            HomeChartTabs(
+                selected = state.selectedChart,
+                onSelect = { onAction(HomeAction.OnChartSelected(it)) },
+            )
 
-                when (LocalPersonality.current) {
-                    is MangaPersonality -> KomiHorizontalDivider(thickness = 3.dp, color = colors.outline)
-                    is ClassicPersonality -> Unit
-                }
+            when (LocalPersonality.current) {
+                is MangaPersonality -> KomiHorizontalDivider(thickness = 3.dp, color = colors.outline)
+                is ClassicPersonality -> Unit
             }
         }
 
-        when {
-            state.isLoading && state.repos.isEmpty() -> {
-                item(key = "home_loading") { HomeLoading() }
-            }
-
-            state.errorMessage != null && state.repos.isEmpty() -> {
-                item(key = "home_error") {
-                    HomeError(
-                        message = state.errorMessage,
-                        onRetry = { onAction(HomeAction.OnRetry) },
-                    )
-                }
-            }
-
-            state.repos.isEmpty() -> {
-                item(key = "home_empty") { HomeEmpty() }
-            }
-
-            else -> {
-                itemsIndexed(
-                    items = state.repos,
-                    key = { _, card -> "chart_${card.id}" },
-                ) { index, card ->
-                    DiscoveryRepoCard(
-                        discoveryRepositoryUi = card.toDiscoveryUi(),
-                        onClick = { onAction(HomeAction.OnRepoClick(card.rawRepository)) },
-                        onShareClick = { onAction(HomeAction.OnShareClick(card.rawRepository)) },
-                        onLongPress = { onAction(HomeAction.OnRepoLongClick(card.id)) },
-                        rank = if (state.selectedChart == ChartTab.Popular) index + 1 else 1,
-                        feed = state.selectedChart.toFeed(),
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .animateItem(),
-                    )
+        LazyVerticalStaggeredGrid(
+            columns = cells,
+            state = listState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = gridPadding,
+            verticalItemSpacing = CardGridSpec.GridItemSpacing,
+            horizontalArrangement = CardGridSpec.GridArrangement,
+        ) {
+            when {
+                state.isLoading && state.repos.isEmpty() -> {
+                    item(key = "home_loading", span = StaggeredGridItemSpan.FullLine) { HomeLoading() }
                 }
 
-                if (state.isLoadingMore) {
-                    item(key = "home_loading_more") {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            KomiCircularProgress(modifier = Modifier.size(28.dp))
-                        }
+                state.errorMessage != null && state.repos.isEmpty() -> {
+                    item(key = "home_error", span = StaggeredGridItemSpan.FullLine) {
+                        HomeError(
+                            message = state.errorMessage,
+                            onRetry = { onAction(HomeAction.OnRetry) },
+                        )
                     }
-                } else if (!state.hasMore) {
-                    item(key = "home_end_cap") { HomeEndCap() }
+                }
+
+                state.repos.isEmpty() -> {
+                    item(key = "home_empty", span = StaggeredGridItemSpan.FullLine) { HomeEmpty() }
+                }
+
+                else -> {
+                    itemsIndexed(
+                        items = state.repos,
+                        key = { _, card -> "chart_${card.id}" },
+                    ) { index, card ->
+                        DiscoveryRepoCard(
+                            discoveryRepositoryUi = card.toDiscoveryUi(),
+                            onClick = { onAction(HomeAction.OnRepoClick(card.rawRepository)) },
+                            onShareClick = { onAction(HomeAction.OnShareClick(card.rawRepository)) },
+                            onLongPress = { onAction(HomeAction.OnRepoLongClick(card.id)) },
+                            rank = if (state.selectedChart == ChartTab.Popular) index + 1 else 1,
+                            feed = state.selectedChart.toFeed(),
+                            compact = state.isGridLayout,
+                            modifier = Modifier.fillMaxWidth().animateItem(),
+                        )
+                    }
+
+                    if (state.isLoadingMore) {
+                        item(key = "home_loading_more", span = StaggeredGridItemSpan.FullLine) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                KomiCircularProgress(modifier = Modifier.size(28.dp))
+                            }
+                        }
+                    } else if (!state.hasMore) {
+                        item(key = "home_end_cap", span = StaggeredGridItemSpan.FullLine) { HomeEndCap() }
+                    }
                 }
             }
         }

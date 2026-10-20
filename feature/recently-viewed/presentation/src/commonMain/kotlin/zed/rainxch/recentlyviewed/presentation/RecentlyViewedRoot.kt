@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import zed.rainxch.core.domain.utils.RepoIdCodec
 import zed.rainxch.core.presentation.components.ScrollbarContainer
 import zed.rainxch.core.presentation.components.bars.KomiTopBar
 import zed.rainxch.core.presentation.components.bars.KomiTopBarSize
@@ -35,7 +36,7 @@ import zed.rainxch.recentlyviewed.presentation.components.RecentlyViewedItem
 @Composable
 fun RecentlyViewedRoot(
     onNavigateBack: () -> Unit,
-    onNavigateToDetails: (repoId: Long) -> Unit,
+    onNavigateToDetails: (repoId: Long, owner: String, repo: String, sourceHost: String?) -> Unit,
     onNavigateToDeveloperProfile: (username: String) -> Unit,
     viewModel: RecentlyViewedViewModel = koinViewModel(),
 ) {
@@ -50,7 +51,13 @@ fun RecentlyViewedRoot(
                 }
 
                 is RecentlyViewedAction.OnRepositoryClick -> {
-                    onNavigateToDetails(action.repo.repoId)
+                    val repo = action.repo
+                    onNavigateToDetails(
+                        repo.repoId,
+                        repo.repoOwner,
+                        repo.repoName,
+                        RepoIdCodec.sourceHostOf(repo.repoId, repo.repoUrl),
+                    )
                 }
 
                 is RecentlyViewedAction.OnDeveloperProfileClick -> {

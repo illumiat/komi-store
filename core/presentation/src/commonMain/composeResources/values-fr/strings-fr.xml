@@ -31,7 +31,6 @@
     <string name="redirecting_message">Vous pouvez maintenant utiliser l'application. Redirection…</string>
     <string name="try_again">Réessayer</string>
 
-    <string name="auth_error_with_message">Erreur : %1$s</string>
 
     <string name="enter_code_on_github">Entrez ce code sur GitHub :</string>
     <string name="copy_code">Copier le code</string>
@@ -310,8 +309,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Désinstaller</string>
     <string name="open_app">Ouvrir</string>
-    <string name="downgrade_requires_uninstall">La rétrogradation nécessite la désinstallation</string>
-    <string name="downgrade_warning_message">L'installation de la version %1$s nécessite la désinstallation de la version actuelle (%2$s). Les données de l'application seront perdues.</string>
+    <string name="downgrade_warning_title">Version plus ancienne sélectionnée</string>
+    <string name="downgrade_warning_message">%1$s est inférieure à la %2$s déjà installée.\nAndroid peut refuser d'installer une version plus ancienne.\nS'il refuse, la %2$s installée reste inchangée.</string>
+    <string name="downgrade_warning_uninstall_note">Désinstaller %1$s efface les données de l'application.</string>
     <string name="uninstall_first">Désinstaller d'abord</string>
     <string name="install_version">Installer %1$s</string>
     <string name="failed_to_open_app">Impossible d'ouvrir %1$s</string>
@@ -764,7 +764,6 @@
     <string name="feedback_send_via_github">Ouvrir comme Issue GitHub</string>
     <string name="feedback_send_success_email">Merci — ouverture de votre client e-mail.</string>
     <string name="feedback_send_success_github">Merci — ouverture de votre navigateur.</string>
-    <string name="feedback_send_error">Impossible d'ouvrir le canal de commentaires : %1$s</string>
 
     <!-- ═══════════════════════════════════════════════════════════════
          E5 — Mirror feature
@@ -796,7 +795,6 @@
     <string name="mirror_test_http_error">Le miroir a renvoyé %1$d</string>
     <string name="mirror_test_timeout">Délai dépassé après 5s</string>
     <string name="mirror_test_dns_fail">Impossible de résoudre l'hôte</string>
-    <string name="mirror_test_other">Échec : %1$s</string>
     <string name="mirror_deploy_your_own_hint">Tous les miroirs hors ligne ? Vous pouvez héberger le vôtre en 5 minutes — consultez la documentation.</string>
     <string name="mirror_removed_toast">%1$s n'est plus disponible, basculé vers GitHub direct.</string>
 
@@ -1010,16 +1008,8 @@
     <string name="adaptive_pick_repo_subtitle">Touchez une carte à gauche pour voir ses détails ici.</string>
     <string name="adaptive_pick_repo_title">Choisissez un dépôt</string>
     <string name="apps_section_pending_installs">Prêt à installer</string>
-    <string name="apps_two_pane_advanced_settings">Paramètres avancés</string>
-    <string name="apps_two_pane_detail_section_actions">Actions rapides</string>
-    <string name="apps_two_pane_detail_section_settings">Paramètres</string>
-    <string name="apps_two_pane_detail_section_status">État</string>
-    <string name="apps_two_pane_empty_subtitle">Sélectionnez une app à gauche pour voir ses détails et actions.</string>
-    <string name="apps_two_pane_empty_title">Choisissez une app</string>
-    <string name="apps_two_pane_installed_label">Installée</string>
-    <string name="apps_two_pane_latest_label">Dernière</string>
-    <string name="apps_two_pane_open_repo">Ouvrir le dépôt</string>
-    <string name="apps_two_pane_pick_variant">Choisir la variante</string>
+    <string name="apps_section_in_progress">En cours</string>
+    <string name="download_failed">Échec du téléchargement</string>
     <string name="apps_updates_banner_hide">Masquer la liste</string>
     <string name="apps_updates_banner_show">Voir la liste</string>
     <string name="apps_updates_banner_subtitle">Examinez ou mettez tout à jour d'un coup.</string>
@@ -1089,7 +1079,6 @@
     <string name="host_tokens_undo_action">Annuler</string>
     <string name="host_tokens_undo_failed">Impossible de restaurer le jeton pour %1$s</string>
     <string name="host_tokens_undo_snackbar">Jeton pour %1$s supprimé</string>
-    <string name="host_tokens_validation_failed">Échec de la validation : %1$s</string>
     <string name="host_tokens_validation_failed_fallback">erreur inconnue</string>
     <string name="host_tokens_validation_host_invalid">Hôte invalide</string>
     <string name="host_tokens_validation_host_required">Hôte requis</string>
@@ -1378,6 +1367,8 @@
     <string name="repo_pages_pr_state_merged">Fusionnée</string>
     <string name="repo_pages_pr_draft">Brouillon</string>
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
+    <string name="feed_layout_description_grid">Afficher en grille</string>
+    <string name="feed_layout_description_list">Afficher en liste</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>
@@ -1427,4 +1418,10 @@
     <string name="sidebar_browse">Parcourir</string>
     <string name="sidebar_categories">Catégories</string>
     <string name="sidebar_platform">Plateforme</string>
+    <string name="no_build_for_this_device">Aucune version pour cet appareil</string>
+    <string name="newer_releases_no_build_for_device">Les versions plus récentes n'ont rien pour cet appareil</string>
+    <string name="latest_for_platform">Dernière pour %1$s</string>
+    <string name="go_to_version">Aller à %1$s</string>
+    <string name="get_it_on_platform">Obtenir pour %1$s</string>
+    <string name="share_link">Partager le lien</string>
 </resources>

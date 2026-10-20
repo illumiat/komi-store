@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
@@ -97,10 +97,10 @@ private fun MangaIconButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    modifier: Modifier,
     variant: KomiButtonVariant,
     size: KomiIconButtonSize,
     enabled: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val colors = personality.colors
     val metrics = size.metrics
@@ -184,13 +184,14 @@ private fun ClassicIconButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    modifier: Modifier,
     variant: KomiButtonVariant,
     size: KomiIconButtonSize,
     enabled: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalPersonality.current.colors
     val metrics = size.metrics
+    val sizeModifier = Modifier.size(maxOf(metrics.box, MinTouchTarget))
     val content: @Composable () -> Unit = {
         Icon(
             imageVector = icon,
@@ -203,7 +204,7 @@ private fun ClassicIconButton(
         KomiButtonVariant.Primary -> {
             FilledIconButton(
                 onClick = onClick,
-                modifier = modifier,
+                modifier = modifier.then(sizeModifier),
                 enabled = enabled,
                 content = content,
             )
@@ -212,7 +213,7 @@ private fun ClassicIconButton(
         KomiButtonVariant.Tonal -> {
             FilledTonalIconButton(
                 onClick = onClick,
-                modifier = modifier,
+                modifier = modifier.then(sizeModifier),
                 enabled = enabled,
                 content = content,
             )
@@ -221,7 +222,7 @@ private fun ClassicIconButton(
         KomiButtonVariant.Outline -> {
             OutlinedIconButton(
                 onClick = onClick,
-                modifier = modifier,
+                modifier = modifier.then(sizeModifier),
                 enabled = enabled,
                 content = content,
             )
@@ -230,7 +231,7 @@ private fun ClassicIconButton(
         KomiButtonVariant.Text -> {
             IconButton(
                 onClick = onClick,
-                modifier = modifier,
+                modifier = modifier.then(sizeModifier),
                 enabled = enabled,
                 content = content,
             )
@@ -239,7 +240,7 @@ private fun ClassicIconButton(
         KomiButtonVariant.Destructive -> {
             FilledIconButton(
                 onClick = onClick,
-                modifier = modifier,
+                modifier = modifier.then(sizeModifier),
                 enabled = enabled,
                 colors =
                     IconButtonDefaults.filledIconButtonColors(
@@ -255,7 +256,7 @@ private fun ClassicIconButton(
 @Composable
 private fun PreviewIconRow() {
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        KomiIconButton(Icons.Default.ArrowBack, "Back", {}, variant = KomiButtonVariant.Tonal)
+        KomiIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", {}, variant = KomiButtonVariant.Tonal)
         KomiIconButton(Icons.Default.Star, "Star", {}, variant = KomiButtonVariant.Primary)
         KomiIconButton(Icons.Default.Share, "Share", {}, variant = KomiButtonVariant.Outline)
         KomiIconButton(Icons.Default.Close, "Clear", {}, variant = KomiButtonVariant.Text)

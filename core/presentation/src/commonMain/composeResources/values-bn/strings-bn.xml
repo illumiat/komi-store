@@ -41,7 +41,6 @@
     <string name="try_again">আবার চেষ্টা করুন</string>
 
     <!-- Errors -->
-    <string name="auth_error_with_message">ত্রুটি: %1$s</string>
 
     <!-- Device flow -->
     <string name="enter_code_on_github">GitHub-এ এই কোডটি লিখুন:</string>
@@ -339,8 +338,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">আনইনস্টল</string>
     <string name="open_app">খুলুন</string>
-    <string name="downgrade_requires_uninstall">ডাউনগ্রেডের জন্য আনইনস্টল প্রয়োজন</string>
-    <string name="downgrade_warning_message">সংস্করণ %1$s ইনস্টল করতে বর্তমান সংস্করণ (%2$s) প্রথমে আনইনস্টল করতে হবে। অ্যাপের ডেটা মুছে যাবে।</string>
+    <string name="downgrade_warning_title">পুরোনো সংস্করণ নির্বাচন করা হয়েছে</string>
+    <string name="downgrade_warning_message">%1$s ইতিমধ্যে ইনস্টল করা %2$s-এর চেয়ে কম।\nAndroid কম সংস্করণ ইনস্টল করতে অস্বীকার করতে পারে।\nযদি অস্বীকার করে, ইনস্টল করা %2$s অপরিবর্তিত থাকে।</string>
+    <string name="downgrade_warning_uninstall_note">%1$s আনইনস্টল করলে অ্যাপের ডেটা মুছে যাবে।</string>
     <string name="uninstall_first">প্রথমে আনইনস্টল করুন</string>
     <string name="install_version">%1$s ইনস্টল করুন</string>
     <string name="failed_to_open_app">%1$s খুলতে ব্যর্থ</string>
@@ -786,7 +786,6 @@
     <string name="feedback_send_via_github">GitHub ইস্যু হিসেবে খুলুন</string>
     <string name="feedback_send_success_email">ধন্যবাদ — মেইল ক্লায়েন্ট খোলা হচ্ছে।</string>
     <string name="feedback_send_success_github">ধন্যবাদ — ব্রাউজার খোলা হচ্ছে।</string>
-    <string name="feedback_send_error">ফিডব্যাক চ্যানেল খোলা যায়নি: %1$s</string>
 
     <!-- E5 — Mirror feature -->
     <!-- Tweaks - Custom forges -->
@@ -816,7 +815,6 @@
     <string name="mirror_test_http_error">মিরর %1$d ফেরত দিয়েছে</string>
     <string name="mirror_test_timeout">5 সেকেন্ড পরে টাইমআউট</string>
     <string name="mirror_test_dns_fail">হোস্ট রিসলভ করা যায়নি</string>
-    <string name="mirror_test_other">ব্যর্থ: %1$s</string>
     <string name="mirror_deploy_your_own_hint">সব মিরর নষ্ট? ৫ মিনিটে নিজের মিরর হোস্ট করুন — ডক্স দেখুন।</string>
     <string name="mirror_removed_toast">%1$s আর পাওয়া যাচ্ছে না, Direct GitHub-এ স্যুইচ করা হয়েছে।</string>
 
@@ -1047,16 +1045,8 @@
     <string name="adaptive_pick_repo_subtitle">এখানে এর বিস্তারিত দেখতে বাঁদিকের যেকোনো কার্ডে আলতো চাপুন।</string>
     <string name="adaptive_pick_repo_title">একটি রিপোজিটরি বেছে নিন</string>
     <string name="apps_section_pending_installs">ইনস্টলের জন্য প্রস্তুত</string>
-    <string name="apps_two_pane_advanced_settings">উন্নত সেটিংস</string>
-    <string name="apps_two_pane_detail_section_actions">দ্রুত অ্যাকশন</string>
-    <string name="apps_two_pane_detail_section_settings">সেটিংস</string>
-    <string name="apps_two_pane_detail_section_status">অবস্থা</string>
-    <string name="apps_two_pane_empty_subtitle">বাঁদিক থেকে যেকোনো অ্যাপ নির্বাচন করুন এর বিবরণ ও অ্যাকশন দেখতে।</string>
-    <string name="apps_two_pane_empty_title">একটি অ্যাপ বেছে নিন</string>
-    <string name="apps_two_pane_installed_label">ইনস্টল করা</string>
-    <string name="apps_two_pane_latest_label">সর্বশেষ</string>
-    <string name="apps_two_pane_open_repo">রিপোজিটরি খুলুন</string>
-    <string name="apps_two_pane_pick_variant">ভ্যারিয়েন্ট বেছে নিন</string>
+    <string name="apps_section_in_progress">চলছে</string>
+    <string name="download_failed">ডাউনলোড ব্যর্থ হয়েছে</string>
     <string name="apps_updates_banner_hide">তালিকা লুকান</string>
     <string name="apps_updates_banner_show">তালিকা দেখুন</string>
     <string name="apps_updates_banner_subtitle">পর্যালোচনা করুন বা একসাথে সব আপডেট করুন।</string>
@@ -1118,7 +1108,6 @@
     <string name="host_tokens_undo_action">পূর্বাবস্থায় ফেরান</string>
     <string name="host_tokens_undo_failed">%1$s এর জন্য টোকেন পুনরুদ্ধার করা যায়নি</string>
     <string name="host_tokens_undo_snackbar">%1$s এর জন্য টোকেন সরানো হয়েছে</string>
-    <string name="host_tokens_validation_failed">যাচাই ব্যর্থ হয়েছে: %1$s</string>
     <string name="host_tokens_validation_failed_fallback">অজানা ত্রুটি</string>
     <string name="host_tokens_validation_host_invalid">অবৈধ হোস্ট</string>
     <string name="host_tokens_validation_host_required">হোস্ট প্রয়োজন</string>
@@ -1397,6 +1386,8 @@
     <string name="repo_pages_pr_state_merged">মার্জ করা হয়েছে</string>
     <string name="repo_pages_pr_draft">খসড়া</string>
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
+    <string name="feed_layout_description_grid">গ্রিড লেআউটে যান</string>
+    <string name="feed_layout_description_list">তালিকা লেআউটে যান</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>
@@ -1447,4 +1438,10 @@
     <string name="sidebar_categories">বিভাগ</string>
     <string name="sidebar_platform">প্ল্যাটফর্ম</string>
     <string name="tweaks_privacy_usage_data_section">ব্যবহারের ডেটা</string>
+    <string name="no_build_for_this_device">এই ডিভাইসের জন্য কোনো বিল্ড নেই</string>
+    <string name="newer_releases_no_build_for_device">নতুন রিলিজগুলোতে এই ডিভাইসের জন্য কোনো বিল্ড নেই</string>
+    <string name="latest_for_platform">%1$s-এর জন্য সর্বশেষ</string>
+    <string name="go_to_version">%1$s-এ যান</string>
+    <string name="get_it_on_platform">%1$s-এর জন্য নিন</string>
+    <string name="share_link">লিংক শেয়ার করুন</string>
 </resources>

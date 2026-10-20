@@ -26,7 +26,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
@@ -70,6 +70,8 @@ import zed.rainxch.core.domain.model.system.Platform
 import zed.rainxch.core.presentation.components.ScrollbarContainer
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
+import zed.rainxch.core.presentation.components.buttons.KomiIconButtonSize
+import zed.rainxch.core.presentation.components.buttons.RepoLayoutToggle
 import zed.rainxch.core.presentation.components.buttons.KomiFab
 import zed.rainxch.core.presentation.components.cards.DiscoveryRepoCard
 import zed.rainxch.core.presentation.components.icon.KomiIcon
@@ -82,11 +84,12 @@ import zed.rainxch.core.presentation.components.surfaces.KomiSurface
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
+import zed.rainxch.core.presentation.layout.CardGridSpec
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.core.presentation.utils.arrowKeyScroll
-import zed.rainxch.core.presentation.utils.constrainedContentWidth
 import zed.rainxch.core.presentation.utils.toIcon
 import zed.rainxch.core.presentation.utils.toLabel
 import zed.rainxch.githubstore.core.presentation.res.Res
@@ -121,7 +124,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 fun SearchRoot(
     onNavigateBack: () -> Unit,
-    onNavigateToDetails: (repoId: Long, sourceHost: String?) -> Unit,
+    onNavigateToDetails: (repoId: Long, owner: String, repo: String, sourceHost: String?) -> Unit,
     onNavigateToDetailsFromLink: (owner: String, repo: String) -> Unit,
     onNavigateToDeveloperProfile: (username: String) -> Unit,
     viewModel: SearchViewModel = koinViewModel(),
@@ -150,7 +153,12 @@ fun SearchRoot(
         onAction = { action ->
             when (action) {
                 is SearchAction.OnRepositoryClick -> {
-                    onNavigateToDetails(action.repository.id, action.repository.sourceHost)
+                    onNavigateToDetails(
+                        action.repository.id,
+                        action.repository.owner.login,
+                        action.repository.name,
+                        action.repository.sourceHost,
+                    )
                 }
 
                 SearchAction.OnNavigateBackClick -> {
@@ -235,6 +243,8 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyStaggeredGridState()
 
+    val currentState by rememberUpdatedState(state)
+
     val shouldLoadMore by remember {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
@@ -242,14 +252,14 @@ fun SearchScreen(
             val visibleItems = layoutInfo.visibleItemsInfo
 
             if (totalItems == 0 ||
-                state.isLoadingMore ||
-                state.isLoading ||
-                !state.hasMorePages
+                currentState.isLoadingMore ||
+                currentState.isLoading ||
+                !currentState.hasMorePages
             ) {
                 return@derivedStateOf false
             }
 
-            val lastVisibleItem = visibleItems.lastOrNull() ?: return@derivedStateOf false
+            val lastVisibleItem = visibleItems.maxByOrNull { it.index } ?: return@derivedStateOf false
             val viewportEndOffset = layoutInfo.viewportEndOffset
 
             val hasEmptySpaceAtBottom =
@@ -293,7 +303,7 @@ fun SearchScreen(
     LaunchedEffect(listState.layoutInfo.totalItemsCount, listState.layoutInfo.viewportEndOffset) {
         val layoutInfo = listState.layoutInfo
         val visibleItems = layoutInfo.visibleItemsInfo
-        val lastVisible = visibleItems.lastOrNull()
+        val lastVisible = visibleItems.maxByOrNull { it.index }
 
         if (lastVisible != null &&
             layoutInfo.totalItemsCount > 0 &&
@@ -342,12 +352,12 @@ fun SearchScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             contentAlignment = Alignment.TopCenter,
         ) {
+            val gridEdgeInset = 12.dp
             Column(
                 modifier =
                     Modifier
-                        .constrainedContentWidth()
                         .fillMaxHeight()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = gridEdgeInset),
             ) {
                 AnimatedVisibility(
                     visible = state.isClipboardBannerVisible && state.clipboardLinks.isNotEmpty(),
@@ -378,10 +388,19 @@ fun SearchScreen(
                     )
                 }
 
-                PlatformPicker(
-                    state = state,
-                    onAction = onAction
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        PlatformPicker(
+                            state = state,
+                            onAction = onAction
+                        )
+                    }
+                    RepoLayoutToggle(
+                        isGridLayout = state.isGridLayout,
+                        onToggle = { onAction(SearchAction.OnToggleGridLayout) },
+                        size = KomiIconButtonSize.Sm,
+                    )
+                }
 
                 ActiveFiltersStrip(
                     state = state,
@@ -545,15 +564,17 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             LazyVerticalStaggeredGrid(
+                                columns =
+                                    rememberWidthCappedStaggeredCells(
+                                        contentPadding =
+                                            PaddingValues(start = gridEdgeInset, end = gridEdgeInset),
+                                        maxCardWidth = if (state.isGridLayout) CardGridSpec.CompactMaxCardWidth else CardGridSpec.InfoMaxCardWidth,
+                                    ),
                                 state = listState,
-                                columns = StaggeredGridCells.Adaptive(350.dp),
-                                verticalItemSpacing = 12.dp,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-
+                                verticalItemSpacing = CardGridSpec.GridItemSpacing,
+                                horizontalArrangement = CardGridSpec.GridArrangement,
                                 contentPadding =
                                     PaddingValues(
-                                        start = 8.dp,
-                                        end = 8.dp,
                                         top = 12.dp,
                                         bottom = 12.dp,
                                     ),
@@ -564,7 +585,7 @@ fun SearchScreen(
                             ) {
                                 items(
                                     items = state.visibleRepos,
-                                    key = { it.repository.id },
+                                    key = { discoveryRepository -> discoveryRepository.repository.id },
                                 ) { discoveryRepository ->
                                     DiscoveryRepoCard(
                                         discoveryRepositoryUi = discoveryRepository,
@@ -600,12 +621,13 @@ fun SearchScreen(
                                                 )
                                             }
                                         },
+                                        compact = state.isGridLayout,
                                         modifier = Modifier.animateItem(),
                                     )
                                 }
 
-                                item {
-                                    if (state.isLoadingMore) {
+                                if (state.isLoadingMore) {
+                                    item(span = StaggeredGridItemSpan.FullLine) {
                                         Box(
                                             modifier =
                                                 Modifier
@@ -621,7 +643,7 @@ fun SearchScreen(
                                 }
 
                                 if (!state.isLoading && !state.isLoadingMore && state.query.isNotBlank()) {
-                                    item {
+                                    item(span = StaggeredGridItemSpan.FullLine) {
                                         ExploreFromGithubButton(
                                             status = state.exploreStatus,
                                             onExplore = { onAction(SearchAction.ExploreFromGithub) },

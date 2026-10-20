@@ -9,7 +9,9 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -121,7 +123,7 @@ fun AppNavigation(
                                     saveState = true
                                 }
                                 launchSingleTop = true
-                                restoreState = true
+                                restoreState = target != GithubStoreGraph.ExploreScreen
                             }
                         },
                         rail = rail,
@@ -152,9 +154,12 @@ fun AppNavigation(
 
                     SharedTransitionLayout(
                         modifier =
-                            Modifier.padding(
-                                bottom = if (showBottomBar) bottomBarHeight else 0.dp,
-                            ),
+                            Modifier
+                                .padding(
+                                    bottom = if (showBottomBar) bottomBarHeight else 0.dp,
+                                ).then(
+                                    if (showBottomBar) Modifier.consumeWindowInsets(PaddingValues(bottom = bottomBarHeight)) else Modifier,
+                                ),
                     ) {
                         NavHost(
                             navController = navController,
@@ -338,11 +343,13 @@ fun AppNavigation(
                                             onNavigateBack = {
                                                 navController.navigateUp()
                                             },
-                                            onNavigateToDetails = { repoId, sourceHost ->
+                                            onNavigateToDetails = { repoId, owner, repo, sourceHost ->
                                                 if (isExpanded) {
                                                     listDetailState.select(
                                                         AdaptiveDetailArgs(
                                                             repositoryId = repoId,
+                                                            owner = owner,
+                                                            repo = repo,
                                                             sourceHost = sourceHost,
                                                         ),
                                                     )
@@ -350,6 +357,8 @@ fun AppNavigation(
                                                     navController.navigate(
                                                         GithubStoreGraph.DetailsScreen(
                                                             repositoryId = repoId,
+                                                            owner = owner,
+                                                            repo = repo,
                                                             sourceHost = sourceHost,
                                                         ),
                                                     )
@@ -423,13 +432,6 @@ fun AppNavigation(
                                                 ),
                                             )
                                         },
-                                        onNavigateToSearchByPlatform = { platform ->
-                                            navController.navigate(
-                                                GithubStoreGraph.SearchScreen(
-                                                    initialPlatform = platform.name,
-                                                ),
-                                            )
-                                        },
                                         onNavigateToAbout = { repoId, owner, repo, sourceHost, translateTo ->
                                             navController.navigate(
                                                 GithubStoreGraph.DetailsAboutScreen(
@@ -482,6 +484,7 @@ fun AppNavigation(
                                                     args.repo,
                                                     args.isComingFromUpdate,
                                                     args.sourceHost,
+                                                    args.packageName,
                                                 )
                                             },
                                     )
@@ -710,8 +713,15 @@ fun AppNavigation(
                                     onNavigateBack = {
                                         navController.navigateUp()
                                     },
-                                    onNavigateToDetails = {
-                                        navController.navigate(GithubStoreGraph.DetailsScreen(it))
+                                    onNavigateToDetails = { repoId, owner, repo, sourceHost ->
+                                        navController.navigate(
+                                            GithubStoreGraph.DetailsScreen(
+                                                repositoryId = repoId,
+                                                owner = owner,
+                                                repo = repo,
+                                                sourceHost = sourceHost,
+                                            ),
+                                        )
                                     },
                                     onNavigateToDeveloperProfile = { username ->
                                         navController.navigate(
@@ -793,10 +803,13 @@ fun AppNavigation(
                                     onNavigateBack = {
                                         navController.navigateUp()
                                     },
-                                    onNavigateToDetails = { repoId ->
+                                    onNavigateToDetails = { repoId, owner, repo, sourceHost ->
                                         navController.navigate(
                                             GithubStoreGraph.DetailsScreen(
                                                 repositoryId = repoId,
+                                                owner = owner,
+                                                repo = repo,
+                                                sourceHost = sourceHost,
                                             ),
                                         )
                                     },
@@ -918,7 +931,7 @@ fun AppNavigation(
                                             onNavigateBack = {
                                                 navController.navigateUp()
                                             },
-                                            onNavigateToRepo = { repoId, sourceHost, owner, repo ->
+                                            onNavigateToRepo = { repoId, sourceHost, owner, repo, packageName ->
                                                 if (isExpanded) {
                                                     listDetailState.select(
                                                         AdaptiveDetailArgs(
@@ -927,6 +940,7 @@ fun AppNavigation(
                                                             sourceHost = sourceHost,
                                                             owner = owner,
                                                             repo = repo,
+                                                            packageName = packageName,
                                                         ),
                                                     )
                                                 } else {
@@ -937,6 +951,7 @@ fun AppNavigation(
                                                             sourceHost = sourceHost,
                                                             owner = owner.orEmpty(),
                                                             repo = repo.orEmpty(),
+                                                            packageName = packageName,
                                                         ),
                                                     )
                                                 }
@@ -1006,7 +1021,7 @@ fun AppNavigation(
                                     }
 
                                     launchSingleTop = true
-                                    restoreState = true
+                                    restoreState = it != GithubStoreGraph.ExploreScreen
                                 }
                             },
                             isUpdateAvailable = appsState.apps.any { it.installedApp.isUpdateAvailable },

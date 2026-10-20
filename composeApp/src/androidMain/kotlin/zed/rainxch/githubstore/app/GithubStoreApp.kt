@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.core.content.ContextCompat
 import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,6 +15,7 @@ import org.koin.android.ext.android.get
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
+import zed.rainxch.core.data.network.BackgroundRequest
 import zed.rainxch.core.data.network.ProxyManager
 import zed.rainxch.core.data.services.DownloadNotificationObserver
 import zed.rainxch.core.data.services.PackageEventReceiver
@@ -21,6 +23,11 @@ import zed.rainxch.core.data.services.UpdateScheduler
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
+import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
+import zed.rainxch.core.domain.model.installation.PendingInstallResolution
+import zed.rainxch.core.domain.model.installation.normalizeInstalledTag
+import zed.rainxch.core.domain.model.installation.pendingInstallResolution
+import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.repository.ProxyRepository
@@ -95,7 +102,7 @@ class GithubStoreApp : Application() {
     }
 
     private fun scheduleSigningSeedSync() {
-        appScope.launch {
+        appScope.launch(BackgroundRequest()) {
             runCatching {
                 get<ExternalImportRepository>().syncSigningFingerprintSeed()
             }.onFailure {
@@ -249,6 +256,8 @@ class GithubStoreApp : Application() {
 
                 repo.saveInstalledApp(selfApp)
                 Logger.i("Komi Store App: App added")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Logger.e(e) { "Komi Store App: Failed to register self as installed app" }
             }
@@ -264,11 +273,15 @@ class GithubStoreApp : Application() {
         try {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName) ?: return
-            if (systemInfo.versionCode != existing.installedVersionCode) return
+            if (systemInfo.versionCode != existing.installedVersionCode ||
+                existing.latestVersionCode != systemInfo.versionCode
+            ) {
+                return
+            }
             repo.updateApp(
-                existing.copy(
-                    installedVersion = latestTag,
-                    isUpdateAvailable = false,
+                existing.normalizeInstalledTag(
+                    tag = latestTag,
+                    isUpdateAvailable = existing.isUpdateAvailable,
                 ),
             )
             Logger.i { "Normalized stale self installedVersion tag to $latestTag" }
@@ -284,26 +297,32 @@ class GithubStoreApp : Application() {
         try {
             val packageMonitor = get<PackageMonitor>()
             val systemInfo = packageMonitor.getInstalledPackageInfo(packageName)
-            if (systemInfo != null) {
-                val latestVersionCode = existing.latestVersionCode ?: 0L
-
-                val resolvedTag = existing.latestVersion ?: systemInfo.versionName
-                repo.updateApp(
-                    existing.copy(
-                        isPendingInstall = false,
-                        installedVersion = resolvedTag,
-                        installedVersionName = systemInfo.versionName,
-                        installedVersionCode = systemInfo.versionCode,
-                        isUpdateAvailable = latestVersionCode > systemInfo.versionCode,
-                    ),
-                )
-                Logger.i {
-                    "Resolved self-update pending install: ${systemInfo.versionName} (code=${systemInfo.versionCode}, tag=$resolvedTag)"
+            when (val resolution = existing.pendingInstallResolution(systemInfo)) {
+                PendingInstallResolution.Keep -> {
+                    Logger.i { "Kept parked self-update (target not proven)" }
                 }
-            } else {
-                repo.updatePendingStatus(packageName, false)
-                Logger.i { "Resolved self-update pending install (no system info)" }
+
+                is PendingInstallResolution.Reached -> {
+                    repo.updateApp(existing.resolvePendingFromSystem(resolution))
+                    try {
+                        val disposal =
+                            repo.discardParkedInstall(packageName, existing.pendingInstallFilePath)
+                        if (disposal == ParkedInstallDisposal.Discarded) {
+                            Logger.i {
+                                "Resolved self-update pending install: ${resolution.versionName} (code=${resolution.versionCode}, tag=${resolution.resolvedTag})"
+                            }
+                        } else {
+                            Logger.w { "Parked self-update is not gone yet; the next sync will retry" }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.e(e) { "Parked self-update not discarded; the next sync will retry" }
+                    }
+                }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Logger.e(e) { "Failed to resolve self-update pending install" }
         }
@@ -314,11 +333,11 @@ class GithubStoreApp : Application() {
         private const val SELF_SHA256_FINGERPRINT =
             @Suppress("ktlint:standard:max-line-length")
             "B7:F2:8E:19:8E:48:C1:93:B0:38:C6:5D:92:DD:F7:BC:07:7B:0D:B5:9E:BC:9B:25:0A:6D:AC:48:C1:18:03:CA"
-        private const val SELF_REPO_OWNER = "kurikomi-labs"
+        private const val SELF_REPO_OWNER = "komi-store"
         private const val SELF_REPO_NAME = "komi-store"
         private const val SELF_AVATAR_URL =
             @Suppress("ktlint:standard:max-line-length")
-            "https://raw.githubusercontent.com/kurikomi-labs/komi-store/refs/heads/main/media-resources/app_icon.png"
+            "https://raw.githubusercontent.com/komi-store/komi-store/refs/heads/main/media-resources/app_icon.png"
         const val UPDATES_CHANNEL_ID = "app_updates"
         const val UPDATE_SERVICE_CHANNEL_ID = "update_service"
         const val DOWNLOADS_CHANNEL_ID = "app_downloads"

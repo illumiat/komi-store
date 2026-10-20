@@ -44,7 +44,6 @@
     <string name="try_again">Try again</string>
 
     <!-- Errors -->
-    <string name="auth_error_with_message">Error: %1$s</string>
 
     <!-- Device flow -->
     <string name="enter_code_on_github">Enter this code on GitHub:</string>
@@ -142,6 +141,9 @@
     <string name="proxy_test_error_auth_required">Proxy authentication required.</string>
     <string name="proxy_test_error_status">Unexpected response: HTTP %1$d</string>
     <string name="proxy_test_error_unknown">Connection test failed</string>
+    <string name="proxy_test_master_result">Search: %1$s, Downloads: %2$s, Translation: %3$s</string>
+    <string name="proxy_test_probe_ok">%1$d ms</string>
+    <string name="proxy_test_probe_failed">failed</string>
 
     <!-- Snackbar -->
     <string name="logout_success">Logged out successfully</string>
@@ -161,6 +163,9 @@
     <string name="open_repository">Open repository</string>
     <string name="open_in_browser">Open in browser</string>
     <string name="cancel_download">Cancel download</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="paused">Paused</string>
     <string name="show_install_options">Show install options</string>
 
     <string name="error_state_title_generic">Something went wrong</string>
@@ -231,8 +236,9 @@
     <!-- Uninstall / Open -->
     <string name="uninstall">Uninstall</string>
     <string name="open_app">Open</string>
-    <string name="downgrade_requires_uninstall">Downgrade requires uninstall</string>
-    <string name="downgrade_warning_message">Installing version %1$s requires uninstalling the current version (%2$s) first. Your app data will be lost.</string>
+    <string name="downgrade_warning_title">Older version selected</string>
+    <string name="downgrade_warning_message">%1$s is lower than the %2$s already installed.\nAndroid may refuse to install a lower version.\nIf it does, the installed %2$s is left as it is.</string>
+    <string name="downgrade_warning_uninstall_note">Uninstalling %1$s erases app data.</string>
     <string name="uninstall_first">Uninstall first</string>
     <string name="signing_key_changed_title">Signing key changed</string>
     <string name="signing_key_changed_message">The signing certificate for this app has changed since it was first installed.\n\nThis could mean the developer rotated their signing key, or the binary may have been tampered with.\n\nExpected: %1$s\nReceived: %2$s</string>
@@ -388,6 +394,16 @@
     <string name="sign_in_required">Sign in required</string>
     <string name="sign_in_with_github_for_stars">Sign in with GitHub to see your starred repositories</string>
     <string name="no_starred_repos">No starred repositories</string>
+    <plurals name="starred_hidden_not_installable">
+        <item quantity="one">%1$d more starred repo has no installable release</item>
+        <item quantity="other">%1$d more starred repos have no installable release</item>
+    </plurals>
+    <plurals name="starred_including_not_installable">
+        <item quantity="one">Including %1$d starred repo with no installable release</item>
+        <item quantity="other">Including %1$d starred repos with no installable release</item>
+    </plurals>
+    <string name="starred_show_all">Show all</string>
+    <string name="starred_installable_only">Installable only</string>
     <string name="star_repos_hint">Star repositories on GitHub with installable releases to see them here</string>
     <string name="last_synced">Last synced</string>
     <string name="just_now">Just now</string>
@@ -519,6 +535,12 @@
     <string name="auth_check_status">I already authorized</string>
     <string name="auth_polling_status">Checking…</string>
     <string name="auth_rate_limited">Rate limited — retrying in %1$ds</string>
+    <string name="auth_error_unreachable">Couldn't connect to GitHub</string>
+    <string name="auth_error_rate_limited">Too many sign-in attempts</string>
+    <string name="auth_hint_wait">Wait a few minutes, then try again.</string>
+    <string name="auth_error_denied">Authorization was denied</string>
+    <string name="auth_error_browser">Couldn't open the browser</string>
+    <string name="auth_hint_other_method">Use a device code or a personal access token instead.</string>
 
     <!-- Read More / Show Less -->
     <string name="read_more">Read More</string>
@@ -811,6 +833,8 @@
     <!-- Multi-layer variant fingerprint UX additions -->
     <string name="variant_picker_unpin">Unpin</string>
     <string name="variant_picker_pinned_badge">Pinned</string>
+    <string name="assets_section_available">Available</string>
+    <string name="assets_section_your_app">Your app</string>
     <string name="variant_picker_open">Pick variant</string>
     <string name="variant_picker_open_filter">Adjust filter</string>
     <string name="variant_first_pin_toast">Future updates will prefer the %1$s variant. Change this anytime in app settings.</string>
@@ -1000,7 +1024,7 @@
     <string name="feedback_send_via_github">Open as GitHub Issue</string>
     <string name="feedback_send_success_email">Thanks — opening your mail client.</string>
     <string name="feedback_send_success_github">Thanks — opening your browser.</string>
-    <string name="feedback_send_error">Couldn't open feedback channel: %1$s</string>
+    <string name="feedback_send_failed">Couldn't open the feedback channel</string>
 
     <!-- Tweaks feature - Custom forges -->
     <string name="custom_forges_entry_label">Custom forges</string>
@@ -1017,6 +1041,15 @@
     <!-- Mirror - Sections -->
     <string name="mirror_section_official">Official</string>
     <string name="mirror_section_community">Community</string>
+
+    <string name="mirror_pick_fastest">Pick fastest</string>
+    <string name="mirror_pick_fastest_sub">Time every mirror, pick the fastest</string>
+    <string name="mirror_measuring">Measuring from this device…</string>
+    <string name="mirror_measure_latency">Measure latency</string>
+    <string name="mirror_latency_local">%1$d ms from you</string>
+    <string name="mirror_fastest_badge">%1$s · fastest</string>
+    <string name="mirror_fastest_chosen">Switched to %1$s (%2$d ms).</string>
+    <string name="mirror_no_mirror_responded">No mirror answered. Check your connection and try again.</string>
 
     <!-- Mirror - Statuses -->
     <string name="mirror_status_ok">%1$dms</string>
@@ -1038,7 +1071,7 @@
     <string name="mirror_test_http_error">Mirror returned %1$d</string>
     <string name="mirror_test_timeout">Timed out after 5s</string>
     <string name="mirror_test_dns_fail">Could not resolve host</string>
-    <string name="mirror_test_other">Failed: %1$s</string>
+    <string name="mirror_test_failed">Connection failed</string>
 
     <!-- Mirror - Footer hint -->
     <string name="mirror_deploy_your_own_hint">All mirrors broken? You can host your own in 5 minutes — see docs.</string>
@@ -1057,7 +1090,6 @@
     <string name="apps_menu_item_active">%1$s  ✓</string>
     <string name="apps_version_update">%1$s → %2$s</string>
     <string name="apps_version_dated">%1$s (%2$s)</string>
-    <string name="apps_latest_version_placeholder">—</string>
     <string name="apps_variant_subtitle">%1$s  ·  %2$s</string>
     <string name="apps_section_header_cd">%1$s, %2$d, %3$s</string>
     <string name="apps_section_header_static_cd">%1$s, %2$d</string>
@@ -1070,22 +1102,15 @@
     <string name="apps_compact_status_updates_ignored">updates ignored</string>
     <string name="apps_ignore_updates">Ignore updates</string>
     <string name="discard_pending_install">Discard</string>
+    <string name="delete_task">Delete task</string>
     <string name="apps_updates_banner_title_one">1 update available</string>
     <string name="apps_updates_banner_title_other">%1$d updates available</string>
     <string name="apps_updates_banner_subtitle">Review or update everything at once.</string>
     <string name="apps_updates_banner_show">See list</string>
     <string name="apps_updates_banner_hide">Hide list</string>
     <string name="apps_section_pending_installs">Ready to install</string>
-    <string name="apps_two_pane_empty_title">Pick an app</string>
-    <string name="apps_two_pane_empty_subtitle">Select any app on the left to see its details and actions.</string>
-    <string name="apps_two_pane_detail_section_status">Status</string>
-    <string name="apps_two_pane_detail_section_actions">Quick actions</string>
-    <string name="apps_two_pane_detail_section_settings">Settings</string>
-    <string name="apps_two_pane_open_repo">Open repository</string>
-    <string name="apps_two_pane_installed_label">Installed</string>
-    <string name="apps_two_pane_latest_label">Latest</string>
-    <string name="apps_two_pane_pick_variant">Pick variant</string>
-    <string name="apps_two_pane_advanced_settings">Advanced settings</string>
+    <string name="apps_section_in_progress">In progress</string>
+    <string name="download_failed">Download failed</string>
     <string name="adaptive_pick_repo_title">Pick a repository</string>
     <string name="adaptive_pick_repo_subtitle">Tap any card on the left to view its details here.</string>
     <string name="translation_card_title">Translate</string>
@@ -1275,7 +1300,9 @@
     <string name="host_tokens_action_add">Add token</string>
     <string name="host_tokens_action_delete">Delete</string>
     <string name="host_tokens_saved">Saved token for %1$s</string>
-    <string name="host_tokens_validation_failed">Validation failed: %1$s</string>
+    <string name="host_tokens_load_failed">Couldn't load saved tokens</string>
+    <string name="host_tokens_save_failed">Couldn't save token for %1$s</string>
+    <string name="host_tokens_delete_failed">Couldn't delete token for %1$s</string>
 
     <!-- Host tokens — picker / forge presets / inline feedback / undo -->
     <string name="host_tokens_picker_title">Add token for…</string>
@@ -1301,6 +1328,8 @@
     <string name="host_tokens_compose_replace_title">Replace token for %1$s</string>
     <string name="host_tokens_compose_add_title">Add token</string>
     <string name="host_tokens_validation_failed_fallback">unknown error</string>
+    <string name="host_tokens_validation_http">HTTP %1$d</string>
+    <string name="host_tokens_validation_unreachable">couldn't reach the server</string>
     <string name="host_tokens_undo_failed">Couldn't restore token for %1$s</string>
 
     <!-- Tweaks redesign (P14/P15/P16) -->
@@ -1497,6 +1526,8 @@
     <string name="feed_offline">Offline — showing a saved feed</string>
     <string name="feed_failed_to_load">Couldn\'t load the feed</string>
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
+    <string name="feed_layout_description_grid">Switch to grid layout</string>
+    <string name="feed_layout_description_list">Switch to list layout</string>
     <string name="feed_category_ai">AI</string>
     <string name="feed_category_privacy">Privacy</string>
     <string name="feed_category_networking">Networking</string>
@@ -1505,4 +1536,10 @@
     <string name="feed_category_reading">Reading</string>
     <string name="feed_category_tools">Tools</string>
     <string name="cd_more_actions">More actions</string>
+    <string name="no_build_for_this_device">No build for this device</string>
+    <string name="newer_releases_no_build_for_device">Newer releases have no build for this device</string>
+    <string name="latest_for_platform">Latest for %1$s</string>
+    <string name="go_to_version">Go to %1$s</string>
+    <string name="get_it_on_platform">Get it on %1$s</string>
+    <string name="share_link">Share link</string>
 </resources>

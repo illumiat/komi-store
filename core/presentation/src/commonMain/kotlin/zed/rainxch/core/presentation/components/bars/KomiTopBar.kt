@@ -100,7 +100,7 @@ private fun MangaTopBar(
     size: KomiTopBarSize,
     centerTitle: Boolean,
     insets: Boolean,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val colors = personality.colors
     val isMast = size == KomiTopBarSize.Masthead
@@ -193,7 +193,7 @@ private fun ClassicTopBar(
     actions: (@Composable RowScope.() -> Unit)?,
     centerTitle: Boolean,
     insets: Boolean,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val windowInsets = if (insets) TopAppBarDefaults.windowInsets else WindowInsets(0, 0, 0, 0)
     val titleContent: @Composable () -> Unit = {
@@ -218,7 +218,15 @@ private fun ClassicTopBar(
         }
     }
     val navigationIcon: @Composable () -> Unit = { leading?.invoke() }
-    val actionsContent: @Composable RowScope.() -> Unit = actions ?: {}
+    val actionsContent: @Composable RowScope.() -> Unit = {
+        actions?.let {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                content = it,
+            )
+        }
+    }
 
     if (centerTitle) {
         CenterAlignedTopAppBar(
