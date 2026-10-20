@@ -172,6 +172,13 @@ object VersionMath {
         return runCatching { Instant.parse(trimmed) }.getOrNull()
     }
 
+    // A stored release timestamp only counts while it parses; a corrupt value must not win
+    // over the freshly fetched window.
+    fun publishedAtOrNull(raw: String?): String? {
+        val trimmed = raw?.trim().orEmpty()
+        return trimmed.takeIf { it.isNotEmpty() && parsePublishedAtToInstant(it) != null }
+    }
+
     internal fun isPublishedAtAfter(
         candidate: String?,
         baseline: String?,

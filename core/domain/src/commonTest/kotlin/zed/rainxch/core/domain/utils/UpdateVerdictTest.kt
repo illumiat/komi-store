@@ -6,6 +6,66 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class UpdateVerdictTest {
+    // A re-released stable tag cannot be seen by the version comparison; different bytes plus a
+    // later publish time is the one signal that a rebuild happened.
+    @Test
+    fun a_republished_stable_tag_with_new_bytes_and_a_later_time_is_an_update() {
+        val result =
+            decide(
+                installedTag = "2.0.5",
+                installedVersionCode = 205L,
+                matchedTag = "2.0.5",
+                matchedPublishedAt = "2026-10-20T00:00:00Z",
+                matchedAssetId = 900L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 899L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-10-01T00:00:00Z",
+                    ),
+            )
+
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_republished_stable_tag_with_the_same_bytes_is_not_an_update() {
+        val result =
+            decide(
+                installedTag = "2.0.5",
+                matchedTag = "2.0.5",
+                matchedPublishedAt = "2026-10-20T00:00:00Z",
+                matchedAssetId = 899L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 899L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-10-01T00:00:00Z",
+                    ),
+            )
+
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_republished_stable_tag_with_an_older_time_is_not_an_update() {
+        val result =
+            decide(
+                installedTag = "2.0.5",
+                matchedTag = "2.0.5",
+                matchedPublishedAt = "2026-09-01T00:00:00Z",
+                matchedAssetId = 900L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 899L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-10-01T00:00:00Z",
+                    ),
+            )
+
+        assertFalse(result.isUpdateAvailable)
+    }
+
     private fun decide(
         installedTag: String = "1.0.0",
         installedVersionCode: Long = 100L,
