@@ -28,6 +28,7 @@ import zed.rainxch.core.data.services.external.AndroidExternalAppScanner
 import zed.rainxch.core.data.services.external.InstallerSourceClassifier
 import zed.rainxch.core.data.services.external.ManifestHintExtractor
 import zed.rainxch.core.data.services.installer.AndroidInstallerStatusProvider
+import zed.rainxch.core.data.services.installer.ExternalInstallerDiscovery
 import zed.rainxch.core.data.services.installer.SilentInstallerDispatcher
 import zed.rainxch.core.data.services.root.RootServiceManager
 import zed.rainxch.core.data.services.shizuku.ShizukuServiceManager
@@ -41,6 +42,7 @@ import zed.rainxch.core.domain.helpers.ClipboardHelper
 import zed.rainxch.core.domain.helpers.ShareManager
 import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.network.Downloader
+import zed.rainxch.core.domain.repository.ExternalInstallerRepository
 import zed.rainxch.core.domain.system.ApkInspector
 import zed.rainxch.core.domain.system.DownloadOrchestrator
 import zed.rainxch.core.domain.system.DownloadProgressNotifier
@@ -100,6 +102,10 @@ actual val corePlatformModule =
             ).also { dispatcher ->
                 dispatcher.observeInstallerPreference()
             }
+        }
+
+        single<ExternalInstallerRepository> {
+            ExternalInstallerDiscovery(androidContext())
         }
 
         single<InstallerStatusProvider> {

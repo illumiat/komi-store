@@ -1321,6 +1321,7 @@ class AppsViewModel(
                             InstallerType.DHIZUKU -> InstallPolicy.AlwaysInstall
                             InstallerType.ROOT -> InstallPolicy.AlwaysInstall
                             InstallerType.DEFAULT -> InstallPolicy.InstallWhileForeground
+                            InstallerType.THIRD_PARTY -> InstallPolicy.InstallWhileForeground
                         }
 
                     downloadOrchestrator.enqueue(
