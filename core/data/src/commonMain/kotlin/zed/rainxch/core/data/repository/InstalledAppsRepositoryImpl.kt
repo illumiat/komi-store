@@ -33,6 +33,7 @@ import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.installation.clearPending
 import zed.rainxch.core.domain.model.installation.confirmInstall
 import zed.rainxch.core.domain.model.installation.markPending
+import zed.rainxch.core.domain.model.installation.settlePendingFromSystem
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
@@ -242,8 +243,9 @@ class InstalledAppsRepositoryImpl(
         recordUnmatched: Boolean,
         window: suspend (InstalledAppEntity) -> List<GithubRelease>,
     ): Boolean {
-        val app = installedAppsDao.getAppByPackage(packageName) ?: return false
-        if (!app.updateCheckEnabled) return false
+        val stored = installedAppsDao.getAppByPackage(packageName) ?: return false
+        if (!stored.updateCheckEnabled) return false
+        val app = settleParkIfInstalledBytes(stored)
         val releases =
             try {
                 window(app)
@@ -256,6 +258,70 @@ class InstalledAppsRepositoryImpl(
             }
         return checkAgainstWindow(app, releases, recordUnmatched)
     }
+
+    // A park that matches the installed APK byte for byte is finished, whatever its tag says:
+    // test builds reuse one versionCode, so the version number alone can never prove the install.
+    private suspend fun settleParkIfInstalledBytes(app: InstalledAppEntity): InstalledAppEntity {
+        if (!app.isPendingInstall) return app
+        val parkedPath = app.pendingInstallFilePath
+        val parkedDigest = app.pendingInstallAssetDigest
+        val system = packageMonitor.getInstalledPackageInfo(app.packageName)
+        val installedHash = system?.apkPath?.let { hashOrNull(it) }
+        val digestMatch =
+            parkedDigest != null &&
+                installedHash != null &&
+                normalizeDigest(parkedDigest) == normalizeDigest(installedHash)
+        // Parks written before the digest column existed only have the file itself.
+        val fileMatch =
+            parkedDigest == null &&
+                parkedPath != null &&
+                installedHash != null &&
+                hashOrNull(parkedPath) == installedHash
+        val bytesMatch = digestMatch || fileMatch
+        return when {
+            parkedPath.isNullOrBlank() -> {
+                clearDeadPark(app)
+            }
+
+            system != null && bytesMatch -> {
+                runCatching { discardParkedInstall(app.packageName, parkedPath) }
+                installedAppsDao.updateApp(
+                    app
+                        .toDomain()
+                        .settlePendingFromSystem(
+                            versionName = system.versionName,
+                            versionCode = system.versionCode,
+                        ).clearPending()
+                        .toEntity(),
+                )
+                Logger.i {
+                    "Updates: the parked build for ${app.packageName} is the installed one; settled"
+                }
+                installedAppsDao.getAppByPackage(app.packageName) ?: app
+            }
+
+            else -> {
+                app
+            }
+        }
+    }
+
+    private suspend fun clearDeadPark(app: InstalledAppEntity): InstalledAppEntity {
+        installedAppsDao.updateApp(app.toDomain().clearPending().toEntity())
+        return installedAppsDao.getAppByPackage(app.packageName) ?: app
+    }
+
+    private fun normalizeDigest(raw: String): String = raw.substringAfter(':', raw).trim().lowercase()
+
+    private suspend fun hashOrNull(path: String): String? =
+        try {
+            digestVerifier.computeSha256(path)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Updates: could not hash $path" }
+            null
+        }
 
     private suspend fun checkAgainstWindow(
         app: InstalledAppEntity,
@@ -686,12 +752,14 @@ class InstalledAppsRepositoryImpl(
         path: String,
         version: String?,
         assetName: String?,
+        assetDigest: String?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
             path = path,
             version = version,
             assetName = assetName,
+            digest = assetDigest,
         )
     }
 

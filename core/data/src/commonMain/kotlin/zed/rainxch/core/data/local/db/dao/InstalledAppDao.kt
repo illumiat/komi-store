@@ -255,6 +255,7 @@ interface InstalledAppDao {
            SET pendingInstallFilePath = :path,
                pendingInstallVersion = :version,
                pendingInstallAssetName = :assetName,
+               pendingInstallAssetDigest = :digest,
                isPendingInstall = 1
          WHERE packageName = :packageName
         """,
@@ -264,6 +265,7 @@ interface InstalledAppDao {
         path: String,
         version: String?,
         assetName: String?,
+        digest: String?,
     )
 
     @Query(
