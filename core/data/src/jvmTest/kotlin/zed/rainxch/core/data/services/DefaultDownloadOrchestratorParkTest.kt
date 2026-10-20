@@ -275,6 +275,7 @@ class DefaultDownloadOrchestratorParkTest {
             path: String,
             version: String?,
             assetName: String?,
+            assetDigest: String?,
         ) {
             awaitingInstallWrites += ParkWrite(packageName, path, version, assetName)
             parked.complete(Unit)

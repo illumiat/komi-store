@@ -491,12 +491,22 @@ class DefaultDownloadOrchestrator(
         filePath: String,
         notify: Boolean,
     ) {
+        val downloadedDigest =
+            try {
+                digestVerifier.computeSha256(filePath)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.w(e) { "Orchestrator: could not hash the parked file for ${spec.packageName}" }
+                null
+            }
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
                 path = filePath,
                 version = spec.releaseTag,
                 assetName = spec.asset.name,
+                assetDigest = downloadedDigest,
             )
         } catch (e: CancellationException) {
             throw e
