@@ -1,0 +1,148 @@
+########## forgejo path ##########
+22:import zed.rainxch.core.data.mappers.toReleaseWindow
+113:            return fetchForgejoReleaseWindow(sourceHost, owner, repo, includePreReleases)
+126:            return backendReleases.toReleaseWindow(includePreReleases)
+687:    private suspend fun fetchForgejoReleaseWindow(
+697:            releases.toReleaseWindow(includePreReleases)
+--- fetchForgejoReleaseWindow body ---
+    private suspend fun fetchForgejoReleaseWindow(
+        host: String,
+        owner: String,
+        repo: String,
+        includePreReleases: Boolean,
+    ): List<GithubRelease> {
+        val client = forgejoClientRegistry.clientFor(host)
+        return try {
+            val releases = client.getReleases(owner, repo, perPage = RELEASE_WINDOW).getOrNull()
+                ?: return emptyList()
+            releases.toReleaseWindow(includePreReleases)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.e { "Forgejo fetch failed for $host/$owner/$repo: ${e.message}" }
+            emptyList()
+        }
+    }
+
+########## normalizeVersion + comments ##########
+package zed.rainxch.core.domain.utils
+
+object VersionMath {
+
+    fun normalizeVersion(version: String?): String {
+        if (version.isNullOrBlank()) return ""
+        val cleaned = stripFullPrefix(version)
+        val withoutBuildMetadata = cleaned.substringBefore('+')
+
+        val calverNormalized = normalizeCalverHyphen(withoutBuildMetadata)
+
+        val separated = insertHyphenBeforeKnownMarker(calverNormalized)
+
+        val deflavoured = stripBuildVariantSuffix(separated)
+        if (parseSemanticVersion(deflavoured) != null) {
+            return deflavoured
+        }
+        if (isMarkerWithOpaqueSuffix(deflavoured)) return deflavoured
+        // Must stay ahead of the numeric-prefix truncation below: a tag like
+        // 26.08.11f15e4 returned verbatim is what lets versionsReconcilable
+        // see the hex tail. Dropping it to "26.08.11" here would silently
+        // route hash builds into the numeric comparison this guards against.
+        if (hasHexTailAfterNumericPrefix(deflavoured)) return deflavoured
+        val match = DOTTED_DIGIT_PATTERN.find(deflavoured)
+        return match?.value ?: deflavoured
+    }
+
+    private fun stripFullPrefix(version: String): String {
+        val trimmed =
+            version
+                .trim()
+                .removePrefix("refs/tags/")
+                .trim()
+
+        val wordMatch = VERSION_WORD_PREFIX.find(trimmed)
+        val withoutWord = if (wordMatch != null) trimmed.substring(wordMatch.range.last + 1) else trimmed
+        return withoutWord.removePrefix("v").removePrefix("V").trim()
+    }
+
+    private fun normalizeCalverHyphen(s: String): String {
+        val m = CALVER_HYPHEN_PATTERN.matchEntire(s) ?: return s
+        val year = m.groupValues[1]
+        val month = m.groupValues[2].padStart(2, '0')
+        val day = m.groupValues[3].padStart(2, '0')
+        val tail = m.groupValues.getOrNull(4).orEmpty()
+        val core = "$year.$month.$day"
+        return if (tail.isNotEmpty()) "$core-$tail" else core
+    }
+
+    private fun stripBuildVariantSuffix(version: String): String {
+        val parsed = parseSemanticVersion(version) ?: return version
+        val pre = parsed.preRelease ?: return version
+        if (!isBuildVariantMarker(pre)) return version
+        return parsed.numbers.joinToString(".")
+    }
+
+    private fun isBuildVariantMarker(preRelease: String): Boolean {
+        if (preRelease.isEmpty()) return false
+
+        if (preRelease.contains('.') || preRelease.contains('-')) return false
+        val token = preRelease.lowercase()
+
+        if (KNOWN_PRE_RELEASE_PREFIXES.any { token.startsWith(it) }) {
+            return false
+        }
+        if (M_DIGIT_TAIL_PATTERN.containsMatchIn(token)) return false
+        return BUILD_VARIANT_LITERALS.contains(token)
+    }
+
+    private val BUILD_VARIANT_LITERALS =
+        setOf(
+
+            "f", "m", "l", "r", "d", "x",
+
+            "full", "mini", "minified", "lite", "release", "debug",
+            "extended",
+
+            "stable", "final", "prod", "production",
+            "gms", "fdroid", "github", "store",
+
+            "armv7", "armv8", "arm64", "armeabi",
+            "x86", "x64", "x86_64", "universal",
+            "android", "ios",
+        )
+
+    private fun insertHyphenBeforeKnownMarker(s: String): String {
+        val match = ADJACENT_ALPHA_PATTERN.find(s) ?: return s
+        val letterStart = match.range.first + 1
+        val tail = s.substring(letterStart).lowercase()
+
+        val isKnownMarker =
+            KNOWN_PRE_RELEASE_PREFIXES.any { tail.startsWith(it) } ||
+                M_DIGIT_TAIL_PATTERN.containsMatchIn(tail)
+        if (!isKnownMarker) return s
+        return s.substring(0, letterStart) + "-" + s.substring(letterStart)
+    }
+
+    fun isVersionNewer(candidate: String?, current: String?): Boolean {
+        val normCandidate = normalizeVersion(candidate)
+        val normCurrent = normalizeVersion(current)
+        if (normCandidate.isEmpty() || normCurrent.isEmpty()) return false
+        if (normCandidate == normCurrent) return false
+        return compareNormalized(normCandidate, normCurrent) > 0
+    }
+
+    // Whether two versions can be compared meaningfully by number. False when one is
+    // unparseable, or when exactly one carries a commit-hash-style suffix (e.g. tag
+    // "2.0.9.1" vs APK versionName "2.0.9-1c19925b5") — the hash normalizes to a
+    // pre-release and makes the real build look older. Callers should then track by
+    // release tag instead of nagging on a bogus numeric diff (GH#729).
+    fun versionsReconcilable(installed: String?, latest: String?): Boolean {
+        val normalizedInstalled = normalizeVersion(installed)
+        val normalizedLatest = normalizeVersion(latest)
+        if (hasHexTailAfterNumericPrefix(normalizedInstalled) ||
+            hasHexTailAfterNumericPrefix(normalizedLatest)
+        ) {
+            return false
+        }
+        val a = parseSemanticVersion(normalizedInstalled) ?: return false
+        val b = parseSemanticVersion(normalizedLatest) ?: return false
+done

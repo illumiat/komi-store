@@ -1,0 +1,48 @@
+########## preserveOpaqueOrClear final (lines 250-290) ##########
+
+            val variantWasLost =
+                hasAnyPin && fingerprintMatch == null && positionMatch == null
+
+            return ResolvedRelease(release, primary, variantWasLost)
+        }
+
+        return null
+    }
+
+    // Transient-failure bookkeeping: regular repositories clear the stored
+    // snapshot (self-heal); a timestamp-tracked (opaque-marker or hash-tail)
+    // flag survives, since clearing it drops latestReleasePublishedAt and the
+    // next scan would re-report the same release from a null baseline. Both
+    // paths still record lastCheckedAt so retry pacing and the "last checked"
+    // UI keep working.
+    private suspend fun recordTransientFailure(
+        storedLatestTag: String?,
+        packageName: String,
+    ) {
+        val now = System.currentTimeMillis()
+        if (VersionMath.isTimestampTrackedTag(storedLatestTag)) {
+            installedAppsDao.updateLastChecked(packageName, now)
+        } else {
+            installedAppsDao.clearUpdateMetadata(packageName, now)
+        }
+    }
+
+    // Sole legitimate installed-tag rewrite: the verdict already proved the
+    // package really is that build (versionCode matches), only the stored tag
+    // drifted from the release tag. Column-level DAO write on purpose — the
+    // `app` snapshot is stale after updateVersionInfo above, so a whole-row
+    // write would revert the latest*/isUpdateAvailable fields just computed.
+    private suspend fun adoptMatchedTag(
+        app: InstalledAppEntity,
+        matchedTag: String,
+    ) {
+        installedAppsDao.updateInstalledVersion(
+            packageName = app.packageName,
+            installedVersion = matchedTag,
+            installedVersionName = app.installedVersionName,
+
+########## who last touched this comment block? ##########
+5a15627 refactor: honest transient-failure bookkeeping
+--- and the isTimestampTrackedTag usage in repo ---
+271:        if (VersionMath.isTimestampTrackedTag(storedLatestTag)) {
+done

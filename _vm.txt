@@ -1,0 +1,128 @@
+########## VersionMath.kt (shouldReportTimestampUpdate + isVersionNewer) ##########
+        val b = parseSemanticVersion(normalizedLatest) ?: return false
+        val aHash = a.preRelease?.let { isCommitHashPreRelease(it) } == true
+        val bHash = b.preRelease?.let { isCommitHashPreRelease(it) } == true
+        return aHash == bHash
+    }
+
+    private fun isCommitHashPreRelease(preRelease: String): Boolean =
+        COMMIT_HASH_PATTERN.matches(preRelease)
+
+    private fun isMarkerWithOpaqueSuffix(version: String): Boolean {
+        val lower = version.lowercase()
+        val marker = KNOWN_PRE_RELEASE_PREFIXES.firstOrNull { lower.startsWith(it) } ?: return false
+        val rest = lower.substring(marker.length)
+        if (rest.isEmpty()) return true
+        if (rest.first() != '-' && rest.first() != '.') return false
+        val suffix = rest.substring(1)
+        return suffix.isNotEmpty() && !suffix.all { it.isDigit() }
+    }
+
+    fun isOpaqueMarker(version: String?): Boolean =
+        isMarkerWithOpaqueSuffix(normalizeVersion(version))
+
+    // Tags whose update state is tracked by release timestamp rather than a
+    // version number: opaque markers (nightly/rolling) and unparseable hash
+    // tails (InstallerX). Both rely on a stored publishedAt baseline, so a
+    // transient failure must not clear that baseline.
+    fun isTimestampTrackedTag(version: String?): Boolean {
+        if (version.isNullOrBlank()) return false
+        if (isOpaqueMarker(version)) return true
+        return hasHexTailAfterNumericPrefix(normalizeVersion(version))
+    }
+
+    fun shouldReportTimestampUpdate(
+        matchedTag: String?,
+        matchedPublishedAt: String?,
+        previousLatestPublishedAt: String?,
+        previousWasUpdateAvailable: Boolean,
+        previousLatestTag: String?,
+    ): Boolean {
+        // Lexicographic compare is only valid because GitHub API publishedAt
+        // is always UTC ISO-8601 ending in "Z" — no offset normalization here.
+        if (previousLatestPublishedAt == null && matchedPublishedAt != null) return true
+        val newerByTimestamp =
+            matchedPublishedAt != null &&
+                previousLatestPublishedAt != null &&
+                matchedPublishedAt > previousLatestPublishedAt
+        return newerByTimestamp ||
+            (previousWasUpdateAvailable && isExactSameVersion(matchedTag, previousLatestTag))
+    }
+
+    fun compareVersions(a: String?, b: String?): Int {
+        val normA = normalizeVersion(a)
+        val normB = normalizeVersion(b)
+        return compareNormalized(normA, normB)
+    }
+
+    fun isSameVersion(a: String?, b: String?): Boolean = compareVersions(a, b) == 0
+
+    fun isExactSameVersion(a: String?, b: String?): Boolean {
+        val cleanedA = stripCommonPrefixes(a) ?: return false
+        val cleanedB = stripCommonPrefixes(b) ?: return false
+        return cleanedA == cleanedB
+    }
+
+    private fun stripCommonPrefixes(version: String?): String? {
+        if (version.isNullOrBlank()) return null
+        val cleaned = stripFullPrefix(version)
+        return cleaned.takeIf { it.isNotEmpty() }
+    }
+
+    private fun compareNormalized(a: String, b: String): Int {
+        if (a == b) return 0
+        val parsedA = parseSemanticVersion(a)
+        val parsedB = parseSemanticVersion(b)
+        if (parsedA != null && parsedB != null) {
+            return compareSemver(parsedA, parsedB)
+        }
+
+        return a.compareTo(b)
+    }
+
+    private fun compareSemver(a: SemanticVersion, b: SemanticVersion): Int {
+        val maxLen = maxOf(a.numbers.size, b.numbers.size)
+        for (i in 0 until maxLen) {
+            val ai = a.numbers.getOrElse(i) { 0L }
+            val bi = b.numbers.getOrElse(i) { 0L }
+            if (ai != bi) return ai.compareTo(bi)
+        }
+
+        return when {
+            a.preRelease == null && b.preRelease == null -> 0
+            a.preRelease == null -> 1
+            b.preRelease == null -> -1
+            else -> comparePreRelease(a.preRelease, b.preRelease)
+        }
+    }
+
+    private fun comparePreRelease(a: String, b: String): Int {
+        val aParts = a.split(".")
+        val bParts = b.split(".")
+        for (i in 0 until minOf(aParts.size, bParts.size)) {
+            val ap = aParts[i]
+            val bp = bParts[i]
+            val aNum = ap.toLongOrNull()
+            val bNum = bp.toLongOrNull()
+            val cmp =
+                when {
+                    aNum != null && bNum != null -> aNum.compareTo(bNum)
+                    aNum != null -> -1
+                    bNum != null -> 1
+                    else -> ap.compareTo(bp)
+                }
+            if (cmp != 0) return cmp
+        }
+        return aParts.size.compareTo(bParts.size)
+    }
+
+    private data class SemanticVersion(
+        val numbers: List<Long>,
+        val preRelease: String?,
+    )
+
+    private fun parseSemanticVersion(version: String): SemanticVersion? {
+        if (version.isEmpty()) return null
+        val hyphenIndex = version.indexOf('-')
+        val numberPart = if (hyphenIndex >= 0) version.substring(0, hyphenIndex) else version
+done

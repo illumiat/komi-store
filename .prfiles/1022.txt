@@ -1,0 +1,8 @@
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/AndroidInstallerInfoExtractor.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/AndroidPackageMonitor.kt
+core/data/src/commonMain/kotlin/zed/rainxch/core/data/di/SharedModule.kt
+core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/model/apk/ApkPackageInfo.kt
+core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/model/installation/SystemPackageInfo.kt
+core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/use_cases/SyncInstalledAppsUseCase.kt
+core/domain/src/jvmTest/kotlin/zed/rainxch/core/domain/use_cases/ParkedFileSupersededTest.kt
+core/domain/src/jvmTest/kotlin/zed/rainxch/core/domain/use_cases/SyncInstalledAppsUseCaseParkTest.kt

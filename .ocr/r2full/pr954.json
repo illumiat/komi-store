@@ -1,0 +1,123 @@
+{
+  "status": "complete",
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 0 finding(s) across 4 selected item(s).",
+  "summary": {
+    "files_reviewed": 4,
+    "comments": 0,
+    "total_tokens": 166678,
+    "input_tokens": 160207,
+    "output_tokens": 6471,
+    "cache_read_tokens": 137216,
+    "elapsed": "28s"
+  },
+  "tool_calls": {
+    "total": 19,
+    "by_tool": {
+      "code_search": 7,
+      "file_find": 1,
+      "file_read": 10,
+      "file_read_diff": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "groups": [
+    {
+      "label": "Details presentation: version picker \u0026 what's new",
+      "files": [
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/components/VersionPicker.kt",
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/components/sections/WhatsNew.kt",
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/whatsnew/DetailsWhatsNewViewModel.kt"
+      ]
+    },
+    {
+      "label": "Repo pages security screen",
+      "files": [
+        "feature/repo-pages/presentation/src/commonMain/kotlin/zed/rainxch/repopages/presentation/security/SecurityRoot.kt"
+      ]
+    }
+  ],
+  "session_id": "5d899064-7f24-42a2-962a-03ae4133b448",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "5d899064-7f24-42a2-962a-03ae4133b448",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {
+      "identity_sha256": "1bdbdf8bf55e67afe288e298be6344c7c0249f7c8fdd9747169d679550a11d93"
+    },
+    "input": {
+      "mode": "range",
+      "requested_from": "origin/main",
+      "requested_head": "a858181",
+      "resolved_base": "6a4174dbf29f977820b6c5321d18f1723ca2ba6b",
+      "resolved_head": "a858181c868c7319704cec2b13bdb54487ed6892",
+      "exact_range": "6a4174dbf29f977820b6c5321d18f1723ca2ba6b..a858181c868c7319704cec2b13bdb54487ed6892",
+      "source_artifact_sha256": "b459551b0eecfe89954fcc5d8523dc6ce9b2ed1d62df2b2a7acd25aaed787786"
+    },
+    "execution": {
+      "ocr_version": "v1.12.7",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "configured_concurrency": 8,
+      "rule_config_sha256": "ddb40005eb732cb8b37d8d3dc1acb82f3aa51fded408c899a092c10349c369c4",
+      "runtime_config_sha256": "5ebcfe48b12eb630044e21e03a257346b5e290bbb9f751fe92aca7953e97ed4c"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "298c7c1e574ba7c5b93ae23c0b8bfee6353cb876eb24e82e538eb5a973730c71",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/components/sections/WhatsNew.kt",
+          "fingerprint": "3236a27977807095cc09fe75ca464b6bee76de4867ada145c483f8afcb3f0edf"
+        },
+        {
+          "item_id": "2e6b4b51aa5922cec240106da692997abef997bf1b33683b107238f8ad803c1b",
+          "path": "feature/repo-pages/presentation/src/commonMain/kotlin/zed/rainxch/repopages/presentation/security/SecurityRoot.kt",
+          "fingerprint": "5c6886ddc95272ca89cc3c96235ed45a1118f19fe28b8799eead465499f09dac"
+        },
+        {
+          "item_id": "5acb24f3ccc5bea9dd81b0d6528225709c236da2e21e7d90fdcbbe4cb866fa0f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/whatsnew/DetailsWhatsNewViewModel.kt",
+          "fingerprint": "6613f5a8676b749e0bc2f09cb6a7d4c4df25dacc7b9773e597e720fee7554ee1"
+        },
+        {
+          "item_id": "c419004bd2e5250be093759135bf01cd2383abf643183d06e48a0ce30dd3d5fd",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/components/VersionPicker.kt",
+          "fingerprint": "d7ebbf40fc53d4c02058105fe71b2051f2bb8a6543c85147330f67d845f30bfe"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "298c7c1e574ba7c5b93ae23c0b8bfee6353cb876eb24e82e538eb5a973730c71",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/components/sections/WhatsNew.kt",
+          "fingerprint": "3236a27977807095cc09fe75ca464b6bee76de4867ada145c483f8afcb3f0edf"
+        },
+        {
+          "item_id": "2e6b4b51aa5922cec240106da692997abef997bf1b33683b107238f8ad803c1b",
+          "path": "feature/repo-pages/presentation/src/commonMain/kotlin/zed/rainxch/repopages/presentation/security/SecurityRoot.kt",
+          "fingerprint": "5c6886ddc95272ca89cc3c96235ed45a1118f19fe28b8799eead465499f09dac"
+        },
+        {
+          "item_id": "5acb24f3ccc5bea9dd81b0d6528225709c236da2e21e7d90fdcbbe4cb866fa0f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/whatsnew/DetailsWhatsNewViewModel.kt",
+          "fingerprint": "6613f5a8676b749e0bc2f09cb6a7d4c4df25dacc7b9773e597e720fee7554ee1"
+        },
+        {
+          "item_id": "c419004bd2e5250be093759135bf01cd2383abf643183d06e48a0ce30dd3d5fd",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/components/VersionPicker.kt",
+          "fingerprint": "d7ebbf40fc53d4c02058105fe71b2051f2bb8a6543c85147330f67d845f30bfe"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 28187
+  }
+}

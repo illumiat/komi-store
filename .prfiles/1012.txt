@@ -1,0 +1,10 @@
+composeApp/src/androidMain/AndroidManifest.xml
+composeApp/src/androidMain/kotlin/zed/rainxch/githubstore/app/GithubStoreApp.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/di/PlatformModule.android.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/AndroidDownloadProgressNotifier.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/DownloadForegroundController.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/DownloadForegroundService.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/DownloadNotificationFactory.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/DownloadNotificationObserver.kt
+core/data/src/commonMain/kotlin/zed/rainxch/core/data/download/ForegroundPrimary.kt
+core/data/src/jvmTest/kotlin/zed/rainxch/core/data/download/ForegroundPrimaryTest.kt

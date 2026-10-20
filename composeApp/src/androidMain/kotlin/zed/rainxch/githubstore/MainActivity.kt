@@ -28,6 +28,7 @@ import zed.rainxch.core.domain.helpers.ShareManager
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.use_cases.SyncInstalledAppsUseCase
 import zed.rainxch.githubstore.app.deeplink.DeepLinkParser
+import zed.rainxch.githubstore.utils.applyDisplayModePreference
 import zed.rainxch.githubstore.utils.readDeviceCapabilities
 import zed.rainxch.githubstore.utils.supportsSustainedPerformance
 import zed.rainxch.githubstore.utils.updateSystemBars
@@ -73,6 +74,14 @@ class MainActivity : ComponentActivity() {
                         localizationManager.setActiveLanguageTag(newTag)
                         recreate()
                     }
+            }
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                tweaksRepository
+                    .getDisplayModeId()
+                    .collect { modeId -> this@MainActivity.applyDisplayModePreference(modeId) }
             }
         }
 

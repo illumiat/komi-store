@@ -1,0 +1,471 @@
+=== db9a0cb (utc timestamp) full diff ===
+commit db9a0cb02d179f353a57ca09729634c61aa0bb9c
+Author: illumiat <128163683+illumiat@users.noreply.github.com>
+Date:   Sat Sep 5 02:37:58 2026 +0800
+
+    fix: catch short hash tails and declare the utc timestamp assumption
+
+diff --git a/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/VersionMath.kt b/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/VersionMath.kt
+index 166b0ec..4b0cb3c 100644
+--- a/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/VersionMath.kt
++++ b/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/VersionMath.kt
+@@ -146,6 +146,8 @@ object VersionMath {
+         previousWasUpdateAvailable: Boolean,
+         previousLatestTag: String?,
+     ): Boolean {
++        // Lexicographic compare is only valid because GitHub API publishedAt
++        // is always UTC ISO-8601 ending in "Z" — no offset normalization here.
+         if (previousLatestPublishedAt == null && matchedPublishedAt != null) return true
+         val newerByTimestamp =
+             matchedPublishedAt != null &&
+@@ -246,7 +248,7 @@ object VersionMath {
+     private val DOTTED_DIGIT_PATTERN = Regex("""\d+(?:\.\d+)*(?:-[\w.]+)?""")
+ 
+     private val HEX_TAIL_AFTER_NUMERIC_PREFIX =
+-        Regex("""^\d+(?:\.\d+)*(?:\.)?[0-9a-f]{6,}$""", RegexOption.IGNORE_CASE)
++        Regex("""^\d+(?:\.\d+)*(?:\.)?[0-9a-f]{4,}$""", RegexOption.IGNORE_CASE)
+ 
+     private fun hasHexTailAfterNumericPrefix(version: String): Boolean =
+         HEX_TAIL_AFTER_NUMERIC_PREFIX.containsMatchIn(version) &&
+diff --git a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt
+index 9d55b0a..9128c73 100644
+--- a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt
++++ b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt
+@@ -7,7 +7,6 @@ import kotlin.test.assertTrue
+ 
+ class InstalledAppUpdatesTest {
+ 
+-    // ── fixture ──────────────────────────────────────────────────────────
+ 
+     private fun app(
+         installedVersion: String = "1.0.0",
+@@ -52,7 +51,6 @@ class InstalledAppUpdatesTest {
+         pendingInstallAssetName = if (pendingFilePath != null) "app-2.0.0.apk" else null,
+     )
+ 
+-    // ── confirmInstall (install zone) ────────────────────────────────────
+ 
+     @Test
+     fun confirmInstallWritesInstallZone() {
+@@ -158,7 +156,6 @@ class InstalledAppUpdatesTest {
+         assertEquals("2.0.0", result.latestVersionName)
+     }
+ 
+-    // ── resolvePendingFromSystem (install zone + pending resolution) ─────
+ 
+     @Test
+     fun resolvePendingFromSystemAdoptsTagAndClearsPending() {
+@@ -184,7 +181,6 @@ class InstalledAppUpdatesTest {
+         assertTrue(result.isUpdateAvailable)
+     }
+ 
+-    // ── observeExternalInstall (observe zone) ────────────────────────────
+ 
+     @Test
+     fun observeExternalInstallNeverTouchesInstalledTag() {
+@@ -208,7 +204,6 @@ class InstalledAppUpdatesTest {
+         assertTrue(result.isUpdateAvailable)
+     }
+ 
+-    // ── pending zone ─────────────────────────────────────────────────────
+ 
+     @Test
+     fun markAndClearPendingTouchOnlyPendingFlag() {
+@@ -220,7 +215,6 @@ class InstalledAppUpdatesTest {
+         assertFalse(cleared.isPendingInstall)
+     }
+ 
+-    // ── withLatestSnapshot (check zone, pre-install parking) ─────────────
+ 
+     @Test
+     fun withLatestSnapshotWritesOnlyCheckZone() {
+@@ -242,7 +236,6 @@ class InstalledAppUpdatesTest {
+         assertFalse(result.isPendingInstall)
+     }
+ 
+-    // ── chained handoff (markPending + withLatestSnapshot) ───────────────
+ 
+     @Test
+     fun chainedPreInstallHandoffCombinesBothZones() {
+@@ -260,7 +253,6 @@ class InstalledAppUpdatesTest {
+         assertEquals("1.0.0", result.installedVersion)
+     }
+ 
+-    // ── migrate (one-time dual-zone normalization) ───────────────────────
+ 
+     @Test
+     fun migratedVersionInfoAlignsBothSides() {
+@@ -272,12 +264,10 @@ class InstalledAppUpdatesTest {
+         assertEquals(150L, result.installedVersionCode)
+         assertEquals("1.5.0", result.latestVersionName)
+         assertEquals(150L, result.latestVersionCode)
+-        // tags untouched
+         assertEquals("1.0.0", result.installedVersion)
+         assertEquals("2.0.0", result.latestVersion)
+     }
+ 
+-    // ── normalizeInstalledTag ────────────────────────────────────────────
+ 
+     @Test
+     fun normalizeInstalledTagAlignsTagAndClearsFlag() {
+diff --git a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/VersionMathTest.kt b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/VersionMathTest.kt
+index e8af90d..b4c940f 100644
+--- a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/VersionMathTest.kt
++++ b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/VersionMathTest.kt
+@@ -46,6 +46,13 @@ class VersionMathTest {
+                 "26.08.11f15e4",
+             ),
+         )
++        // short hash tails (4-5 hex chars) must also opt out of numeric compare
++        assertFalse(
++            VersionMath.versionsReconcilable(
++                "1.2.3fabc",
++                "1.2.4",
++            ),
++        )
+     }
+ 
+     @Test
+
+=== 7c3ede1 (verdict params) full diff ===
+commit 7c3ede14cdafdaf069e252314a957b2caf254162
+Author: illumiat <128163683+illumiat@users.noreply.github.com>
+Date:   Fri Sep 4 20:25:28 2026 +0800
+
+    refactor: collapse verdict params, dedupe guards, drop test KDoc
+    
+    - UpdateVerdict.decide() takes Installed/Stored/Matched instead of ten loose
+      params; the three data clumps are now named types at both call sites.
+    - Extract preserveOpaqueOrClear() for the transient-failure guard that was
+      duplicated verbatim at both early-return sites in checkForUpdates.
+    - confirmInstall: hoist the three pending-metadata conditionals; identical
+      behavior, single place to read the handoff rule.
+    - InstalledAppUpdates header: replace the impossible "ONLY sanctioned
+      exception" claim with the honest migrate-zone rationale.
+    - DetailsViewModel: route retryReleases and init channel selection through
+      the existing firstInCategory helper instead of three hand-copies.
+    - InstalledAppUpdatesTest: drop the class KDoc (repo bans KDoc).
+
+diff --git a/core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt b/core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt
+index 8c01733..92940ab 100644
+--- a/core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt
++++ b/core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt
+@@ -261,6 +261,19 @@ class InstalledAppsRepositoryImpl(
+         return null
+     }
+ 
++    // Keep an opaque-marker (nightly) flag through transient failures:
++    // clearing it drops latestReleasePublishedAt and the next scan would
++    // re-report from a null baseline. Regular repositories self-heal.
++    private suspend fun preserveOpaqueOrClear(
++        storedLatestTag: String?,
++        packageName: String,
++    ): Boolean {
++        if (!VersionMath.isOpaqueMarker(storedLatestTag)) {
++            installedAppsDao.clearUpdateMetadata(packageName, System.currentTimeMillis())
++        }
++        return false
++    }
++
+     override suspend fun checkForUpdates(packageName: String): Boolean {
+         val app = installedAppsDao.getAppByPackage(packageName) ?: return false
+ 
+@@ -278,14 +291,7 @@ class InstalledAppsRepositoryImpl(
+                 )
+ 
+             if (releases.isEmpty()) {
+-                // Keep an opaque-marker (nightly) flag through transient empty
+-                // windows: clearing it drops latestReleasePublishedAt and the
+-                // next scan would re-report from a null baseline. Regular
+-                // repositories still self-heal.
+-                if (!VersionMath.isOpaqueMarker(app.latestVersion)) {
+-                    installedAppsDao.clearUpdateMetadata(packageName, System.currentTimeMillis())
+-                }
+-                return false
++                return preserveOpaqueOrClear(app.latestVersion, packageName)
+             }
+ 
+             val compiledFilter =
+@@ -315,26 +321,32 @@ class InstalledAppsRepositoryImpl(
+                     "No matching release found for ${app.appName} in window of ${releases.size}; " +
+                             "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
+                 }
+-                if (!VersionMath.isOpaqueMarker(app.latestVersion)) {
+-                    installedAppsDao.clearUpdateMetadata(packageName, System.currentTimeMillis())
+-                }
+-                return false
++                return preserveOpaqueOrClear(app.latestVersion, packageName)
+             }
+ 
+             val (matchedRelease, primaryAsset, variantWasLost) = resolved
+ 
+             val verdict =
+                 UpdateVerdict.decide(
+-                    installedTag = app.installedVersion,
+-                    installedVersionCode = app.installedVersionCode,
+-                    storedLatestTag = app.latestVersion,
+-                    storedLatestVersionCode = app.latestVersionCode,
+-                    storedPublishedAt = app.latestReleasePublishedAt,
+-                    wasUpdateAvailable = app.isUpdateAvailable,
++                    installed =
++                        UpdateVerdict.Installed(
++                            tag = app.installedVersion,
++                            versionCode = app.installedVersionCode,
++                        ),
++                    stored =
++                        UpdateVerdict.Stored(
++                            latestTag = app.latestVersion,
++                            latestVersionCode = app.latestVersionCode,
++                            publishedAt = app.latestReleasePublishedAt,
++                            wasUpdateAvailable = app.isUpdateAvailable,
++                        ),
++                    matched =
++                        UpdateVerdict.Matched(
++                            tag = matchedRelease.tagName,
++                            publishedAt = matchedRelease.publishedAt,
++                            isPrerelease = matchedRelease.isPrerelease,
++                        ),
+                     skippedTag = app.skippedReleaseTag,
+-                    matchedTag = matchedRelease.tagName,
+-                    matchedPublishedAt = matchedRelease.publishedAt,
+-                    matchedIsPrerelease = matchedRelease.isPrerelease,
+                 )
+ 
+             if (verdict.skipBecameStale) {
+diff --git a/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdates.kt b/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdates.kt
+index 4585258..108e71c 100644
+--- a/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdates.kt
++++ b/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdates.kt
+@@ -4,10 +4,10 @@ import zed.rainxch.core.domain.utils.VersionMath
+ 
+ // Zone-scoped write surface for InstalledApp. A bare copy() with dozens of
+ // named args let any writer overwrite fields owned by another writer (the
+-// overwrite-bug class); each function below copies ONLY its own zone, so
+-// cross-zone overwrites are impossible by construction. Zone ownership is
+-// pinned by InstalledAppUpdatesTest. One exception: withLatestSnapshot is a
+-// check-zone writer used to park the install target before a download.
++// overwrite-bug class); each function below copies ONLY the fields of its
++// declared zone, pinned by InstalledAppUpdatesTest. The migrate zone is
++// deliberately cross-side: it is the one-time import normalizer and owns the
++// version name/code fields on both sides, never tags, flags, or assets.
+ 
+ // install zone — real install/confirm events only
+ 
+@@ -28,6 +28,12 @@ fun InstalledApp.confirmInstall(
+         !snapshotLatestVersion.isNullOrBlank() &&
+                 VersionMath.isVersionNewer(snapshotLatestVersion, tag)
+ 
++    // Non-pending confirmations finish the install, so pending metadata goes
++    // with them; a system-installer handoff keeps the parked file alive.
++    val parkedFile = if (isPending) pendingInstallFilePath else null
++    val parkedVersion = if (isPending) pendingInstallVersion else null
++    val parkedAsset = if (isPending) pendingInstallAssetName else null
++
+     return copy(
+         installedVersion = tag,
+         installedAssetName = assetName,
+@@ -40,9 +46,9 @@ fun InstalledApp.confirmInstall(
+         lastUpdatedAt = at,
+         lastCheckedAt = at,
+         signingFingerprint = signingFingerprint,
+-        pendingInstallFilePath = if (isPending) pendingInstallFilePath else null,
+-        pendingInstallVersion = if (isPending) pendingInstallVersion else null,
+-        pendingInstallAssetName = if (isPending) pendingInstallAssetName else null,
++        pendingInstallFilePath = parkedFile,
++        pendingInstallVersion = parkedVersion,
++        pendingInstallAssetName = parkedAsset,
+     )
+ }
+ 
+@@ -67,7 +73,7 @@ fun InstalledApp.normalizeInstalledTag(tag: String): InstalledApp = copy(
+     isUpdateAvailable = false,
+ )
+ 
+-// one-time import/migration normalization; the ONLY sanctioned dual-zone write
++// one-time import/migration normalization; owns both sides' version fields by design
+ fun InstalledApp.withMigratedVersionInfo(
+     versionName: String?,
+     versionCode: Long,
+diff --git a/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/UpdateVerdict.kt b/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/UpdateVerdict.kt
+index 8d0cc34..cc804c8 100644
+--- a/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/UpdateVerdict.kt
++++ b/core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/UpdateVerdict.kt
+@@ -6,48 +6,60 @@ package zed.rainxch.core.domain.utils
+ // UpdateVerdictTest.
+ object UpdateVerdict {
+ 
++    data class Installed(
++        val tag: String?,
++        val versionCode: Long,
++    )
++
++    data class Stored(
++        val latestTag: String?,
++        val latestVersionCode: Long?,
++        val publishedAt: String?,
++        val wasUpdateAvailable: Boolean,
++    )
++
++    data class Matched(
++        val tag: String,
++        val publishedAt: String?,
++        val isPrerelease: Boolean,
++    )
++
+     fun decide(
+-        installedTag: String?,
+-        installedVersionCode: Long,
+-        storedLatestTag: String?,
+-        storedLatestVersionCode: Long?,
+-        storedPublishedAt: String?,
+-        wasUpdateAvailable: Boolean,
++        installed: Installed,
++        stored: Stored,
++        matched: Matched,
+         skippedTag: String?,
+-        matchedTag: String,
+-        matchedPublishedAt: String?,
+-        matchedIsPrerelease: Boolean,
+     ): Result {
+-        val reconcilable = VersionMath.versionsReconcilable(installedTag, matchedTag)
++        val reconcilable = VersionMath.versionsReconcilable(installed.tag, matched.tag)
+         val codesAlreadyMatch =
+-            installedVersionCode > 0L &&
+-                storedLatestVersionCode != null &&
+-                storedLatestVersionCode > 0L &&
+-                installedVersionCode == storedLatestVersionCode &&
+-                matchedTag == storedLatestTag
++            installed.versionCode > 0L &&
++                stored.latestVersionCode != null &&
++                stored.latestVersionCode > 0L &&
++                installed.versionCode == stored.latestVersionCode &&
++                matched.tag == stored.latestTag
+ 
+         val matchesSkipped =
+-            skippedTag != null && VersionMath.isExactSameVersion(matchedTag, skippedTag)
++            skippedTag != null && VersionMath.isExactSameVersion(matched.tag, skippedTag)
+         val skipBecameStale =
+             skippedTag != null &&
+                 !matchesSkipped &&
+-                VersionMath.isVersionNewer(matchedTag, skippedTag)
++                VersionMath.isVersionNewer(matched.tag, skippedTag)
+ 
+-        val opaqueMatched = VersionMath.isOpaqueMarker(matchedTag)
+-        val sameTag = VersionMath.isExactSameVersion(matchedTag, installedTag)
++        val opaqueMatched = VersionMath.isOpaqueMarker(matched.tag)
++        val sameTag = VersionMath.isExactSameVersion(matched.tag, installed.tag)
+         val usedTimestampLogic =
+             opaqueMatched ||
+                 (sameTag && !reconcilable) ||
+-                (!reconcilable && (matchedIsPrerelease || VersionMath.isPreReleaseTag(matchedTag)))
++                (!reconcilable && (matched.isPrerelease || VersionMath.isPreReleaseTag(matched.tag)))
+ 
+         val timestampWouldReport =
+             if (usedTimestampLogic) {
+                 VersionMath.shouldReportTimestampUpdate(
+-                    matchedTag = matchedTag,
+-                    matchedPublishedAt = matchedPublishedAt,
+-                    previousLatestPublishedAt = storedPublishedAt,
+-                    previousWasUpdateAvailable = wasUpdateAvailable,
+-                    previousLatestTag = storedLatestTag,
++                    matchedTag = matched.tag,
++                    matchedPublishedAt = matched.publishedAt,
++                    previousLatestPublishedAt = stored.publishedAt,
++                    previousWasUpdateAvailable = stored.wasUpdateAvailable,
++                    previousLatestTag = stored.latestTag,
+                 )
+             } else {
+                 false
+@@ -64,8 +76,8 @@ object UpdateVerdict {
+                 !reconcilable -> false
+                 else ->
+                     VersionMath.isVersionNewer(
+-                        candidate = matchedTag,
+-                        current = installedTag,
++                        candidate = matched.tag,
++                        current = installed.tag,
+                     )
+             }
+ 
+diff --git a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt
+index 5dde4cd..a9e9249 100644
+--- a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt
++++ b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/model/installation/InstalledAppUpdatesTest.kt
+@@ -5,10 +5,6 @@ import kotlin.test.assertEquals
+ import kotlin.test.assertFalse
+ import kotlin.test.assertTrue
+ 
+-/**
+- * Pins the write-ownership contract of the zone-scoped update functions:
+- * each function must copy ONLY its own zone's fields.
+- */
+ class InstalledAppUpdatesTest {
+ 
+     // ── fixture ──────────────────────────────────────────────────────────
+diff --git a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/UpdateVerdictTest.kt b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/UpdateVerdictTest.kt
+index b754916..091519f 100644
+--- a/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/UpdateVerdictTest.kt
++++ b/core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/UpdateVerdictTest.kt
+@@ -21,16 +21,16 @@ class UpdateVerdictTest {
+         matchedIsPrerelease: Boolean = false,
+     ): UpdateVerdict.Result =
+         UpdateVerdict.decide(
+-            installedTag = installedTag,
+-            installedVersionCode = installedVersionCode,
+-            storedLatestTag = storedLatestTag,
+-            storedLatestVersionCode = storedLatestVersionCode,
+-            storedPublishedAt = storedPublishedAt,
+-            wasUpdateAvailable = wasUpdateAvailable,
++            installed = UpdateVerdict.Installed(installedTag, installedVersionCode),
++            stored =
++                UpdateVerdict.Stored(
++                    latestTag = storedLatestTag,
++                    latestVersionCode = storedLatestVersionCode,
++                    publishedAt = storedPublishedAt,
++                    wasUpdateAvailable = wasUpdateAvailable,
++                ),
++            matched = UpdateVerdict.Matched(matchedTag, matchedPublishedAt, matchedIsPrerelease),
+             skippedTag = skippedTag,
+-            matchedTag = matchedTag,
+-            matchedPublishedAt = matchedPublishedAt,
+-            matchedIsPrerelease = matchedIsPrerelease,
+         )
+ 
+     // ── semver branch ────────────────────────────────────────────────────
+diff --git a/feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt b/feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt
+index a9ff278..e1e8276 100644
+--- a/feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt
++++ b/feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt
+@@ -857,11 +857,7 @@ class DetailsViewModel(
+                         sourceHost = sourceHostParam,
+                     )
+ 
+-                val byPrevCategory = when (prevCategory) {
+-                    ReleaseCategory.STABLE -> releases.firstOrNull { !it.isEffectivelyPreRelease() }
+-                    ReleaseCategory.PRE_RELEASE -> releases.firstOrNull { it.isEffectivelyPreRelease() }
+-                    ReleaseCategory.ALL -> releases.firstOrNull()
+-                }
++                val byPrevCategory = releases.firstInCategory(prevCategory)
+                 val selected = byPrevCategory
+                     ?: releases.firstOrNull { !it.isEffectivelyPreRelease() }
+                     ?: releases.firstOrNull()
+@@ -2496,11 +2492,13 @@ class DetailsViewModel(
+                             VersionMath.isSameVersion(it.tagName, installedApp?.installedVersion)
+                         }?.isEffectivelyPreRelease() == true
+                 val selectedRelease =
+-                    if (installedIsPreRelease) {
+-                        allReleases.firstOrNull { it.isEffectivelyPreRelease() }
+-                    } else {
+-                        allReleases.firstOrNull { !it.isEffectivelyPreRelease() }
+-                    } ?: allReleases.firstOrNull()
++                    allReleases.firstInCategory(
++                        if (installedIsPreRelease) {
++                            ReleaseCategory.PRE_RELEASE
++                        } else {
++                            ReleaseCategory.STABLE
++                        },
++                    ) ?: allReleases.firstInCategory(ReleaseCategory.ALL)
+                 val resolvedCategory =
+                     if (selectedRelease?.isEffectivelyPreRelease() == true) {
+                         ReleaseCategory.PRE_RELEASE
+done

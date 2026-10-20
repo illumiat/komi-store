@@ -1,0 +1,7 @@
+968|fix/profile-and-image-flicker|71b065dcdaa5fd9d5741ba924ad4364a3653c29f
+966|fix/profile-list-viewport-clip|4e55fe83dfcf1e12fa7bf209f4251861e4888107
+964|fix/downgrade-user-confirmation|f74d2aa02c7d5dc37bf3432b471443cca895ef0d
+959|feat/tablet-card-grid|f755bd0c41ccbb7c7571849471b6c86403aa7ea7
+955|fix/startup-appearance-gate|f4210deecec92a39e53a2b7ceb126c3ed9f2319e
+954|fix/release-date-timezone|5e993e9cf41c8aa9a5d57ef9afec277821265733
+934|fix/nightly-version-detection|3b7f732de08bff3ccbf16f00825bb538d306f16b

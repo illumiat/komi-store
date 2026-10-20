@@ -1,0 +1,4 @@
+fatal: cannot change to '/d/komi-store': No such file or directory
+fatal: cannot change to '/d/komi-store': No such file or directory
+fatal: cannot change to '/d/komi-store': No such file or directory
+done

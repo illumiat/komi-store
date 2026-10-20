@@ -1,0 +1,117 @@
+{
+  "status": "complete",
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 2 finding(s) across 2 selected item(s).",
+  "summary": {
+    "files_reviewed": 2,
+    "comments": 2,
+    "total_tokens": 650876,
+    "input_tokens": 624901,
+    "output_tokens": 25975,
+    "cache_read_tokens": 577792,
+    "elapsed": "2m15s"
+  },
+  "tool_calls": {
+    "total": 40,
+    "by_tool": {
+      "code_comment": 2,
+      "code_search": 15,
+      "file_read": 23
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+      "content": "`isAheadOf` can return `true` through its code branch even when `snapshotLatestVersion` is null, and the assignment then writes `null` over an already-recorded skip. The old guard `!snapshotLatestVersion.isNullOrBlank()` prevented exactly this, but it was dropped when the comparison moved into the helper (the helper only validates a non-blank candidate tag in its tag-fallback branch, not in the code branch).\n\nThis state is reachable, not theoretical: `clearUpdateMetadata` nulls `latestVersion`/`latestVersionCode` together while keeping `skippedReleaseTag`; a subsequent `updateAppVersion` for an older build has `latestStillNewer == false`, so line 524 repopulates `latestVersionCode = newVersionCode (\u003e 0)` while `latestVersion` stays null. A second step-back then hits `isAheadOf(null, newTag, oldCode \u003e 0, olderCode \u003e 0)` -\u003e `true` and clobbers the user's skip to null. Since `getAppsWithSkippedReleaseTag`/`checkForUpdates` rely on this field, a declined release can silently reappear in the Skipped Updates screen and be re-advertised.\n\nRestore the non-blank requirement for the skip-recording path.",
+      "suggestion_code": "            if (movedBackToOlder \u0026\u0026\n                !isPendingInstall \u0026\u0026\n                !snapshotLatestVersion.isNullOrBlank() \u0026\u0026\n                isAheadOf(snapshotLatestVersion, newTag, app.latestVersionCode, newVersionCode)\n            ) {\n                snapshotLatestVersion",
+      "existing_code": "            if (movedBackToOlder \u0026\u0026\n                !isPendingInstall \u0026\u0026\n                isAheadOf(snapshotLatestVersion, newTag, app.latestVersionCode, newVersionCode)\n            ) {\n                snapshotLatestVersion",
+      "start_line": 495,
+      "end_line": 499,
+      "thinking": "Note: `setSkippedReleaseTag` in repository filters blank tags (`tag?.takeIf { it.isNotBlank() }`) and the DAO likely stores null. So skippedReleaseTag is never blank string. And in updateAppVersion, `skippedReleaseTag = snapshotLatestVersion` could be blank? snapshotLatestVersion = app.latestVersion which comes from DB; latestVersion can be blank string theoretically but not null... Anyway the concern is about null.\n\nAlso, `getAppsWithSkippedReleaseTag` returns apps with non-null skippedReleaseTag. Skipped Updates screen shows count. So losing the tag would remove it from that list — user-visible regression. That reinforces the concern's impact.\n\nGood, I'll report it. Let me finalize with the comment.\n\nLet me write a concise but complete comment.",
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+      "content": "The gate assumes `isPendingInstall` means \"the file was only parked, the install never ran\". That is not how the flag is used today: on Android the ordinary install flow returns `InstallOutcome.DELEGATED_TO_SYSTEM` (AndroidInstaller.install), `saveInstalledAppToDatabase` maps any non-`COMPLETED` outcome to `isPending = true` (DetailsViewModel.kt:2105), and that value is forwarded here. Likewise `PackageEventReceiver.onPackageInstalled` calls `updateAppVersion(...)` without overriding the interface default `isPendingInstall = true` (InstalledAppsRepository.kt:42) when it confirms a real install. So this condition also suppresses the `skippedReleaseTag` rewrite for installs the user actually ran (the common Android case), which re-advertises the release they deliberately stepped away from — the behaviour the method exists to prevent. If the intent is only to exclude parked files, keying on a dedicated signal (e.g. the parked-file state) rather than `isPendingInstall` would be more precise.",
+      "existing_code": "                !isPendingInstall \u0026\u0026",
+      "start_line": 496,
+      "end_line": 496,
+      "thinking": "Confirmed: the standard Android install returns DELEGATED_TO_SYSTEM → isPending=true in saveInstalledAppToDatabase → updateAppVersion isPendingInstall=true → new gate suppresses skippedReleaseTag. This is a real behavioral concern: the gate keys off a flag that is true for the normal Android install flow, not just parked files.\n\nNow let me write the comment. I'll anchor it on the line `                !isPendingInstall \u0026\u0026` in the added block.\n\nFormat for existing_code: needs to be newly added lines only, exactly matching the diff:\n```\n        if (movedBackToOlder \u0026\u0026\n            !isPendingInstall \u0026\u0026\n            isAheadOf(snapshotLatestVersion, newTag, app.latestVersionCode, newVersionCode)\n        ) {\n```\nWait, in the diff the added lines are:\n```\n+        // Only a release that is genuinely ahead is worth skipping. `latestVersion` can be\n+        // stale or already equal to what was installed, and skipping that would silence a\n+        // release the user is still behind on.\n         val skippedReleaseTag =\n-            if (movedBackToOlder \u0026\u0026 !snapshotLatestVersion.isNullOrBlank()) {\n+            if (movedBackToOlder \u0026\u0026\n+                !isPendingInstall \u0026\u0026\n+                isAheadOf(snapshotLatestVersion, newTag, app.latestVersionCode, newVersionCode)\n+            ) {\n                 snapshotLatestVersion\n```\nSo the added lines include `            if (movedBackToOlder \u0026\u0026`, `                !isPendingInstall \u0026\u0026`, `                isAheadOf(...)`, `            ) {`. Note leading whitespace: the diff shows `+            if (movedBackToOlder \u0026\u0026` — 12 spaces. And `+                !isPendingInstall \u0026\u0026` — 16 spaces. Good.\n\nI'll use existing_code as three lines:\n```\n            if (movedBackToOlder \u0026\u0026\n                !isPendingInstall \u0026\u0026\n                isAheadOf(snapshotLatestVersion, newTag, app.latestVersionCode, newVersionCode)\n```\n\nHmm but the confirmed finding already targets this block (it lists the if(...) block including isAheadOf). To avoid overlapping with the confirmed comment, maybe anchor on `!isPendingInstall \u0026\u0026` as the single-line existing_code. That's distinct enough from the confirmed finding's snippet. I'll use the single line `                !isPendingInstall \u0026\u0026`.\n\nWait, the tool matches \"consecutive lines in diff text\" — single line should be fine.\n\nShould I also mention that the comment's premise (\"saveInstalledAppToDatabase passes a pending install when the file was only parked\") is inaccurate? I'll fold it in.\n\nLet me now consider whether to also flag the DetailsViewModel comment change. Nothing functional; skip.\n\nLet me consider a second potential issue: in the repository file, `isAheadOf` was introduced and called twice with identical arguments — could be hoisted. I'll skip; minor.\n\nActually, is there an issue that `isAheadOf`'s code branch can return `true` when `snapshotLatestVersion` is null, causing `latestStillNewer` true and hence `isUpdateAvailable = true` even though latestVersion (tag) is unknown? That's pre-existing behavior (the old inline did the same). Not new. Skip.\n\nOne more: the new comment on lines 491-493 says \"`latestVersion` can be stale or already equal to what was installed, and skipping that would silence a release the user is still behind on.\" Fine.\n\nI'll submit one comment. Severity medium, category bug.\n\nLet me write it.",
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt"
+      ]
+    }
+  ],
+  "session_id": "a383c0b6-43ce-4a3a-a166-b592b2993d90",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "a383c0b6-43ce-4a3a-a166-b592b2993d90",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {
+      "identity_sha256": "1bdbdf8bf55e67afe288e298be6344c7c0249f7c8fdd9747169d679550a11d93"
+    },
+    "input": {
+      "mode": "range",
+      "requested_from": "8f9dac5",
+      "requested_head": "704beb3",
+      "resolved_base": "8f9dac5eb751804c2accbdb1ce923f3e85013fff",
+      "resolved_head": "704beb3221ef552371df843e96b7d8c3bf3230a5",
+      "exact_range": "8f9dac5eb751804c2accbdb1ce923f3e85013fff..704beb3221ef552371df843e96b7d8c3bf3230a5",
+      "source_artifact_sha256": "6de4b17e2e241e6420c105ba149d4a988bccdafead27992d75cd05d70d88a32c"
+    },
+    "execution": {
+      "ocr_version": "v1.12.7",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "configured_concurrency": 8,
+      "rule_config_sha256": "ddb40005eb732cb8b37d8d3dc1acb82f3aa51fded408c899a092c10349c369c4",
+      "runtime_config_sha256": "5ebcfe48b12eb630044e21e03a257346b5e290bbb9f751fe92aca7953e97ed4c"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "a3ef759ae0350007bd15e4d007b3c87e6ad8989d7dc88405a5b92a0cb1ea1a1f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+          "fingerprint": "bfccd06e1bdf7887e0277e1c1f1103c4785a64c6919d4e436755ab1c099a503a"
+        },
+        {
+          "item_id": "ae698ab961da0893aa633a61d24251e726234339d0a1a45d6beb8e46635e87aa",
+          "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+          "fingerprint": "ea508f353ba7609431417d8018579c1eedbd0f4114707a203e26dce31bba53b8"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "a3ef759ae0350007bd15e4d007b3c87e6ad8989d7dc88405a5b92a0cb1ea1a1f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+          "fingerprint": "bfccd06e1bdf7887e0277e1c1f1103c4785a64c6919d4e436755ab1c099a503a"
+        },
+        {
+          "item_id": "ae698ab961da0893aa633a61d24251e726234339d0a1a45d6beb8e46635e87aa",
+          "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+          "fingerprint": "ea508f353ba7609431417d8018579c1eedbd0f4114707a203e26dce31bba53b8"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 135256
+  }
+}

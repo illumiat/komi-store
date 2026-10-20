@@ -1,0 +1,21 @@
+=== 0dad305..nightly --oneline ===
+3b7f732 refactor: share the release window normalization and name the tag adoption
+=== referenced SHAs (any) ===
+c0cd065: c0cd065 docs: explain the normalizeVersion guard order for hash tags
+344f02b: 344f02b refactor: name the cross-side zones honestly, share the update flag calc
+7c3ede1: 7c3ede1 refactor: collapse verdict params, dedupe guards, drop test KDoc
+d685d71: d685d71 refactor: apply PR review feedback - drop diagnostic pipeline, restore cleared metadata
+9b45d6b: 9b45d6b style: reduce KDoc to inline comments per repo no-KDoc convention
+3b7f732: 3b7f732 refactor: share the release window normalization and name the tag adoption
+db9a0cb: db9a0cb fix: catch short hash tails and declare the utc timestamp assumption
+c3eb948: c3eb948 refactor: share the release window normalization and name the tag adoption
+0dad305: 0dad305 fix: keep publishedAt baseline through failures for hash-tail repos
+=== branch of referenced commits ===
+c0cd065 on branches:   fix/nightly-version-detection   test/combined-934-954-955 * test/combined-all   remotes/fork/fix/nightly-version-detection 
+344f02b on branches:   fix/nightly-version-detection   test/combined-934-954-955 * test/combined-all   remotes/fork/fix/nightly-version-detection 
+7c3ede1 on branches:   fix/nightly-version-detection   test/combined-934-954-955 * test/combined-all   remotes/fork/fix/nightly-version-detection 
+d685d71 on branches:   fix/nightly-version-detection   test/combined-934-954-955 * test/combined-all   remotes/fork/fix/nightly-version-detection 
+9b45d6b on branches:   fix/nightly-version-detection   test/combined-934-954-955 * test/combined-all   remotes/fork/fix/nightly-version-detection 
+3b7f732 on branches:   fix/nightly-version-detection   test/combined-934-954-955 * test/combined-all   remotes/fork/fix/nightly-version-detection 
+db9a0cb on branches:   fix/nightly-version-detection   test/combined-934-954-955 * test/combined-all   remotes/fork/fix/nightly-version-detection 
+done

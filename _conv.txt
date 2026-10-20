@@ -1,0 +1,12 @@
+=== CONTRIBUTING KDoc mention ===
+3:Thanks for your interest in helping out. This document covers everything you need to ship a change — from setting up the project locally to landing a clean PR.
+189:### Comments
+191:- **Don't write KDoc / docstrings** to explain a function unless the function's intent isn't obvious from its signature and body.
+192:- **Inline comments** are reserved for non-obvious invariants, tricky concurrency, third-party-bug workarounds, or counter-intuitive choices. If reading the code answers the "why," delete the comment.
+193:- This applies globally. Reviewers will push back on filler comments.
+212:  - `chore/<short-slug>` for refactors, dep bumps, docs, build cleanup.
+252:7. **Work through CodeRabbit's review.** Every PR gets an automated review from [CodeRabbit AI](https://coderabbit.ai). Read each comment, decide whether it's right, and either fix it or reply explaining why you're leaving it. "Looks fine to me" without engaging with the comments is not enough — a maintainer will ask you to address them before merging. CodeRabbit isn't always right; pushing back with reasoning is welcome.
+253:8. **Address human review comments** with follow-up commits (don't force-push during review unless the reviewer asks). Squash on merge happens automatically.
+=== any /** KDoc left in audited dirs? ===
+scan-done
+done

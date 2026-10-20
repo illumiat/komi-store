@@ -1,0 +1,385 @@
+{
+  "status": "complete",
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 5 finding(s) across 22 selected item(s).",
+  "summary": {
+    "files_reviewed": 22,
+    "comments": 5,
+    "total_tokens": 3674792,
+    "input_tokens": 3541002,
+    "output_tokens": 133790,
+    "cache_read_tokens": 3372416,
+    "elapsed": "6m31s"
+  },
+  "tool_calls": {
+    "total": 136,
+    "by_tool": {
+      "code_comment": 3,
+      "code_search": 55,
+      "file_find": 9,
+      "file_read": 63,
+      "file_read_diff": 6
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "feature/details/domain/src/commonMain/kotlin/zed/rainxch/details/domain/util/VersionHelper.kt",
+      "content": "The unconditional `false` also swallows genuine downgrades, not just the false positives this change targets. The index check only fires when **both** tags are present in `allReleases`; when the current version is absent (deleted release, installed from another channel, stale/partial list) the old `cmp \u003c 0` string comparison was the only remaining signal, and it is now gone.\n\nConcretely: installed `\"R2024-01\"`, candidate `\"R2023-01\"` not present in the release list → previously blocked, now allowed. The supporting comment asserts \"the platform rejects a real one at install\", but I could not find any handling of that rejection in the install path — no `INSTALL_FAILED_VERSION_DOWNGRADE` / version-downgrade mapping exists (only generic `STATUS_FAILURE` in `ShizukuInstallerServiceImpl`/`DhizukuInstallerServiceImpl`/`RootServiceManager`), and the platform decides on `versionCode`, which need not be monotonic with a free-form tag. So the likely outcome for such a pair is a cryptic install failure instead of the guided uninstall the dialog offered.\n\nSince the only caller (`DetailsViewModel.install`, gated on `isDowngradeVersion(...)`) now also has an explicit \"install anyway\" path via `OnConfirmDowngradeInstall`, consider keeping the check conservative for the no-evidence case (e.g. only return `false` when the candidate is demonstrably newer, or rely on the platform path only after mapping its downgrade failure back to the uninstall prompt).",
+      "existing_code": "        // No ordering evidence, so don't claim a downgrade: the platform rejects a real\n        // one at install, while a wrong guess demanded an uninstall.\n        return false",
+      "start_line": 41,
+      "end_line": 43,
+      "thinking": "Now finalize with a comment on VersionHelper.kt line 43.\n\nI'll write one comment.",
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+      "content": "`movedBackToOlder` re-implements the exact rule that the new `isAheadOf` helper just above encodes (codes decide it when both are known, tags are the fallback). The two expressions are logically identical for this call site, so any future tweak to the rule (e.g. switching `\u003e` to `\u003e=`, or adding a tie-breaker) has to be made in both places or the skip decision and the `latestStillNewer`/`isUpdateAvailable` decision can silently disagree. Consider expressing `movedBackToOlder` through the helper to keep a single source of truth.",
+      "suggestion_code": "        // Same rule as isAheadOf: codes first, tags as the fallback.\n        val movedBackToOlder =\n            isAheadOf(\n                candidateTag = app.installedVersion,\n                referenceTag = newTag,\n                candidateCode = app.installedVersionCode,\n                referenceCode = newVersionCode,\n            )",
+      "existing_code": "        val movedBackToOlder =\n            if (app.installedVersionCode \u003e 0L \u0026\u0026 newVersionCode \u003e 0L) {\n                newVersionCode \u003c app.installedVersionCode\n            } else {\n                !newTag.isBlank() \u0026\u0026 VersionMath.isVersionNewer(app.installedVersion, newTag)\n            }",
+      "start_line": 485,
+      "end_line": 490,
+      "thinking": "Confirmed. Now write comments.\n\nLet me write the final comments.",
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsRoot.kt",
+      "content": "These ARGB literals (`0xFFB6C4FF` / `0xFF3B5BDB`) bypass the personality colour system entirely. Every other colour on this screen resolves through `LocalPersonality.current.colors`, so this one hardcoded value stays fixed across themes/personalities and is invisible to any future palette change. Prefer a named constant or a themed token (e.g. an info/accent colour exposed on `PersonalityColors`) so the intent is discoverable and the contrast choice is auditable in one place.",
+      "suggestion_code": "                            contentColor =\n                                if (personality.colors.isDark) {\n                                    DowngradeInstallInfoDark\n                                } else {\n                                    DowngradeInstallInfoLight\n                                },",
+      "existing_code": "                            contentColor =\n                                if (personality.colors.isDark) {\n                                    Color(0xFFB6C4FF)\n                                } else {\n                                    Color(0xFF3B5BDB)\n                                },",
+      "start_line": 293,
+      "end_line": 298,
+      "thinking": "Confirmed. Now write comments.\n\nLet me write the final comments.",
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsRoot.kt",
+      "content": "Three `KomiButton`s (cancel + the nested uninstall/install group) are packed into a single non-wrapping `Row` inside the dialog's confirm slot. The labels are user-facing strings whose length varies a lot per locale (e.g. ru \"Всё равно установить\", tr \"Yine de yükle\"), and `Arrangement.SpaceBetween` cannot wrap: if the combined intrinsic widths exceed the dialog width, the actions will be squeezed/clipped rather than reflowed. Consider a wrapping layout (`FlowRow`) or a vertical arrangement so the actions stay reachable on narrow screens and in long-label locales.",
+      "existing_code": "                Row(\n                    modifier = Modifier.fillMaxWidth(),\n                    horizontalArrangement = Arrangement.SpaceBetween,\n                    verticalAlignment = Alignment.CenterVertically,\n                ) {",
+      "start_line": 248,
+      "end_line": 252,
+      "thinking": "Confirmed. Now write comments.\n\nLet me write the final comments.",
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+      "content": "`installedApp` is repo-scoped (`pickPrimaryInstalledApp` picks one record out of `getAppsByRepoIdAsFlow`), but `isUpdate` is consumed downstream as a per-package flag:\n\n1. `validateApk(isUpdate = true, trackedPackageName = installedApp.packageName)` now applies the package-name mismatch guard to every install from this screen, so picking an APK that belongs to another package of the same repo is rejected with `update_package_mismatch`. This breaks the multi-package repos the `pickPrimaryInstalledApp` logic exists for (see `feature/details/CLAUDE.md`, \"generic + Play APK\"): package B can no longer be installed while package A is tracked, where previously `isUpdate = false` let it through and a second record was created.\n2. `saveInstalledAppToDatabase(isUpdate = true)` calls `updateInstalledAppVersion`, and `InstalledAppsRepositoryImpl.updateAppVersion` looks the record up by the APK's own package name and returns early when it is absent — so if the guard were ever relaxed, an install of an untracked package would silently persist nothing.\n\nSuggest deriving `isUpdate` from the APK's package identity rather than from the repo, e.g. resolve the tracked record after `validateApk` has returned `apkInfo` (`_state.value.installedApps.firstOrNull { it.packageName == apkInfo.packageName }`) and thread that decision into `saveInstalledAppToDatabase`.",
+      "existing_code": "                isUpdate = installedApp != null,",
+      "start_line": 1504,
+      "end_line": 1504,
+      "thinking": "Confirmed: multiple installed apps per repo is a supported state.\n\nNow write the final comment.",
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "groups": [
+    {
+      "label": "Details version downgrade/install flow: data repository, button component, view model and UI",
+      "files": [
+        "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+        "core/presentation/src/commonMain/kotlin/zed/rainxch/core/presentation/components/buttons/KomiButton.kt",
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsAction.kt",
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsRoot.kt",
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt"
+      ]
+    },
+    {
+      "label": "Version downgrade domain logic, build config and unit test",
+      "files": [
+        "feature/details/domain/build.gradle.kts",
+        "feature/details/domain/src/commonMain/kotlin/zed/rainxch/details/domain/util/VersionHelper.kt",
+        "feature/details/domain/src/commonTest/kotlin/zed/rainxch/details/domain/util/VersionHelperDowngradeTest.kt"
+      ]
+    },
+    {
+      "label": "Localized string resources (part 1)",
+      "files": [
+        "core/presentation/src/commonMain/composeResources/values-ar/strings-ar.xml",
+        "core/presentation/src/commonMain/composeResources/values-bn/strings-bn.xml",
+        "core/presentation/src/commonMain/composeResources/values-es/strings-es.xml",
+        "core/presentation/src/commonMain/composeResources/values-fr/strings-fr.xml",
+        "core/presentation/src/commonMain/composeResources/values-hi/strings-hi.xml",
+        "core/presentation/src/commonMain/composeResources/values-it/strings-it.xml",
+        "core/presentation/src/commonMain/composeResources/values-ja/strings-ja.xml"
+      ]
+    },
+    {
+      "label": "Localized string resources (part 2)",
+      "files": [
+        "core/presentation/src/commonMain/composeResources/values-ko/strings-ko.xml",
+        "core/presentation/src/commonMain/composeResources/values-pl/strings-pl.xml",
+        "core/presentation/src/commonMain/composeResources/values-ru/strings-ru.xml",
+        "core/presentation/src/commonMain/composeResources/values-tr/strings-tr.xml",
+        "core/presentation/src/commonMain/composeResources/values-zh-rCN/strings-zh-rCN.xml",
+        "core/presentation/src/commonMain/composeResources/values-zh-rTW/strings-zh-rTW.xml",
+        "core/presentation/src/commonMain/composeResources/values/strings.xml"
+      ]
+    }
+  ],
+  "session_id": "1984ce22-80fb-445a-9a60-d6f46df83cbc",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "1984ce22-80fb-445a-9a60-d6f46df83cbc",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {
+      "identity_sha256": "1bdbdf8bf55e67afe288e298be6344c7c0249f7c8fdd9747169d679550a11d93"
+    },
+    "input": {
+      "mode": "range",
+      "requested_from": "origin/main",
+      "requested_head": "704beb3",
+      "resolved_base": "e26fb15f88293df0df06fc1c03414a4f8dbbacd7",
+      "resolved_head": "704beb3221ef552371df843e96b7d8c3bf3230a5",
+      "exact_range": "e26fb15f88293df0df06fc1c03414a4f8dbbacd7..704beb3221ef552371df843e96b7d8c3bf3230a5",
+      "source_artifact_sha256": "24632ba1a5e59fd4e76b840622c8ea51704475c0d8606f0840862217c9782c85"
+    },
+    "execution": {
+      "ocr_version": "v1.12.7",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "configured_concurrency": 8,
+      "rule_config_sha256": "ddb40005eb732cb8b37d8d3dc1acb82f3aa51fded408c899a092c10349c369c4",
+      "runtime_config_sha256": "5ebcfe48b12eb630044e21e03a257346b5e290bbb9f751fe92aca7953e97ed4c"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "139f91920bf3893ec490ecc86bdf85dd9965bf2a94be3b0ca5589efaa8638c03",
+          "path": "core/presentation/src/commonMain/composeResources/values-hi/strings-hi.xml",
+          "fingerprint": "10c711f78f00285460c94a2c2ef036144425d2396932262bccacda67e47a18eb"
+        },
+        {
+          "item_id": "2324dfff36e55b00c605547a06008780997c860b34fd2276d55d0e3da90a81f6",
+          "path": "core/presentation/src/commonMain/composeResources/values-ja/strings-ja.xml",
+          "fingerprint": "80cb6a994adf62d9dc199c3f20ce5f440db5d851e5a695b13f3572aa58eef3d1"
+        },
+        {
+          "item_id": "2fb1b3860cf48a54caf3e167aa51bd59cedc168eed584ff6658fafc53e64af54",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsRoot.kt",
+          "fingerprint": "0cc61378f9923a1a6f2a9dccbd0f5414cf643376008a3bcdc9a6141ce62653f1"
+        },
+        {
+          "item_id": "358c53b7a3b5a230de26b39a20d1c8e9ce6f037f3836e9b6d3e710f5d020dd75",
+          "path": "core/presentation/src/commonMain/composeResources/values-pl/strings-pl.xml",
+          "fingerprint": "c2803df49c29aa20d7bc8119478d40c48127deee12eef6914cb3a3de1c44e9ac"
+        },
+        {
+          "item_id": "55287069def9557b8fc8c2dc50d895dbf9b1ff3f503895459825d62241fe40e5",
+          "path": "core/presentation/src/commonMain/composeResources/values-it/strings-it.xml",
+          "fingerprint": "94916aaeb748cbe9f364ade3a75e630ee98f2f1d86113eaca7fccfeba5d514bf"
+        },
+        {
+          "item_id": "603caa0f6f770635b549ca7ae948bf75f6c3f9c165cc1a644f14445b8771947b",
+          "path": "core/presentation/src/commonMain/composeResources/values-tr/strings-tr.xml",
+          "fingerprint": "fdbc2c87630adc9e54bad3a138a2621ecfaa6b275ac908c98665c962251fb89a"
+        },
+        {
+          "item_id": "621f79637f82ace005da7e6ac9cc3d09f6bd564b31f57472e2702bf698a5086a",
+          "path": "core/presentation/src/commonMain/composeResources/values-ru/strings-ru.xml",
+          "fingerprint": "daa684e5bc165f7ea99a9315a2b72920cf1a6a8f8df0ab1cab6d4a0b61835879"
+        },
+        {
+          "item_id": "81e795122bc495c701689968cc899c8420b7693a18bb0fcca60849ca9d955527",
+          "path": "core/presentation/src/commonMain/composeResources/values/strings.xml",
+          "fingerprint": "c96c17ed9d71fb414d33061bff27c6b892e4629e12088dc17a1d1a6455281220"
+        },
+        {
+          "item_id": "9f0e10a0876d426760d5249feb947549acc63cc3d84975268d7466f7ed54001c",
+          "path": "core/presentation/src/commonMain/composeResources/values-es/strings-es.xml",
+          "fingerprint": "f4baa555823d7f944507b32505b266f8faeec032449642da305addedfea2ba90"
+        },
+        {
+          "item_id": "a3ef759ae0350007bd15e4d007b3c87e6ad8989d7dc88405a5b92a0cb1ea1a1f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+          "fingerprint": "24ed926f1fe06891cd1b696a21d7edef9f53f866160903bf7beca3a275da4992"
+        },
+        {
+          "item_id": "ae048f5c05f301ebd64f2f4843c3834aa81822443c8582af0f0a8d6b21b93b03",
+          "path": "core/presentation/src/commonMain/composeResources/values-ko/strings-ko.xml",
+          "fingerprint": "625e6b55a0acb64cc47b223efcfd2aa7104ab32f343c796c4dd86d62760a13c9"
+        },
+        {
+          "item_id": "ae698ab961da0893aa633a61d24251e726234339d0a1a45d6beb8e46635e87aa",
+          "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+          "fingerprint": "856819ba4aec8a7819c3ac688fa878ebe1cc73bea1d90b0dcfa1b449a7596860"
+        },
+        {
+          "item_id": "b72e170a9738a29c9a2e1f888be908130e738220cea79332c1227940451b9f33",
+          "path": "core/presentation/src/commonMain/composeResources/values-fr/strings-fr.xml",
+          "fingerprint": "0cfd016c19a842bde134382657b14b7c6c3d7397dbfbb6d594217879ef417f7c"
+        },
+        {
+          "item_id": "b7f21c3a1b7c0c3f9568e1f180ca84756257dc50e1fda01548c8f75122ded3d1",
+          "path": "feature/details/domain/src/commonTest/kotlin/zed/rainxch/details/domain/util/VersionHelperDowngradeTest.kt",
+          "fingerprint": "6cfd4ccfc6cef3b3b7962297edaa03fa2e9ab4e2931d98f90cfc19c88c4b067a"
+        },
+        {
+          "item_id": "c7844850b7c8e643ddc620c4f30fc4510ecee86e4c86856eda5c503303eb0b22",
+          "path": "core/presentation/src/commonMain/kotlin/zed/rainxch/core/presentation/components/buttons/KomiButton.kt",
+          "fingerprint": "8052afa600e35a6b0770e247ebb95ec84201112aebbeab9d694a7a80803fddf2"
+        },
+        {
+          "item_id": "d143a26f00b8c1380422eb8941ab8238f4013a40ac614d60a355cd843299280c",
+          "path": "core/presentation/src/commonMain/composeResources/values-ar/strings-ar.xml",
+          "fingerprint": "d40649ac7c5c1e59b903ca15c52118d4b56cca1c81f49bd1d3740781a07f269e"
+        },
+        {
+          "item_id": "da1ad8549806d9447b4174fc5b7f59b2046b0a2f8b475bacd4508c7b51a961fe",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsAction.kt",
+          "fingerprint": "d711a5eb4d74518cc52869945258d9438d31106f2b72117c78bbd9a8eb699755"
+        },
+        {
+          "item_id": "df29a8c0db0d92722941a83c7c4aca48af746db76b7ceaf7400cbabff982cd1b",
+          "path": "feature/details/domain/src/commonMain/kotlin/zed/rainxch/details/domain/util/VersionHelper.kt",
+          "fingerprint": "d9a797bdaa7a05a02c37062cf61ee5c98eb4710e56e85c88fd7583f23a18d611"
+        },
+        {
+          "item_id": "e909f7b69b39ab9682028358e73a99d5290c4db53c2266370a8bd19c9bdf2377",
+          "path": "core/presentation/src/commonMain/composeResources/values-zh-rTW/strings-zh-rTW.xml",
+          "fingerprint": "1c51378321f191f4650dbd19fe7431fe5b1ee1f85a9e97844f77b802bc52dfd9"
+        },
+        {
+          "item_id": "ea2055f0a344a005c188ddc2a9100a4ae11a7fadb8ad93a376d72e1489398909",
+          "path": "core/presentation/src/commonMain/composeResources/values-bn/strings-bn.xml",
+          "fingerprint": "723cc087940e72cb359ee803bda2ac7dd328bd59cf4c5cc21add202d130a1435"
+        },
+        {
+          "item_id": "ed545512d91e749ffc061cfe97a6beb162984238744997da05b20ffbc15f94df",
+          "path": "feature/details/domain/build.gradle.kts",
+          "fingerprint": "510789281181c869f2b11d64ed8930ec6503de1a2a2e13dc37145d1bbc1a3828"
+        },
+        {
+          "item_id": "ede7511274d6789f0bc62d34839a36f171335fead300193146b3675e858eea1c",
+          "path": "core/presentation/src/commonMain/composeResources/values-zh-rCN/strings-zh-rCN.xml",
+          "fingerprint": "18ce4ee6df0f28510ba22fe9b71558e4c52c397277dd3dfefc52f95c3a26e86b"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "139f91920bf3893ec490ecc86bdf85dd9965bf2a94be3b0ca5589efaa8638c03",
+          "path": "core/presentation/src/commonMain/composeResources/values-hi/strings-hi.xml",
+          "fingerprint": "10c711f78f00285460c94a2c2ef036144425d2396932262bccacda67e47a18eb"
+        },
+        {
+          "item_id": "2324dfff36e55b00c605547a06008780997c860b34fd2276d55d0e3da90a81f6",
+          "path": "core/presentation/src/commonMain/composeResources/values-ja/strings-ja.xml",
+          "fingerprint": "80cb6a994adf62d9dc199c3f20ce5f440db5d851e5a695b13f3572aa58eef3d1"
+        },
+        {
+          "item_id": "2fb1b3860cf48a54caf3e167aa51bd59cedc168eed584ff6658fafc53e64af54",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsRoot.kt",
+          "fingerprint": "0cc61378f9923a1a6f2a9dccbd0f5414cf643376008a3bcdc9a6141ce62653f1"
+        },
+        {
+          "item_id": "358c53b7a3b5a230de26b39a20d1c8e9ce6f037f3836e9b6d3e710f5d020dd75",
+          "path": "core/presentation/src/commonMain/composeResources/values-pl/strings-pl.xml",
+          "fingerprint": "c2803df49c29aa20d7bc8119478d40c48127deee12eef6914cb3a3de1c44e9ac"
+        },
+        {
+          "item_id": "55287069def9557b8fc8c2dc50d895dbf9b1ff3f503895459825d62241fe40e5",
+          "path": "core/presentation/src/commonMain/composeResources/values-it/strings-it.xml",
+          "fingerprint": "94916aaeb748cbe9f364ade3a75e630ee98f2f1d86113eaca7fccfeba5d514bf"
+        },
+        {
+          "item_id": "603caa0f6f770635b549ca7ae948bf75f6c3f9c165cc1a644f14445b8771947b",
+          "path": "core/presentation/src/commonMain/composeResources/values-tr/strings-tr.xml",
+          "fingerprint": "fdbc2c87630adc9e54bad3a138a2621ecfaa6b275ac908c98665c962251fb89a"
+        },
+        {
+          "item_id": "621f79637f82ace005da7e6ac9cc3d09f6bd564b31f57472e2702bf698a5086a",
+          "path": "core/presentation/src/commonMain/composeResources/values-ru/strings-ru.xml",
+          "fingerprint": "daa684e5bc165f7ea99a9315a2b72920cf1a6a8f8df0ab1cab6d4a0b61835879"
+        },
+        {
+          "item_id": "81e795122bc495c701689968cc899c8420b7693a18bb0fcca60849ca9d955527",
+          "path": "core/presentation/src/commonMain/composeResources/values/strings.xml",
+          "fingerprint": "c96c17ed9d71fb414d33061bff27c6b892e4629e12088dc17a1d1a6455281220"
+        },
+        {
+          "item_id": "9f0e10a0876d426760d5249feb947549acc63cc3d84975268d7466f7ed54001c",
+          "path": "core/presentation/src/commonMain/composeResources/values-es/strings-es.xml",
+          "fingerprint": "f4baa555823d7f944507b32505b266f8faeec032449642da305addedfea2ba90"
+        },
+        {
+          "item_id": "a3ef759ae0350007bd15e4d007b3c87e6ad8989d7dc88405a5b92a0cb1ea1a1f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+          "fingerprint": "24ed926f1fe06891cd1b696a21d7edef9f53f866160903bf7beca3a275da4992"
+        },
+        {
+          "item_id": "ae048f5c05f301ebd64f2f4843c3834aa81822443c8582af0f0a8d6b21b93b03",
+          "path": "core/presentation/src/commonMain/composeResources/values-ko/strings-ko.xml",
+          "fingerprint": "625e6b55a0acb64cc47b223efcfd2aa7104ab32f343c796c4dd86d62760a13c9"
+        },
+        {
+          "item_id": "ae698ab961da0893aa633a61d24251e726234339d0a1a45d6beb8e46635e87aa",
+          "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+          "fingerprint": "856819ba4aec8a7819c3ac688fa878ebe1cc73bea1d90b0dcfa1b449a7596860"
+        },
+        {
+          "item_id": "b72e170a9738a29c9a2e1f888be908130e738220cea79332c1227940451b9f33",
+          "path": "core/presentation/src/commonMain/composeResources/values-fr/strings-fr.xml",
+          "fingerprint": "0cfd016c19a842bde134382657b14b7c6c3d7397dbfbb6d594217879ef417f7c"
+        },
+        {
+          "item_id": "b7f21c3a1b7c0c3f9568e1f180ca84756257dc50e1fda01548c8f75122ded3d1",
+          "path": "feature/details/domain/src/commonTest/kotlin/zed/rainxch/details/domain/util/VersionHelperDowngradeTest.kt",
+          "fingerprint": "6cfd4ccfc6cef3b3b7962297edaa03fa2e9ab4e2931d98f90cfc19c88c4b067a"
+        },
+        {
+          "item_id": "c7844850b7c8e643ddc620c4f30fc4510ecee86e4c86856eda5c503303eb0b22",
+          "path": "core/presentation/src/commonMain/kotlin/zed/rainxch/core/presentation/components/buttons/KomiButton.kt",
+          "fingerprint": "8052afa600e35a6b0770e247ebb95ec84201112aebbeab9d694a7a80803fddf2"
+        },
+        {
+          "item_id": "d143a26f00b8c1380422eb8941ab8238f4013a40ac614d60a355cd843299280c",
+          "path": "core/presentation/src/commonMain/composeResources/values-ar/strings-ar.xml",
+          "fingerprint": "d40649ac7c5c1e59b903ca15c52118d4b56cca1c81f49bd1d3740781a07f269e"
+        },
+        {
+          "item_id": "da1ad8549806d9447b4174fc5b7f59b2046b0a2f8b475bacd4508c7b51a961fe",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsAction.kt",
+          "fingerprint": "d711a5eb4d74518cc52869945258d9438d31106f2b72117c78bbd9a8eb699755"
+        },
+        {
+          "item_id": "df29a8c0db0d92722941a83c7c4aca48af746db76b7ceaf7400cbabff982cd1b",
+          "path": "feature/details/domain/src/commonMain/kotlin/zed/rainxch/details/domain/util/VersionHelper.kt",
+          "fingerprint": "d9a797bdaa7a05a02c37062cf61ee5c98eb4710e56e85c88fd7583f23a18d611"
+        },
+        {
+          "item_id": "e909f7b69b39ab9682028358e73a99d5290c4db53c2266370a8bd19c9bdf2377",
+          "path": "core/presentation/src/commonMain/composeResources/values-zh-rTW/strings-zh-rTW.xml",
+          "fingerprint": "1c51378321f191f4650dbd19fe7431fe5b1ee1f85a9e97844f77b802bc52dfd9"
+        },
+        {
+          "item_id": "ea2055f0a344a005c188ddc2a9100a4ae11a7fadb8ad93a376d72e1489398909",
+          "path": "core/presentation/src/commonMain/composeResources/values-bn/strings-bn.xml",
+          "fingerprint": "723cc087940e72cb359ee803bda2ac7dd328bd59cf4c5cc21add202d130a1435"
+        },
+        {
+          "item_id": "ed545512d91e749ffc061cfe97a6beb162984238744997da05b20ffbc15f94df",
+          "path": "feature/details/domain/build.gradle.kts",
+          "fingerprint": "510789281181c869f2b11d64ed8930ec6503de1a2a2e13dc37145d1bbc1a3828"
+        },
+        {
+          "item_id": "ede7511274d6789f0bc62d34839a36f171335fead300193146b3675e858eea1c",
+          "path": "core/presentation/src/commonMain/composeResources/values-zh-rCN/strings-zh-rCN.xml",
+          "fingerprint": "18ce4ee6df0f28510ba22fe9b71558e4c52c397277dd3dfefc52f95c3a26e86b"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 391354
+  }
+}

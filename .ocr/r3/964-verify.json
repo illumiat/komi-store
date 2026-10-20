@@ -1,0 +1,128 @@
+{
+  "status": "complete",
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 2 finding(s) across 3 selected item(s).",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 2,
+    "total_tokens": 2944616,
+    "input_tokens": 2877994,
+    "output_tokens": 66622,
+    "cache_read_tokens": 2788352,
+    "elapsed": "5m33s"
+  },
+  "tool_calls": {
+    "total": 91,
+    "by_tool": {
+      "code_comment": 2,
+      "code_search": 35,
+      "file_find": 1,
+      "file_read": 53
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+      "content": "The skip tag is persisted eagerly, before the install is even attempted, and nothing rolls it back if the install never happens. `installAsset` can abort after this point — package-name mismatch (`ApkValidationResult.PackageMismatch`), the signing-key warning path that returns early, a cancelled/failed download, or the user leaving the screen — while `skippedReleaseTag` stays set. In those cases the user is still on the newer build but the release they never moved away from is silently suppressed (no update CTA, plus a \"skipped\" badge in the apps list) until they unskip it manually. Additionally, the write runs in a detached coroutine, so it is not guaranteed to have landed before the install pipeline's `updateAppVersion` reads `skippedReleaseTag` to recompute `isUpdateAvailable` (a parked-file install can reach that write quickly). Consider persisting the skip only once the downgrade has actually been recorded (e.g. alongside the successful `saveInstalledAppToDatabase`/`updateAppVersion` outcome), or reverting it when the install does not complete.",
+      "existing_code": "            if (ignoreDowngrade) {\n                installedApp?.latestVersion?.let { detectedLatest -\u003e",
+      "start_line": 1501,
+      "end_line": 1502,
+      "thinking": "Important: in the PackageMismatch case (line 1987-2011), the install is aborted and the user is shown an error — but the skip was already committed. So the user sees \"update_package_mismatch\" error AND the newer release is now marked as skipped. That's a concrete symptom of the \"skip committed before the install succeeds\" issue. Similarly, the signing-key warning path returns early (line 2041) and shows a dialog; if the user dismisses it, the skip remains.\n\nWait, but the signing-key mismatch path (2017-2042) — the user gets a warning dialog; if they dismiss it (OnDismissSigningKeyWarning), no install happens, yet the release is skipped. Hmm, that's a realistic flow: the user confirms a downgrade → the APK signing key differs → the user dismisses the warning → no install, but the update is now hidden/skipped.\n\nHmm, but for a signing-key mismatch, the fingerprint differs — meaning the APK is signed by a different key. This is a real scenario for a downgrade across a signing-key change. So the skip is persisted with no install. This strengthens my finding.\n\nGood — I'm now reasonably confident in reporting this comment. Let me write it up.\n\nI'll write the comment on the `if (ignoreDowngrade) {` block in DetailsViewModel, explaining that the skip is persisted before the install is attempted/validated, so any failure/cancel (download error, package mismatch, dismissed signing-key warning, back-navigation) leaves the release flagged as skipped even though the user is still on the newer build — silently hiding the pending update and showing a \"skipped\" badge. Suggest persisting the skip only once the downgrade install has been recorded (or reverting it when the install doesn't complete).\n\nSeverity: medium. Category: bug.\n\nLet me write it.",
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+      "content": "Suppressing the flag here leaves a self-inconsistent record that later corrupts `installedVersion`.\n\nAfter a skipped/downgraded install, this copy keeps `latestVersion` = the newer skipped tag, but line 471 then overwrites `latestVersionCode` with `newVersionCode`, i.e. the code of the just-installed (older) build. So the row becomes: `latestVersion = v4.0`, `latestVersionCode = N2`, `installedVersion = v2.0`, `installedVersionCode = N2`.\n\nOn the very next `checkForUpdates`, `codesAlreadyMatch` evaluates true (`installedCode == latestCode` and `matchedRelease.tagName == app.latestVersion`, both N2 / v4.0), which makes the reconciliation block at lines 377-387 run `updateInstalledVersion(installedVersion = matchedRelease.tagName)`. The device is actually running v2.0, yet the app is recorded as v4.0 (and `SmartInstallButton` then shows the \"installed\" state for v4.0), so the skip silently turns into a misreported installed version instead of just a suppressed update.\n\nSuggestion: when `snapshotIsSkipped` is true, keep the version-code pair aligned with `latestVersion` (preserve `app.latestVersionCode` instead of `newVersionCode`), or clear `latestVersion`/`latestVersionCode` together so `codesAlreadyMatch` cannot misfire.",
+      "existing_code": "                VersionMath.isVersionNewer(snapshotLatestVersion, newTag) \u0026\u0026\n                !snapshotIsSkipped",
+      "start_line": 460,
+      "end_line": 461,
+      "thinking": "Confirmed the flow. Now submit the comment.",
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+        "core/presentation/src/commonMain/kotlin/zed/rainxch/core/presentation/components/buttons/KomiButton.kt",
+        "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt"
+      ]
+    }
+  ],
+  "session_id": "6a64c5e0-96b7-41d5-b28b-22deb05e568a",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "6a64c5e0-96b7-41d5-b28b-22deb05e568a",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {
+      "identity_sha256": "1bdbdf8bf55e67afe288e298be6344c7c0249f7c8fdd9747169d679550a11d93"
+    },
+    "input": {
+      "mode": "range",
+      "requested_from": "fb28c7a",
+      "requested_head": "aee0da015a6e5314d023cc126172ce7e496daea1",
+      "resolved_base": "fb28c7acc1ceecb85064614e694142ee4bf33fec",
+      "resolved_head": "aee0da015a6e5314d023cc126172ce7e496daea1",
+      "exact_range": "fb28c7acc1ceecb85064614e694142ee4bf33fec..aee0da015a6e5314d023cc126172ce7e496daea1",
+      "source_artifact_sha256": "9b620b4d33a7a3a47d760ad820f846db07d9c593eba9a68863e7a09186bf9c00"
+    },
+    "execution": {
+      "ocr_version": "v1.12.7",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "configured_concurrency": 8,
+      "rule_config_sha256": "ddb40005eb732cb8b37d8d3dc1acb82f3aa51fded408c899a092c10349c369c4",
+      "runtime_config_sha256": "5ebcfe48b12eb630044e21e03a257346b5e290bbb9f751fe92aca7953e97ed4c"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "a3ef759ae0350007bd15e4d007b3c87e6ad8989d7dc88405a5b92a0cb1ea1a1f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+          "fingerprint": "bfd3dfa4899b182453cfaaf8daf1ae45d078dac70847932861d700933d6672cd"
+        },
+        {
+          "item_id": "ae698ab961da0893aa633a61d24251e726234339d0a1a45d6beb8e46635e87aa",
+          "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+          "fingerprint": "0094d2e8d65b55f7ced32d8147a5f43f1a745ac9e6d9aaf1f41590a4a74179a2"
+        },
+        {
+          "item_id": "c7844850b7c8e643ddc620c4f30fc4510ecee86e4c86856eda5c503303eb0b22",
+          "path": "core/presentation/src/commonMain/kotlin/zed/rainxch/core/presentation/components/buttons/KomiButton.kt",
+          "fingerprint": "518ddf288dd61056ea3ff210f2091f49f4ace770fba4ffd70e3c70acd25103b8"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "a3ef759ae0350007bd15e4d007b3c87e6ad8989d7dc88405a5b92a0cb1ea1a1f",
+          "path": "feature/details/presentation/src/commonMain/kotlin/zed/rainxch/details/presentation/DetailsViewModel.kt",
+          "fingerprint": "bfd3dfa4899b182453cfaaf8daf1ae45d078dac70847932861d700933d6672cd"
+        },
+        {
+          "item_id": "ae698ab961da0893aa633a61d24251e726234339d0a1a45d6beb8e46635e87aa",
+          "path": "core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt",
+          "fingerprint": "0094d2e8d65b55f7ced32d8147a5f43f1a745ac9e6d9aaf1f41590a4a74179a2"
+        },
+        {
+          "item_id": "c7844850b7c8e643ddc620c4f30fc4510ecee86e4c86856eda5c503303eb0b22",
+          "path": "core/presentation/src/commonMain/kotlin/zed/rainxch/core/presentation/components/buttons/KomiButton.kt",
+          "fingerprint": "518ddf288dd61056ea3ff210f2091f49f4ace770fba4ffd70e3c70acd25103b8"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 332910
+  }
+}

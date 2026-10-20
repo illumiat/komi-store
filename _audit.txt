@@ -1,0 +1,32 @@
+=== HEAD ===
+6a240eb0c20f1e7fa8d358479aadf35965f65e11
+=== BRANCH ===
+fix/downgrade-user-confirmation
+=== LOG 0dad305..HEAD ===
+6a240eb style: cut the comments down to the non-obvious ones
+12f190c fix: fill the uninstall confirmation action like the others
+62f4eea fix: give the primary action a fixed colour instead of the accent
+7f77adc fix: keep the filled red style exclusive to the destructive action
+9612724 docs: refresh the downgrade dialog screenshot to the final layout
+79a6e42 fix: neutral copy, red uninstall note and split action row
+1a2a75c fix: mark uninstall red and give the primary action weight
+61a48c9 i18n: drop stale downgrade strings and add the dialog screenshot
+015e63a fix: let the user decide when a downgrade is suspected
+8a6d4f2 fix: stop guessing a downgrade when neither tag has an order
+e26fb15 Update GitHub org paths to komi-store (#956)
+6a4174d fix(ui): align asset card spacing and animate picker height changes (#938)
+=== FULL LOG -25 ===
+6a240eb style: cut the comments down to the non-obvious ones
+12f190c fix: fill the uninstall confirmation action like the others
+62f4eea fix: give the primary action a fixed colour instead of the accent
+7f77adc fix: keep the filled red style exclusive to the destructive action
+9612724 docs: refresh the downgrade dialog screenshot to the final layout
+79a6e42 fix: neutral copy, red uninstall note and split action row
+1a2a75c fix: mark uninstall red and give the primary action weight
+61a48c9 i18n: drop stale downgrade strings and add the dialog screenshot
+015e63a fix: let the user decide when a downgrade is suspected
+8a6d4f2 fix: stop guessing a downgrade when neither tag has an order
+e26fb15 Update GitHub org paths to komi-store (#956)
+6a4174d fix(ui): align asset card spacing and animate picker height changes (#938)
+9e699e9 Refactor README to simplify content and remove badges (#905)
+done

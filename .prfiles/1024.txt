@@ -1,0 +1,9 @@
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/network/AndroidDigestVerifier.kt
+core/data/src/androidMain/kotlin/zed/rainxch/core/data/services/AndroidPackageMonitor.kt
+core/data/src/commonMain/kotlin/zed/rainxch/core/data/di/SharedModule.kt
+core/data/src/commonMain/kotlin/zed/rainxch/core/data/repository/InstalledAppsRepositoryImpl.kt
+core/data/src/jvmMain/kotlin/zed/rainxch/core/data/network/DesktopDigestVerifier.kt
+core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/model/installation/SystemPackageInfo.kt
+core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/network/DigestVerifier.kt
+core/domain/src/commonMain/kotlin/zed/rainxch/core/domain/utils/UpdateVerdict.kt
+core/domain/src/commonTest/kotlin/zed/rainxch/core/domain/utils/UpdateVerdictTest.kt

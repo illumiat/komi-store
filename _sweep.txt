@@ -1,0 +1,26 @@
+########## all comments in InstalledAppsRepositoryImpl.kt ##########
+260:    // Transient-failure bookkeeping: regular repositories clear the stored
+261:    // snapshot (self-heal); a timestamp-tracked (opaque-marker or hash-tail)
+262:    // flag survives, since clearing it drops latestReleasePublishedAt and the
+263:    // next scan would re-report the same release from a null baseline. Both
+264:    // paths still record lastCheckedAt so retry pacing and the "last checked"
+265:    // UI keep working.
+278:    // Sole legitimate installed-tag rewrite: the verdict already proved the
+279:    // package really is that build (versionCode matches), only the stored tag
+280:    // drifted from the release tag. Column-level DAO write on purpose — the
+281:    // `app` snapshot is stale after updateVersionInfo above, so a whole-row
+282:    // write would revert the latest*/isUpdateAvailable fields just computed.
+
+########## KDoc /** blocks remaining? ##########
+
+########## diagnostic / fallback / guard mentions ##########
+119:                if (!zed.rainxch.core.data.network.shouldFallbackToGithubOrRethrow(error)) {
+176:        fallbackToOlderReleases: Boolean,
+188:            if (filter != null && !fallbackToOlderReleases) {
+329:                fallbackToOlderReleases = app.fallbackToOlderReleases,
+342:                            "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
+551:        fallbackToOlderReleases: Boolean,
+557:            fallback = fallbackToOlderReleases,
+646:        fallbackToOlderReleases: Boolean,
+664:            if (filter != null && !fallbackToOlderReleases) {
+done

@@ -85,6 +85,10 @@ interface TweaksRepository {
 
     suspend fun setScrollbarEnabled(enabled: Boolean)
 
+    fun getDisplayModeId(): Flow<Int>
+
+    suspend fun setDisplayModeId(modeId: Int)
+
     fun getContentWidth(): Flow<ContentWidth>
 
     suspend fun setContentWidth(width: ContentWidth)
@@ -210,3 +214,6 @@ interface TweaksRepository {
 
     suspend fun removeCustomForgeHost(host: String)
 }
+
+// Matches WindowManager.LayoutParams.preferredDisplayModeId: 0 leaves the system in charge.
+const val SYSTEM_DEFAULT_DISPLAY_MODE_ID = 0

@@ -1,0 +1,13 @@
+core/presentation/src/commonMain/composeResources/values-ar/strings-ar.xml
+core/presentation/src/commonMain/composeResources/values-bn/strings-bn.xml
+core/presentation/src/commonMain/composeResources/values-es/strings-es.xml
+core/presentation/src/commonMain/composeResources/values-fr/strings-fr.xml
+core/presentation/src/commonMain/composeResources/values-hi/strings-hi.xml
+core/presentation/src/commonMain/composeResources/values-it/strings-it.xml
+core/presentation/src/commonMain/composeResources/values-ja/strings-ja.xml
+core/presentation/src/commonMain/composeResources/values-ko/strings-ko.xml
+core/presentation/src/commonMain/composeResources/values-pl/strings-pl.xml
+core/presentation/src/commonMain/composeResources/values-ru/strings-ru.xml
+core/presentation/src/commonMain/composeResources/values-tr/strings-tr.xml
+core/presentation/src/commonMain/composeResources/values-zh-rCN/strings-zh-rCN.xml
+core/presentation/src/commonMain/composeResources/values-zh-rTW/strings-zh-rTW.xml

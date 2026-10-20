@@ -1,0 +1,5 @@
+966|fix/profile-list-viewport-clip|d1c4711249f331eacc64a286737bd975c0e08a00|fix: stop content being cut off in a band above the bottom bar
+964|fix/downgrade-user-confirmation|962cc76320b0e5cc0bb4dd19e2d9cfee99d83473|fix: let the user decide when a downgrade is suspected
+955|fix/startup-appearance-gate|7aa748fe44fc7b250a97dc5470420332bdd2c997|fix: load persisted appearance before first frame; splash covers the load
+954|fix/release-date-timezone|47ff5eda3e9ccb458fd8d0c17ac58999cb47e5c5|fix: display release and advisory dates in the device timezone
+934|fix/nightly-version-detection|bc794909e06c72f8c8f300c6b29ba7a8705f5bef|fix: detect updates for reused nightly release tags
