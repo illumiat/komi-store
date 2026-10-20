@@ -176,12 +176,15 @@ object UpdateVerdict {
                     !selfAttestedSameFile
                 }
 
-                deviceRunsMatchedRelease -> {
-                    false
-                }
-
+                // A re-release shares the tag, so the device's versionName matches it. The
+                // byte identity plus the later publish time prove the device runs the old build,
+                // so this has to be decided before the name-based guard below.
                 sameTagRebuild -> {
                     true
+                }
+
+                deviceRunsMatchedRelease -> {
+                    false
                 }
 
                 bound == null -> {

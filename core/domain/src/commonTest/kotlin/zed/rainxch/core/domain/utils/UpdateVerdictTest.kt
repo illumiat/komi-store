@@ -6,6 +6,28 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class UpdateVerdictTest {
+    // A real device reports versionName "2.0.5" while the tag is "v2.0.5". That name match
+    // used to short-circuit the verdict before the re-release check could run.
+    @Test
+    fun a_republished_stable_tag_the_device_reports_by_name_is_still_an_update() {
+        val result =
+            decide(
+                installedTag = "2.0.5",
+                installedVersionName = "2.0.5",
+                matchedTag = "v2.0.5",
+                matchedPublishedAt = "2026-10-20T00:00:00Z",
+                matchedAssetId = 900L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 899L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-10-01T00:00:00Z",
+                    ),
+            )
+
+        assertTrue(result.isUpdateAvailable)
+    }
+
     // A re-released stable tag cannot be seen by the version comparison; different bytes plus a
     // later publish time is the one signal that a rebuild happened.
     @Test
