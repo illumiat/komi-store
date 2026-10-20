@@ -371,6 +371,10 @@ class InstalledAppsRepositoryImpl(
                     matchedTag = matchedRelease.tagName,
                     isUpdateAvailable = isUpdateAvailable,
                 )
+                // The device is confirmed to run the matched release, so the binding to the
+                // pre-release it came from must go: keeping it would make later checks compare
+                // timestamps against a build from the previous channel.
+                installedAppsDao.clearInstallBinding(packageName)
             }
 
             if (variantWasLost != app.preferredVariantStale) {
