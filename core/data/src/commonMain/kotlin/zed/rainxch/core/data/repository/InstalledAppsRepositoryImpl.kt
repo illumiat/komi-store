@@ -535,6 +535,7 @@ class InstalledAppsRepositoryImpl(
                             releaseId = app.latestReleaseId,
                             assetId = app.latestAssetId,
                             assetDigest = app.latestAssetDigest,
+                            releasePublishedAt = app.latestReleasePublishedAt,
                         )
                     } else {
                         it.clearPending()
