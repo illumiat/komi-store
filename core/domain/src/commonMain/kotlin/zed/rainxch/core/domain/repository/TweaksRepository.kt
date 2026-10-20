@@ -49,6 +49,10 @@ interface TweaksRepository {
 
     suspend fun setInstallerType(type: InstallerType)
 
+    fun getExternalInstallerPackage(): Flow<String>
+
+    suspend fun setExternalInstallerPackage(packageName: String)
+
     fun getInstallerAttribution(): Flow<zed.rainxch.core.domain.model.installation.InstallerAttribution>
 
     suspend fun setInstallerAttribution(attribution: zed.rainxch.core.domain.model.installation.InstallerAttribution)
