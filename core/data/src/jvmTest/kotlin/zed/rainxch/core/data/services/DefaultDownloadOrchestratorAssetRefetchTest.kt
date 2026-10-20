@@ -191,6 +191,50 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         }
 
     @Test
+    fun aRenamedAssetIsFoundByResolvingTheTrackedRelease() =
+        runBlocking {
+            val downloader = TrackingDownloader()
+            val multi = ThrowingOnceMultiSource()
+            val verifier = RecordingVerifier()
+            val renamed =
+                newAsset().copy(
+                    id = 44L,
+                    name = "komi-store-latest.apk",
+                    downloadUrl = NEW_URL,
+                )
+            val resolved =
+                zed.rainxch.core.domain.utils.ResolvedRelease(
+                    release = release(tag = NEW_TAG, assets = listOf(renamed)),
+                    primaryAsset = renamed,
+                    variantWasLost = false,
+                )
+            val repo = RecordingInstalledAppsRepository(tracked = resolved)
+            val notifier = RecordingNotifier()
+            val refetcher = RecordingRefetcher(null)
+            val orchestrator = orchestrator(downloader, multi, verifier, repo, notifier, refetcher, scope = this)
+
+            orchestrator.enqueue(spec())
+            val entry =
+                withTimeout(AWAIT_MS) {
+                    orchestrator.downloads.first { it[PKG]?.stage == DownloadStage.AwaitingInstall }
+                }[PKG]!!
+
+            assertEquals(
+                listOf(OLD_URL, NEW_URL),
+                multi.calls,
+                "the renamed asset is retried at its new URL",
+            )
+            assertEquals(listOf(PKG), repo.resolvedPackages, "the tracked release is resolved once")
+            assertEquals(
+                listOf(NEW_DIGEST),
+                verifier.expectedDigests,
+                "the renamed asset's digest is the one verified",
+            )
+            assertEquals(NEW_TAG, entry.releaseTag)
+            assertEquals(44L, entry.assetId)
+        }
+
+    @Test
     fun aReuploadedAssetInsideTheSameReleaseIsTheReplacement() {
         val replacement = newAsset().copy(downloadUrl = NEW_URL)
         val window =
@@ -322,10 +366,16 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
         override suspend fun cancelDownload(fileName: String): Boolean = false
     }
 
-    private class RecordingInstalledAppsRepository : InstalledAppsRepository {
+    private class RecordingInstalledAppsRepository(
+        private val tracked: zed.rainxch.core.domain.utils.ResolvedRelease? = null,
+    ) : InstalledAppsRepository {
         var pendingPathVersion: String? = null
+        val resolvedPackages = mutableListOf<String>()
 
-        override suspend fun resolveTrackedRelease(packageName: String): zed.rainxch.core.domain.utils.ResolvedRelease? = null
+        override suspend fun resolveTrackedRelease(packageName: String): zed.rainxch.core.domain.utils.ResolvedRelease? {
+            resolvedPackages += packageName
+            return tracked
+        }
 
         override suspend fun markAwaitingInstall(
             packageName: String,
