@@ -61,6 +61,10 @@ class AutoUpdateWorker(
 
             val silentReady =
                 when (installerType) {
+                    InstallerType.THIRD_PARTY -> {
+                        false
+                    }
+
                     InstallerType.SHIZUKU -> {
                         shizukuServiceManager.refreshStatus()
                         shizukuServiceManager.status.value == ShizukuStatus.READY

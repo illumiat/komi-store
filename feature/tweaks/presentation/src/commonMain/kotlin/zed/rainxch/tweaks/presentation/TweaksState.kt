@@ -3,6 +3,7 @@ package zed.rainxch.tweaks.presentation
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
@@ -13,6 +14,7 @@ import zed.rainxch.core.domain.model.appearance.ContentWidth
 import zed.rainxch.core.domain.model.appearance.FontTheme
 import zed.rainxch.core.domain.model.appearance.MangaPaperId
 import zed.rainxch.core.domain.model.installation.DhizukuAvailability
+import zed.rainxch.core.domain.model.installation.ExternalInstallerApp
 import zed.rainxch.core.domain.model.installation.InstallerAttribution
 import zed.rainxch.core.domain.model.installation.InstallerType
 import zed.rainxch.core.domain.model.installation.RootAvailability
@@ -41,6 +43,9 @@ data class TweaksState(
     val cacheSize: String = "",
     val isClearDownloadsDialogVisible: Boolean = false,
     val installerType: InstallerType = InstallerType.DEFAULT,
+    val externalInstallerPackage: String = "",
+    val externalInstallers: ImmutableList<ExternalInstallerApp> = persistentListOf(),
+    val externalInstallerPickerOpen: Boolean = false,
     val installerAttribution: InstallerAttribution = InstallerAttribution.SystemDefault,
     val installerAttributionCustomDraft: String = "",
     val installerAttributionCustomExpanded: Boolean = false,

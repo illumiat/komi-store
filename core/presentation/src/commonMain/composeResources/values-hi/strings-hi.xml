@@ -939,6 +939,12 @@
     <string name="dhizuku_start_hint">साइलेंट इंस्टॉल सक्षम करने के लिए Dhizuku को Device Owner के रूप में सक्रिय करें</string>
     <string name="installer_type_root">Root</string>
     <string name="installer_type_root_description">Magisk, KernelSU या APatch root के साथ साइलेंट इंस्टॉल</string>
+    <string name="installer_type_third_party">Third-party installer</string>
+    <string name="installer_type_third_party_description">Hand the APK to an installer app you pick, instead of the system default.</string>
+    <string name="external_installer_pick">Installer app</string>
+    <string name="external_installer_none">Not selected</string>
+    <string name="external_installer_sheet_title">Apps that can install APKs</string>
+    <string name="external_installer_empty">No installer apps found on this device.</string>
     <string name="root_status_ready">स्वीकृत</string>
     <string name="root_status_permission_needed">Root अनुमति दें</string>
     <string name="root_status_unavailable">Root नहीं</string>
