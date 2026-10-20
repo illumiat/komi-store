@@ -4,11 +4,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/**
- * `starred_at` is external input and the parse runs inside the `async` that builds a row: an
- * unguarded throw cancels the enclosing scope and fails the whole sync, so one bad timestamp
- * would cost every repository, not just its ordering hint.
- */
 class StarredTimestampParseTest {
     @Test
     fun `an iso timestamp parses to epoch milliseconds`() {

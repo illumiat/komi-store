@@ -33,20 +33,9 @@ data class GitHubStarredResponse(
     )
 }
 
-/**
- * Reads one page of a starred listing, tolerating both wire shapes.
- *
- * With `application/vnd.github.star+json` each entry is `{starred_at, repo}`. Without it - a
- * host or proxy that ignores the media type, or a request that ends up carrying two Accept
- * values - each entry is the bare repository object and there is no star time anywhere.
- *
- * Decoding straight into the wrapper makes the bare shape a `MissingFieldException`, which
- * fails the whole sync rather than costing one ordering hint. Parsing by hand keeps the
- * repository and drops only the timestamp. It is done this way rather than with a
- * `JsonTransformingSerializer` on the wrapper because annotating the class with one makes its
- * generated `serializer()` resolve to that serializer, whose constructor asks for it again:
- * an initialiser cycle that surfaces as `ExceptionInInitializerError`.
- */
+// A host that ignores the star media type sends bare repositories: keep them, without star
+// times, instead of failing the sync. Parsed by hand because a JsonTransformingSerializer on
+// the wrapper makes its generated serializer() ask for itself (ExceptionInInitializerError).
 internal fun parseStarredPage(
     json: Json,
     element: JsonElement,

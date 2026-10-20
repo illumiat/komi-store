@@ -5,7 +5,6 @@ package zed.rainxch.core.data.repository
 import co.touchlab.kermit.Logger
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -52,12 +51,6 @@ class StarredRepositoryImpl(
 
     companion object {
         private const val SYNC_THRESHOLD_MS = 24 * 60 * 60 * 1000L
-
-        /**
-         * Makes a starred endpoint answer with `{starred_at, repo}` entries. Without it the
-         * entry is the bare repository and `starred_at` does not exist at all, which is what
-         * left the "Recently starred" sort falling back to its name tie-breaker (#822).
-         */
         private const val STARRED_MEDIA_TYPE = "application/vnd.github.star+json"
     }
 
@@ -122,7 +115,7 @@ class StarredRepositoryImpl(
                 while (true) {
                     val response =
                         httpClient.get("/users/$sanitized/starred") {
-                            acceptGitHubMediaType(STARRED_MEDIA_TYPE)
+                            header(HttpHeaders.Accept, STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -216,7 +209,7 @@ class StarredRepositoryImpl(
                 while (true) {
                     val response =
                         httpClient.get("/user/starred") {
-                            acceptGitHubMediaType(STARRED_MEDIA_TYPE)
+                            header(HttpHeaders.Accept, STARRED_MEDIA_TYPE)
                             parameter("per_page", perPage)
                             parameter("page", page)
                         }
@@ -411,31 +404,12 @@ class StarredRepositoryImpl(
     )
 }
 
-/**
- * Sets an Accept media type, replacing whatever `defaultRequest` configured.
- *
- * Ktor's `header()` appends, and `HttpClientFactory.defaultRequest` already sends
- * `application/vnd.github+json`. Appending ours put two Accept values on the request and
- * left the server free to answer with the generic shape, which carries no `starred_at`.
- */
-private fun HttpRequestBuilder.acceptGitHubMediaType(mediaType: String) {
-    headers.remove(HttpHeaders.Accept)
-    header(HttpHeaders.Accept, mediaType)
-}
-
-/**
- * Parses a GitHub `starred_at` timestamp.
- *
- * The value is external input, and the parse runs inside the `async` that builds a row. An
- * unguarded throw would cancel the enclosing `coroutineScope` and fail the whole sync, so a
- * malformed entry costs only its ordering hint.
- */
+// A malformed starred_at would otherwise cancel the sync's coroutineScope; it costs only the
+// entry's ordering hint.
 internal fun String?.toEpochMillisecondsOrNull(): Long? {
     val raw = this ?: return null
     return try {
         Instant.parse(raw).toEpochMilliseconds()
-    } catch (e: CancellationException) {
-        throw e
     } catch (e: IllegalArgumentException) {
         Logger.w(e) { "Unparsable starred_at '$raw'; treating the entry as oldest" }
         null

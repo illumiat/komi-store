@@ -1,22 +1,12 @@
 package zed.rainxch.core.data.dto
 
-import kotlinx.serialization.json.Json
+import zed.rainxch.core.data.network.gitHubJson
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/**
- * `GET /user/starred` answers in two shapes depending on whether the request's media type was
- * honoured: `{starred_at, repo}` entries, or bare repository objects with no star time at all.
- * Decoding straight into the wrapper turns the second shape into a `MissingFieldException`,
- * which fails the whole sync instead of costing one ordering hint.
- */
 class GitHubStarredPageParseTest {
-    private val json =
-        Json {
-            ignoreUnknownKeys = true
-            isLenient = true
-        }
+    private val json = gitHubJson
 
     private val repository =
         """

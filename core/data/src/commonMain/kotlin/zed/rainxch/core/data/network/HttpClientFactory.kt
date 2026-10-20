@@ -25,11 +25,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 expect fun createPlatformHttpClient(proxyConfig: ProxyConfig): HttpClient
 
-/**
- * The JSON configuration the GitHub client negotiates with. File level because the starred
- * listing also parses pages by hand (see `parseStarredPage`); both paths must agree on
- * leniency or a response could parse in one place and not the other.
- */
+// Shared with parseStarredPage, so a page decodes the same way in both places.
 internal val gitHubJson =
     Json {
         ignoreUnknownKeys = true
@@ -43,12 +39,6 @@ fun createGitHubHttpClient(
     hostTokenRepository: HostTokenRepository? = null,
     proxyConfig: ProxyConfig = ProxyConfig.System,
 ): HttpClient {
-    val json =
-        Json {
-            ignoreUnknownKeys = true
-            isLenient = true
-        }
-
     return createPlatformHttpClient(proxyConfig)
         .config {
             install(RateLimitInterceptor) {
