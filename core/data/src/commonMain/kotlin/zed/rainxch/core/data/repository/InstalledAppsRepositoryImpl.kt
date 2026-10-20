@@ -17,6 +17,8 @@ import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
+import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
+import zed.rainxch.core.data.local.db.dao.recordUnmatchedRelease
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
@@ -30,11 +32,9 @@ import zed.rainxch.core.domain.model.account.github.isEffectivelyPreRelease
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
-import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.clearPending
 import zed.rainxch.core.domain.model.installation.confirmInstall
 import zed.rainxch.core.domain.model.installation.markPending
-import zed.rainxch.core.domain.model.installation.settlePendingFromSystem
 import zed.rainxch.core.domain.model.smart_detect.MatchingPreview
 import zed.rainxch.core.domain.network.DigestVerifier
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
@@ -59,6 +59,14 @@ class InstalledAppsRepositoryImpl(
     private val packageMonitor: PackageMonitor,
     private val digestVerifier: DigestVerifier,
 ) : InstalledAppsRepository {
+    private val parkedInstallSettler =
+        ParkedInstallSettler(
+            dao = installedAppsDao,
+            packageMonitor = packageMonitor,
+            digestVerifier = digestVerifier,
+            discard = { packageName, path -> discardParkedInstall(packageName, path) },
+        )
+
     private val checkAllMutex = Mutex()
 
     private val httpClient: HttpClient get() = clientProvider.client
@@ -203,24 +211,6 @@ class InstalledAppsRepositoryImpl(
         )
     }
 
-    private suspend fun recordUnmatchedRelease(packageName: String) {
-        installedAppsDao.clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
-    }
-
-    private suspend fun adoptMatchedTag(
-        app: InstalledAppEntity,
-        matchedTag: String,
-        isUpdateAvailable: Boolean,
-    ) {
-        installedAppsDao.updateInstalledVersion(
-            packageName = app.packageName,
-            installedVersion = matchedTag,
-            installedVersionName = app.installedVersionName,
-            installedVersionCode = app.installedVersionCode,
-            isUpdateAvailable = isUpdateAvailable,
-        )
-    }
-
     override suspend fun checkForUpdates(packageName: String): Boolean =
         checkEnabledApp(packageName, recordUnmatched = true) { app ->
             fetchReleaseWindow(
@@ -246,7 +236,7 @@ class InstalledAppsRepositoryImpl(
     ): Boolean {
         val stored = installedAppsDao.getAppByPackage(packageName) ?: return false
         if (!stored.updateCheckEnabled) return false
-        val app = settleParkIfInstalledBytes(stored)
+        val app = parkedInstallSettler.settleIfInstalled(stored)
         val releases =
             try {
                 window(app)
@@ -259,83 +249,6 @@ class InstalledAppsRepositoryImpl(
             }
         return checkAgainstWindow(app, releases, recordUnmatched)
     }
-
-    // Test builds reuse one versionCode, so the bytes are the only proof the park landed.
-    // The parked digest is the strongest record; older parks fall back to their file, then to
-    // the release digest of the installed build.
-    private suspend fun settleParkIfInstalledBytes(app: InstalledAppEntity): InstalledAppEntity {
-        if (!app.isPendingInstall) return app
-        val parkedPath = app.pendingInstallFilePath
-        val system = packageMonitor.getInstalledPackageInfo(app.packageName)
-        return when {
-            parkedPath.isNullOrBlank() -> {
-                clearDeadPark(app)
-            }
-
-            system != null && parkedBytesMatch(app, parkedPath, system) -> {
-                settleFinishedPark(app, parkedPath, system)
-            }
-
-            else -> {
-                app
-            }
-        }
-    }
-
-    private suspend fun settleFinishedPark(
-        app: InstalledAppEntity,
-        parkedPath: String,
-        system: SystemPackageInfo,
-    ): InstalledAppEntity {
-        runCatching { discardParkedInstall(app.packageName, parkedPath) }
-        installedAppsDao.updateApp(
-            app
-                .toDomain()
-                .settlePendingFromSystem(
-                    versionName = system.versionName,
-                    versionCode = system.versionCode,
-                ).clearPending()
-                .toEntity(),
-        )
-        Logger.i {
-            "Updates: the parked build for ${app.packageName} is the installed one; settled"
-        }
-        return installedAppsDao.getAppByPackage(app.packageName) ?: app
-    }
-
-    private suspend fun parkedBytesMatch(
-        app: InstalledAppEntity,
-        parkedPath: String,
-        system: SystemPackageInfo,
-    ): Boolean {
-        val installedHash = system.apkPath?.let { hashOrNull(it) }
-        val parkedDigest = app.pendingInstallAssetDigest
-        val cloudDigest = app.latestAssetDigest
-        return when {
-            installedHash == null -> false
-            parkedDigest != null -> normalizeDigest(parkedDigest) == normalizeDigest(installedHash)
-            hashOrNull(parkedPath) == installedHash -> true
-            cloudDigest != null -> normalizeDigest(cloudDigest) == normalizeDigest(installedHash)
-            else -> false
-        }
-    }
-
-    private suspend fun clearDeadPark(app: InstalledAppEntity): InstalledAppEntity {
-        installedAppsDao.updateApp(app.toDomain().clearPending().toEntity())
-        return installedAppsDao.getAppByPackage(app.packageName) ?: app
-    }
-
-    private fun normalizeDigest(raw: String): String = raw.substringAfter(':', raw).trim().lowercase()
-
-    private suspend fun hashOrNull(path: String): String? =
-        try {
-            digestVerifier.computeSha256(path)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Logger.w(e) { "Updates: could not hash $path" }
-            null
-        }
 
     private suspend fun checkAgainstWindow(
         app: InstalledAppEntity,
@@ -361,7 +274,7 @@ class InstalledAppsRepositoryImpl(
                         "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
                 }
                 if (!recordUnmatched) return app.isUpdateAvailable
-                recordUnmatchedRelease(packageName)
+                installedAppsDao.recordUnmatchedRelease(packageName)
                 return false
             }
 
@@ -478,7 +391,7 @@ class InstalledAppsRepositoryImpl(
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
                 )
             if (shouldRewriteTag) {
-                adoptMatchedTag(
+                installedAppsDao.adoptMatchedTag(
                     app = app,
                     matchedTag = matchedRelease.tagName,
                     isUpdateAvailable = isUpdateAvailable,
