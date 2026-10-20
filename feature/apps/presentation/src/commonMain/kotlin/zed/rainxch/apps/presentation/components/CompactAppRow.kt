@@ -183,7 +183,7 @@ fun CompactAppRow(
             }
         }
 
-        if (app.pendingInstallFilePath != null) {
+        if (app.isPendingInstall && app.pendingInstallFilePath != null) {
             KomiButton(
                 onClick = { installCooldown.run(onInstallPendingClick) },
                 label = stringResource(Res.string.install),

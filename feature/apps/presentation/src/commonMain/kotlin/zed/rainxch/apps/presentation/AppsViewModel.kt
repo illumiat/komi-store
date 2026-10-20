@@ -1192,6 +1192,10 @@ class AppsViewModel(
         }
     }
 
+    private class NoReleaseFoundException(
+        appName: String,
+    ) : IllegalStateException("No release found for $appName")
+
     private data class UpdateTarget(
         val tag: String,
         val releaseId: Long?,
@@ -1242,7 +1246,7 @@ class AppsViewModel(
             } catch (e: Exception) {
                 logger.error("Failed to resolve the tracked release: ${e.message}")
                 throw IllegalStateException("Failed to fetch latest release: ${e.message}")
-            } ?: throw IllegalStateException("No release found for ${app.appName}")
+            } ?: throw NoReleaseFoundException(app.appName)
 
         return UpdateTarget(
             tag = resolution.release.tagName,
@@ -1250,6 +1254,28 @@ class AppsViewModel(
             asset = resolution.primaryAsset,
             fromStoredMatch = false,
         )
+    }
+
+    // No release means there is nothing to install or download. Keeping the pointer and the
+    // error on screen just made every tap repeat the same failure, so settle the row instead.
+    private suspend fun settleMissingRelease(
+        app: InstalledAppUi,
+        cause: Throwable,
+    ) {
+        logger.warn(
+            "No release to install for ${app.packageName} (${cause.message}); clearing the parked state",
+        )
+        runCatching { downloadOrchestrator.dismiss(app.packageName) }
+        runCatching {
+            installedAppsRepository.discardParkedInstall(
+                packageName = app.packageName,
+                expectedPath = app.pendingInstallFilePath,
+            )
+        }
+        runCatching { installedAppsRepository.updatePendingStatus(app.packageName, false) }
+        runCatching { installedAppsRepository.checkForUpdates(app.packageName) }
+        updateAppState(app.packageName, UpdateState.Idle)
+        _events.send(AppsEvent.ShowError(getString(Res.string.no_updates_available)))
     }
 
     private fun updateSingleApp(
@@ -1442,6 +1468,8 @@ class AppsViewModel(
                     )
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: NoReleaseFoundException) {
+                    settleMissingRelease(app, e)
                 } catch (e: Exception) {
                     logger.error("Update failed for ${app.packageName}: ${e.message}")
                     cleanupUpdate(app.packageName, app.latestAssetName)
@@ -1903,6 +1931,8 @@ class AppsViewModel(
                 } catch (_: RateLimitException) {
                     updateAppState(app.packageName, UpdateState.Idle)
                     _events.send(AppsEvent.ShowError(getString(Res.string.rate_limit_exceeded)))
+                } catch (e: NoReleaseFoundException) {
+                    settleMissingRelease(app, e)
                 } catch (e: Exception) {
                     logger.error("Downloading ${app.packageName} again failed: ${e.message}")
                     updateAppState(app.packageName, UpdateState.Error(e.message ?: "Download failed"))
