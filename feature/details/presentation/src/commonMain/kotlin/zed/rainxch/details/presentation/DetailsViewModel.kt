@@ -1394,12 +1394,6 @@ class DetailsViewModel(
                 installableAssets = installable,
                 primaryAsset = primary,
                 whatsNewTranslation = TranslationState(),
-                // A download that belongs to the other channel must not paint progress here.
-                downloadStage = DownloadStage.IDLE,
-                downloadProgressPercent = null,
-                downloadedBytes = 0L,
-                totalBytes = null,
-                isDownloading = false,
             )
         }
     }
@@ -2164,31 +2158,6 @@ class DetailsViewModel(
                             )
                     }
                     currentAssetName = null
-                    return@collect
-                }
-
-                val entryCategory =
-                    if (
-                        _state.value.allReleases
-                            .firstOrNull { it.tagName == entry.releaseTag }
-                            ?.isEffectivelyPreRelease() == true
-                    ) {
-                        ReleaseCategory.PRE_RELEASE
-                    } else {
-                        ReleaseCategory.STABLE
-                    }
-                val showingCategory = _state.value.selectedReleaseCategory
-                if (showingCategory != ReleaseCategory.ALL && entryCategory != showingCategory) {
-                    if (_state.value.downloadStage != DownloadStage.IDLE) {
-                        _state.value =
-                            _state.value.copy(
-                                downloadStage = DownloadStage.IDLE,
-                                downloadProgressPercent = null,
-                                downloadedBytes = 0L,
-                                totalBytes = null,
-                                isDownloading = false,
-                            )
-                    }
                     return@collect
                 }
 
