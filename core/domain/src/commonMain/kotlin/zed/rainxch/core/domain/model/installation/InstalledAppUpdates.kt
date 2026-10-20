@@ -135,17 +135,52 @@ private fun InstalledApp.installReachedTarget(
     versionCode: Long,
 ): Boolean {
     val targetCode = latestVersionCode ?: 0L
-    return if (targetCode > 0L) {
-        versionCode >= targetCode
-    } else {
-        versionName.isNotBlank() &&
-            versionName != SystemPackageInfo.UNKNOWN_VERSION_NAME &&
-            (
-                installedVersionName == null ||
-                    versionName != installedVersionName ||
-                    matchesParkedTargetName(versionName)
-            )
+    return when {
+        parkedBuildAlreadyOnDevice() -> {
+            true
+        }
+
+        targetCode > 0L -> {
+            versionCode >= targetCode
+        }
+
+        // A rolling build reuses one tag across builds, so a matching name proves nothing.
+        // Only a version code or the parked release identity can settle those.
+        parkedTagIsAmbiguous() -> {
+            false
+        }
+
+        else -> {
+            versionName.isNotBlank() &&
+                versionName != SystemPackageInfo.UNKNOWN_VERSION_NAME &&
+                (
+                    installedVersionName == null ||
+                        versionName != installedVersionName ||
+                        matchesParkedTargetName(versionName)
+                )
+        }
     }
+}
+
+private fun InstalledApp.parkedTagIsAmbiguous(): Boolean {
+    val parkedTag = pendingInstallVersion ?: latestVersion ?: return false
+    return VersionMath.isTimestampTrackedTag(parkedTag) ||
+        VersionMath.detectScheme(parkedTag) == VersionMath.Scheme.Unknown
+}
+
+// #998 records both what the park points at and what the device runs. When the two name the
+// same release, or the device already runs the parked version tag, there is nothing left to
+// install: a duplicate install has to clear the park instead of leaving it on screen forever.
+private fun InstalledApp.parkedBuildAlreadyOnDevice(): Boolean {
+    val sameRelease =
+        pendingInstallReleaseId != null && pendingInstallReleaseId == installedReleaseId
+    val parkedTag = pendingInstallVersion ?: latestVersion
+    return sameRelease ||
+        (
+            parkedTag != null &&
+                !parkedTagIsAmbiguous() &&
+                VersionMath.isSameVersion(parkedTag, installedVersion)
+        )
 }
 
 private fun InstalledApp.matchesParkedTargetName(systemName: String): Boolean {
