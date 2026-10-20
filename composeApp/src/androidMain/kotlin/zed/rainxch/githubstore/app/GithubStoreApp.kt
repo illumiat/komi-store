@@ -1,4 +1,4 @@
-package zed.rainxch.githubstore.app
+﻿package zed.rainxch.githubstore.app
 
 import android.app.Application
 import android.app.NotificationChannel
@@ -180,7 +180,7 @@ class GithubStoreApp : Application() {
                 val enabled = tweaks.getUpdateCheckEnabled().first()
                 if (!enabled) {
                     UpdateScheduler.cancel(this@GithubStoreApp)
-                    Logger.i { "Background update check disabled — skipping schedule" }
+                    Logger.i { "Background update check disabled 鈥?skipping schedule" }
                     return@launch
                 }
                 val intervalHours = tweaks.getUpdateCheckInterval().first()
@@ -199,21 +199,35 @@ class GithubStoreApp : Application() {
             try {
                 val repo = get<InstalledAppsRepository>()
                 val selfPackageName = packageName
-                val existing = repo.getAppByPackage(selfPackageName)
-
-                if (existing != null) {
-                    if (existing.isPendingInstall) {
-                        resolveSelfPendingInstall(existing, repo)
-                    } else {
-                        normalizeSelfInstalledVersion(existing, repo)
-                    }
-                    return@launch
-                }
 
                 val packageMonitor = get<PackageMonitor>()
                 val systemInfo = packageMonitor.getInstalledPackageInfo(selfPackageName)
                 if (systemInfo == null) {
                     logger.warn("GithubStoreApp: Skip self-registration, package info missing for $selfPackageName")
+                    return@launch
+                }
+
+                val existing = repo.getAppByPackage(selfPackageName)
+
+                if (existing != null) {
+                    // A fork build (a test release) delivers itself through pre-releases. Without
+                    // them the self check reads an empty window and reports "No release found".
+                    if (!existing.includePreReleases && existing.repoOwner != SELF_REPO_OWNER) {
+                        Logger.i(
+                            "GithubStoreApp: self entry tracks ${existing.repoOwner}/${existing.repoName}; " +
+                                "including pre-releases so its own channel stays visible",
+                        )
+                        repo.setIncludePreReleases(selfPackageName, true)
+                    }
+                    if (existing.pendingInstallFilePath != null && !existing.isPendingInstall) {
+                        // A reset left the pointer behind: nothing is parked, so drop it.
+                        repo.discardParkedInstall(selfPackageName, existing.pendingInstallFilePath)
+                    }
+                    if (existing.isPendingInstall) {
+                        resolveSelfPendingInstall(existing, repo)
+                    } else {
+                        normalizeSelfInstalledVersion(existing, repo)
+                    }
                     return@launch
                 }
 
