@@ -549,12 +549,24 @@ class DefaultDownloadOrchestrator(
                 Logger.w(e) { "Orchestrator: could not hash the parked file for ${spec.packageName}" }
                 null
             }
+        val releasePublishedAt =
+            try {
+                installedAppsRepository.getAppByPackage(spec.packageName)?.latestReleasePublishedAt
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.w(e) { "Orchestrator: could not read the parked release timestamp" }
+                null
+            }
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
                 path = filePath,
                 version = spec.releaseTag,
                 assetName = spec.asset.name,
+                releaseId = spec.releaseId,
+                assetId = spec.asset.id.takeIf { it > 0L },
+                releasePublishedAt = releasePublishedAt,
                 assetDigest = downloadedDigest,
             )
         } catch (e: CancellationException) {

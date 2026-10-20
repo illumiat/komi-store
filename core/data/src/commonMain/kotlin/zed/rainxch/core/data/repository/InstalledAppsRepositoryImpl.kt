@@ -14,6 +14,7 @@ import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
 import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
 import zed.rainxch.core.data.local.db.dao.recordUnmatchedRelease
+import zed.rainxch.core.data.local.db.dao.resolveInstalledReleasePublishedAt
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
@@ -240,15 +241,14 @@ class InstalledAppsRepositoryImpl(
 
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
+            val installedPublishedAt =
+                installedAppsDao.resolveInstalledReleasePublishedAt(app, releases)
             val bound =
                 if (app.installedAssetId != null || app.installedAssetDigest != null) {
                     UpdateVerdict.Bound(
                         assetId = app.installedAssetId,
                         assetDigest = app.installedAssetDigest,
-                        releasePublishedAt =
-                            app.installedReleaseId?.let { id ->
-                                releases.firstOrNull { it.id == id }?.publishedAt
-                            },
+                        releasePublishedAt = installedPublishedAt,
                     )
                 } else {
                     null
@@ -419,6 +419,7 @@ class InstalledAppsRepositoryImpl(
         newReleaseId: Long?,
         newAssetId: Long?,
         newAssetDigest: String?,
+        newReleasePublishedAt: String?,
         newAssetName: String?,
         newAssetUrl: String?,
         newVersionName: String,
@@ -454,6 +455,7 @@ class InstalledAppsRepositoryImpl(
                     releaseId = newReleaseId,
                     assetId = newAssetId,
                     assetDigest = newAssetDigest,
+                    releasePublishedAt = newReleasePublishedAt,
                     assetName = newAssetName,
                     assetUrl = newAssetUrl,
                     versionName = newVersionName,
@@ -636,6 +638,9 @@ class InstalledAppsRepositoryImpl(
         path: String,
         version: String?,
         assetName: String?,
+        releaseId: Long?,
+        assetId: Long?,
+        releasePublishedAt: String?,
         assetDigest: String?,
     ) {
         installedAppsDao.markAwaitingInstall(
@@ -643,6 +648,9 @@ class InstalledAppsRepositoryImpl(
             path = path,
             version = version,
             assetName = assetName,
+            releaseId = releaseId,
+            assetId = assetId,
+            releasePublishedAt = releasePublishedAt,
             digest = assetDigest,
         )
     }

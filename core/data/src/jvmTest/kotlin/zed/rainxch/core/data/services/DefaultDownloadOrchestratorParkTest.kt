@@ -280,6 +280,9 @@ class DefaultDownloadOrchestratorParkTest {
             path: String,
             version: String?,
             assetName: String?,
+            releaseId: Long?,
+            assetId: Long?,
+            releasePublishedAt: String?,
             assetDigest: String?,
         ) {
             awaitingInstallWrites += ParkWrite(packageName, path, version, assetName)
@@ -339,6 +342,7 @@ class DefaultDownloadOrchestratorParkTest {
             newReleaseId: Long?,
             newAssetId: Long?,
             newAssetDigest: String?,
+            newReleasePublishedAt: String?,
             newAssetName: String?,
             newAssetUrl: String?,
             newVersionName: String,

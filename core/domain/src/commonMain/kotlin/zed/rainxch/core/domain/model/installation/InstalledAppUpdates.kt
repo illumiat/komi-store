@@ -4,11 +4,13 @@ import zed.rainxch.core.domain.utils.VersionMath
 import zed.rainxch.core.domain.utils.VersionVerdict
 import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
 
+@Suppress("LongParameterList", "CyclomaticComplexMethod")
 fun InstalledApp.confirmInstall(
     tag: String,
     releaseId: Long? = null,
     assetId: Long? = null,
     assetDigest: String? = null,
+    releasePublishedAt: String? = null,
     // Unknown must be null, never "": "" never equals a real asset name.
     assetName: String?,
     assetUrl: String?,
@@ -46,6 +48,7 @@ fun InstalledApp.confirmInstall(
         installedReleaseId = releaseId,
         installedAssetId = assetId,
         installedAssetDigest = assetDigest,
+        installedReleasePublishedAt = releasePublishedAt,
         isUpdateAvailable =
             when {
                 latestIsSkipped -> false
@@ -120,9 +123,16 @@ fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
                 recordedBuildStands -> installedAssetDigest
                 else -> null
             },
+        installedReleasePublishedAt =
+            when {
+                parkedBuildLanded -> pendingInstallReleasePublishedAt
+                recordedBuildStands -> installedReleasePublishedAt
+                else -> null
+            },
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
     )
 }
 

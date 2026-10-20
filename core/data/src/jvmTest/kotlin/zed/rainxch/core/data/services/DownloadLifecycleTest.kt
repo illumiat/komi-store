@@ -294,6 +294,9 @@ class DownloadLifecycleTest {
             path: String,
             version: String?,
             assetName: String?,
+            releaseId: Long?,
+            assetId: Long?,
+            releasePublishedAt: String?,
             assetDigest: String?,
         ) = Unit
 
@@ -334,6 +337,7 @@ class DownloadLifecycleTest {
             newReleaseId: Long?,
             newAssetId: Long?,
             newAssetDigest: String?,
+            newReleasePublishedAt: String?,
             newAssetName: String?,
             newAssetUrl: String?,
             newVersionName: String,
