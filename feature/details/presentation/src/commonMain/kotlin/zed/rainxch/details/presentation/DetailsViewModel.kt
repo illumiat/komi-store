@@ -3251,6 +3251,10 @@ class DetailsViewModel(
                         stats = freshStats ?: current.stats,
                     )
                 }
+
+                freshReleases
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { syncLibraryUpdateState(it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RefreshException) {
@@ -3287,6 +3291,25 @@ class DetailsViewModel(
                     DetailsEvent.OnRefreshError(kind = RefreshError.GENERIC),
                 )
             }
+        }
+    }
+
+    // Best-effort: a failed sync must not fail the refresh that read these releases.
+    private suspend fun syncLibraryUpdateState(freshReleases: List<GithubRelease>) {
+        val installed = _state.value.installedApp ?: return
+        try {
+            installedAppsRepository
+                .getAppsByRepoId(installed.repoId)
+                .forEach { app ->
+                    installedAppsRepository.checkForUpdatesWithReleases(
+                        packageName = app.packageName,
+                        releases = freshReleases,
+                    )
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            logger.warn("Refresh: library update sync failed: ${t.message}")
         }
     }
 
