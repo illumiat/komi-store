@@ -396,14 +396,7 @@ class InstalledAppsRepositoryImpl(
                     identityContradicts = identityContradicts(app, primaryAsset),
                 )
             if (shouldRewriteTag) {
-                adoptTagWhenProven(
-                    dao = installedAppsDao,
-                    app = app,
-                    matchedRelease = matchedRelease,
-                    matchedAsset = primaryAsset,
-                    isUpdateAvailable = isUpdateAvailable,
-                    clearBindingWhenUnproven = true,
-                )
+                adoptTagWhenProven(installedAppsDao, app, matchedRelease, primaryAsset, isUpdateAvailable, true)
             }
 
             if (variantWasLost != app.preferredVariantStale) {
