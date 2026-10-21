@@ -179,10 +179,12 @@ object UpdateVerdict {
                     false
                 }
 
-                // A binding only speaks about builds of a rolling tag. For a semantic
-                // version tag the version comparison is authoritative: a stable release can
-                // legitimately be published before the pre-release the device installed.
-                bound == null || !boundUsesTimestamp -> {
+                // A binding only speaks where the tags cannot be ordered: a rolling tag, an
+                // unknown scheme, or an installed tag the offered one does not reconcile with
+                // (a nightly install offered a stable release). Otherwise the version comparison
+                // is authoritative: a stable release can legitimately be published before the
+                // pre-release the device installed.
+                bound == null || (reconcilable && !boundUsesTimestamp) -> {
                     tagVerdict
                 }
 

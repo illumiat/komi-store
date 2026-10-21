@@ -81,6 +81,27 @@ class UpdateVerdictTest {
         assertTrue(result.isUpdateAvailable)
     }
 
+    // A nightly install cannot be ordered against a versioned tag, so its binding still decides:
+    // a stable release published after the installed build is an update.
+    @Test
+    fun a_bound_nightly_still_sees_a_later_stable_release() {
+        val result =
+            decide(
+                installedTag = "nightly",
+                matchedTag = "v2.0.5",
+                matchedPublishedAt = "2026-09-20T00:00:00Z",
+                matchedAssetId = 22L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 11L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-09-08T00:00:00Z",
+                    ),
+            )
+
+        assertTrue(result.isUpdateAvailable)
+    }
+
     // com.yunx.app: v1.2.8 was offered, the install was blocked for want of installer
     // authorisation, and it was installed another way. The device then reported 1.2.8 while the
     // stored tag stayed at 1.2.6, so the verdict kept comparing that stale tag and reported an
