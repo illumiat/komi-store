@@ -327,11 +327,6 @@ fun InstalledApp.markPending(
 fun InstalledApp.clearPending(): InstalledApp =
     copy(
         isPendingInstall = false,
-        // A cleared park owns no file any more. Leaving the pointer here made the library
-        // offer "Install" for a build that was no longer parked.
-        pendingInstallFilePath = null,
-        pendingInstallVersion = null,
-        pendingInstallAssetName = null,
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,

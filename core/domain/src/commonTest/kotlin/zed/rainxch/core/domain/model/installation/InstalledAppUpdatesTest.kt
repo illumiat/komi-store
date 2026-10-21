@@ -7,24 +7,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InstalledAppUpdatesTest {
-    // A cleared park owns no file any more: leaving the pointer made the library offer an
-    // "Install" that could never resolve, because no release was parked any longer.
-    @Test
-    fun clearing_a_park_drops_its_pointer() {
-        val parked =
-            testInstalledApp(
-                isPendingInstall = true,
-                pendingInstallFilePath = "/tmp/app.apk",
-            )
-
-        val cleared = parked.clearPending()
-
-        assertFalse(cleared.isPendingInstall)
-        assertEquals(null, cleared.pendingInstallFilePath)
-        assertEquals(null, cleared.pendingInstallVersion)
-        assertEquals(null, cleared.pendingInstallAssetName)
-    }
-
     private fun app(
         installedVersion: String = "1.0.0",
         installedVersionCode: Long = 100L,

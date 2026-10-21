@@ -111,7 +111,7 @@ private fun AppItem.status(): Pair<String, LibraryStatusTone> {
             stringResource(Res.string.installing) to LibraryStatusTone.Plain
         }
 
-        app.pendingInstallFilePath != null -> {
+        app.isParked -> {
             readyStatus()
         }
 
@@ -136,6 +136,11 @@ private fun staleStatus(app: InstalledAppUi): String =
 
 private val InstalledAppUi.hasUpdate: Boolean
     get() = isUpdateAvailable && updateCheckEnabled && !isPendingInstall
+
+// The sync keeps a file whose park was cleared until it can prove the install; that file is not
+// something to offer, so only a live park counts.
+private val InstalledAppUi.isParked: Boolean
+    get() = isPendingInstall && pendingInstallFilePath != null
 
 @Composable
 private fun AppItem.readyStatus(): Pair<String, LibraryStatusTone> {
@@ -170,7 +175,7 @@ private fun MainAction(
     val app = appItem.installedApp
     val cooldown = rememberTapCooldown()
     when {
-        app.pendingInstallFilePath != null -> {
+        app.isParked -> {
             KomiButton(
                 onClick = { cooldown.run { onAction(AppsAction.OnInstallPendingApp(app)) } },
                 label = stringResource(Res.string.install),
