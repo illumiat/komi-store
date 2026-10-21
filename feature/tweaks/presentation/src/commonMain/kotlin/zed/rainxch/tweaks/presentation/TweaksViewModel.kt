@@ -625,6 +625,9 @@ class TweaksViewModel(
             is TweaksAction.OnRepoLayoutSelected -> {
                 viewModelScope.launch {
                     tweaksRepository.setRepoGridLayout(action.grid)
+                }
+            }
+
             is TweaksAction.OnTabCardHeaderOnTopToggled -> {
                 viewModelScope.launch {
                     tweaksRepository.setTabCardHeaderOnTop(action.enabled)
