@@ -282,7 +282,8 @@ internal fun KomiTabCard(
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .then(if (showHeader) Modifier.imePadding() else Modifier)
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    .padding(start = Spacing.md, end = Spacing.md, top = Spacing.sm)
+                .padding(bottom = if (showHeader) Spacing.sm else 20.dp),
             horizontalAlignment = if (showHeader) Alignment.End else Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
