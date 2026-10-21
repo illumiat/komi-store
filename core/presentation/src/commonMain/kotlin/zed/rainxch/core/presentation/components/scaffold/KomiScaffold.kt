@@ -75,7 +75,8 @@ fun KomiScaffold(
     // On a Classic tab screen the tab card at the bottom holds the top bar's search and actions
     // and the FAB, and folds as the content scrolls; the content keeps room for the status bar.
     val tabCard = LocalTabCardSlot.current?.takeIf { !isManga }
-    val tabCardHeaderOnTop = tabCard != null && LocalTabCardHeaderOnTop.current && !tabCard.state.hidesHeader(tabCard.tabId)
+    val headerOnTopEnabled = tabCard != null && LocalTabCardHeaderOnTop.current
+    val tabCardHeaderOnTop = headerOnTopEnabled && !tabCard.state.hidesHeader(tabCard.tabId)
     val scaffoldTopBar = topBar.takeIf { tabCard == null }
     val scaffoldFab = floatingActionButton.takeIf { tabCard == null }
     val chrome = rememberScaffoldChrome(enabled = !isManga && scaffoldTopBar != null)
@@ -141,7 +142,7 @@ fun KomiScaffold(
             slot = tabCard,
             fab = floatingActionButton,
             modifier = Modifier.align(Alignment.BottomCenter),
-            showHeader = !tabCardHeaderOnTop,
+            showHeader = !headerOnTopEnabled,
         )
         toastState?.let { KomiToastHost(state = it) }
         overlay?.invoke()

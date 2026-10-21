@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -81,6 +82,8 @@ val LocalTabCardHeaderOnTop = staticCompositionLocalOf { false }
 // the screen's own composition, after its top bar hands over the search field and actions, so the
 // field never recomposes with a value its screen has already replaced (that loses typing). A
 // shared element keeps the card in place while the tabs slide.
+private val TAB_CARD_MAX_WIDTH = 640.dp
+
 private const val FOLD_THRESHOLD = 96f
 private const val UNFOLD_THRESHOLD = 64f
 
@@ -284,27 +287,42 @@ internal fun KomiTabCard(
                 .navigationBarsPadding()
                 .then(if (showHeader) Modifier.imePadding() else Modifier)
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        horizontalAlignment = Alignment.End,
+        horizontalAlignment = if (showHeader) Alignment.End else Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         // The screen's FAB rides above the card's end, like Chocola's shuffle button.
-        if (!typing) fab?.let { CompositionLocalProvider(LocalInBar provides true, content = it) }
+        if (!typing) {
+            fab?.let {
+                if (showHeader) {
+                    CompositionLocalProvider(LocalInBar provides true, content = it)
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().widthIn(max = TAB_CARD_MAX_WIDTH),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        CompositionLocalProvider(LocalInBar provides true, content = it)
+                    }
+                }
+            }
+        }
         AnimatedVisibility(
             visible = showHeader || !state.folded,
             enter =
-                if (showHeader && !hidesHeader) {
+                if (showHeader) {
                     expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects())
                 } else {
                     scaleIn(initialScale = 0.92f, animationSpec = motion.bouncySpatial()) + fadeIn(motion.fastEffects())
                 },
             exit =
-                if (showHeader && !hidesHeader) {
+                if (showHeader) {
                     shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects())
                 } else {
                     scaleOut(targetScale = 0.92f, animationSpec = motion.fastEffects()) + fadeOut(motion.fastEffects())
                 },
         ) {
-            CardSurface(modifier = tabSwitchModifier()) {
+            CardSurface(
+                modifier = tabSwitchModifier().then(if (showHeader) Modifier else Modifier.widthIn(max = TAB_CARD_MAX_WIDTH)),
+            ) {
                 Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
                     if (showHeader) {
                         Row(
@@ -334,7 +352,7 @@ internal fun KomiTabCard(
                         }
                     }
                     AnimatedVisibility(
-                        visible = if (showHeader && !hidesHeader) !state.folded && !typing else true,
+                        visible = if (!hidesHeader && showHeader) !state.folded && !typing else true,
                         enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
                         exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
                     ) {
