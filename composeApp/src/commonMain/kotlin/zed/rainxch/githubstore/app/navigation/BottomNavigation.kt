@@ -51,11 +51,11 @@ fun BottomNavigation(
     }
     if (tabCard != null) {
         // Classic's tab screens draw the tab card themselves; on a tab without a search field of
-        // its own, the card's field opens the Search tab.
+        // its own, the card's field opens the Search screen.
         tabCard.setTabs(
             items = items,
             onSelect = onSelect,
-            onSearch = { onSelect(tabIdOf(GithubStoreGraph.SearchScreen())) },
+            onSearch = { onNavigate(GithubStoreGraph.SearchScreen()) },
             headerlessTabs = setOf(tabIdOf(GithubStoreGraph.ProfileGraph.ProfileScreen)),
         )
     } else {

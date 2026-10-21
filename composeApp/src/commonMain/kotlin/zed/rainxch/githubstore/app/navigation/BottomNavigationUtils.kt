@@ -21,12 +21,6 @@ object BottomNavigationUtils {
                 screen = GithubStoreGraph.ChartsScreen,
             ),
             BottomNavigationItem(
-                titleRes = Res.string.bottom_nav_search_title,
-                iconOutlined = Icons.Outlined.Search,
-                iconFilled = Icons.Filled.Search,
-                screen = GithubStoreGraph.SearchScreen(),
-            ),
-            BottomNavigationItem(
                 titleRes = Res.string.bottom_nav_apps_title,
                 iconOutlined = Icons.Outlined.Apps,
                 iconFilled = Icons.Filled.Apps,
