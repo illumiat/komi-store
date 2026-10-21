@@ -50,8 +50,6 @@ import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.error.RateLimitException
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.InstallerType
-import zed.rainxch.core.domain.model.installation.markPending
-import zed.rainxch.core.domain.model.installation.withLatestSnapshot
 import zed.rainxch.core.domain.network.Downloader
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
@@ -59,6 +57,7 @@ import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.system.DownloadOrchestrator
 import zed.rainxch.core.domain.system.DownloadSpec
 import zed.rainxch.core.domain.system.DownloadStagePhase
+import zed.rainxch.core.domain.system.InstallOutcome
 import zed.rainxch.core.domain.system.InstallPolicy
 import zed.rainxch.core.domain.system.Installer
 import zed.rainxch.core.domain.system.OrchestratedDownload
@@ -1301,7 +1300,6 @@ class AppsViewModel(
                             "asset: ${primaryAsset.name}, stored match: ${target.fromStoredMatch}",
                     )
 
-                    val latestAssetUrl = primaryAsset.downloadUrl
                     val latestAssetName = primaryAsset.name
                     val latestVersion = target.tag
 
@@ -1370,10 +1368,10 @@ class AppsViewModel(
                         waitForOrchestratorReady(app.packageName) { progress ->
                             updateAppProgress(app.packageName, progress)
                         }
-                    val filePath =
+                    val downloaded =
                         when (orchestratorResult) {
                             is OrchestratorResult.Ready -> {
-                                orchestratorResult.filePath
+                                orchestratorResult
                             }
 
                             is OrchestratorResult.AlreadyInstalled -> {
@@ -1396,24 +1394,18 @@ class AppsViewModel(
                             }
                         }
 
+                    val filePath = downloaded.filePath
                     val apkInfo =
                         installer.getApkInfoExtractor().extractPackageInfo(filePath)
 
                     val currentApp = installedAppsRepository.getAppByPackage(app.packageName)
                     if (currentApp != null) {
                         installedAppsRepository.updateApp(
-                            currentApp
-                                .markPending(
-                                    releaseId = target.releaseId,
-                                    assetId = primaryAsset.id,
-                                    assetDigest = primaryAsset.digest,
-                                ).withLatestSnapshot(
-                                    version = latestVersion,
-                                    assetName = latestAssetName,
-                                    assetUrl = latestAssetUrl,
-                                    versionName = apkInfo?.versionName ?: latestVersion,
-                                    versionCode = apkInfo?.versionCode ?: 0L,
-                                ),
+                            currentApp.markDownloadedUpdate(
+                                download = downloaded.download,
+                                versionName = apkInfo?.versionName,
+                                versionCode = apkInfo?.versionCode,
+                            ),
                         )
                     } else {
                         markPendingUpdate(app.toDomain())
@@ -1421,27 +1413,32 @@ class AppsViewModel(
 
                     updateAppState(app.packageName, UpdateState.Installing)
 
-                    try {
-                        systemInstallSerializer.awaitFreeAndMarkPending(
-                            app.packageName,
-                            timeoutMs = if (waitForInstallGate) SystemInstallSerializer.DEFAULT_TIMEOUT_MS else 0L,
-                        )
-                        installer.install(filePath, ext)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        systemInstallSerializer.markCompleted(app.packageName)
-                        installedAppsRepository.updatePendingStatus(app.packageName, false)
-                        throw e
-                    }
+                    val installOutcome =
+                        try {
+                            systemInstallSerializer.awaitFreeAndMarkPending(
+                                app.packageName,
+                                timeoutMs = if (waitForInstallGate) SystemInstallSerializer.DEFAULT_TIMEOUT_MS else 0L,
+                            )
+                            installer.install(filePath, ext)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            systemInstallSerializer.markCompleted(app.packageName)
+                            installedAppsRepository.updatePendingStatus(app.packageName, false)
+                            throw e
+                        }
 
                     downloadOrchestrator.dismiss(app.packageName)
-                    try {
-                        installedAppsRepository.setPendingInstallFilePath(app.packageName, null)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (clearEx: Exception) {
-                        logger.error("Failed to clear pending install file path: ${clearEx.message}")
+                    // A delegated install keeps its parked file: the card must offer Install until the
+                    // system proves the new version landed, otherwise it silently reverts to Update.
+                    if (installOutcome == InstallOutcome.COMPLETED) {
+                        try {
+                            installedAppsRepository.setPendingInstallFilePath(app.packageName, null)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (clearEx: Exception) {
+                            logger.error("Failed to clear pending install file path: ${clearEx.message}")
+                        }
                     }
 
                     updateAppState(app.packageName, UpdateState.Idle)
@@ -1785,6 +1782,7 @@ class AppsViewModel(
     private sealed interface OrchestratorResult {
         data class Ready(
             val filePath: String,
+            val download: OrchestratedDownload,
         ) : OrchestratorResult
 
         data object AlreadyInstalled : OrchestratorResult
@@ -1820,7 +1818,7 @@ class AppsViewModel(
             }
 
             terminal.stage == OrchestratorStage.AwaitingInstall -> {
-                terminal.filePath?.let { OrchestratorResult.Ready(it) }
+                terminal.filePath?.let { OrchestratorResult.Ready(it, terminal) }
                     ?: OrchestratorResult.Failed("Downloaded file path missing")
             }
 
