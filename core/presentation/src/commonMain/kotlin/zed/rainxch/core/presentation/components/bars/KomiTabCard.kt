@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -41,15 +42,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -85,9 +89,6 @@ val LocalTabCardHeaderOnTop = staticCompositionLocalOf { false }
 // the screen's own composition, after its top bar hands over the search field and actions, so the
 // field never recomposes with a value its screen has already replaced (that loses typing). A
 // shared element keeps the card in place while the tabs slide.
-private const val FOLD_THRESHOLD = 96f
-private const val UNFOLD_THRESHOLD = 64f
-
 @Stable
 class KomiTabCardState {
     internal var folded by mutableStateOf(false)
@@ -98,34 +99,18 @@ class KomiTabCardState {
     internal var headerlessTabs: Set<String> = emptySet()
         private set
 
-    // Fold only after a deliberate scroll in one direction. Tiny back-and-forth gestures
-    // accumulate and reset instead of toggling the card on every frame, which used to make the
-    // layout twitch while the finger was still moving.
-    private var foldDistance = 0f
-    private var foldDirection = 0
+    internal var headerCollapse by mutableFloatStateOf(0f)
+    internal var headerHeightPx by mutableFloatStateOf(1f)
 
     internal val foldConnection =
         object : NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: Offset,
+            override fun onPreScroll(
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                val delta = consumed.y
-                if (delta == 0f) return Offset.Zero
-                val direction = if (delta < 0f) -1 else 1
-                if (direction != foldDirection) {
-                    foldDirection = direction
-                    foldDistance = 0f
-                }
-                foldDistance += delta
-                if (!folded && foldDistance <= -FOLD_THRESHOLD) {
-                    folded = true
-                    foldDistance = 0f
-                } else if (folded && foldDistance >= UNFOLD_THRESHOLD) {
-                    folded = false
-                    foldDistance = 0f
-                }
+                if (available.y == 0f || headerHeightPx <= 0f) return Offset.Zero
+                headerCollapse = (headerCollapse - available.y / headerHeightPx).coerceIn(0f, 1f)
+                folded = headerCollapse >= 0.99f
                 return Offset.Zero
             }
         }
@@ -216,18 +201,24 @@ internal fun KomiTabCardHeader(
     val search = parts.search
     val actions = parts.actions
     ResizeWindowForKeyboard()
-    val motion = LocalPersonality.current.motion
     val colors = LocalPersonality.current.colors
-    AnimatedVisibility(
-        visible = !state.folded,
-        enter = slideInVertically(initialOffsetY = { -it }, animationSpec = motion.bouncySpatial()) + expandVertically(motion.bouncySpatial()),
-        exit = slideOutVertically(targetOffsetY = { -it }, animationSpec = motion.fastEffects()) + shrinkVertically(motion.fastEffects()),
+    val density = LocalDensity.current
+    val fullHeight = SearchRowHeight + Spacing.xs
+    SideEffect { state.headerHeightPx = with(density) { fullHeight.toPx() } }
+    val collapse = state.headerCollapse
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.background)
+                .height(fullHeight * (1f - collapse))
+                .clipToBounds(),
     ) {
         Column(
             modifier =
-                modifier
+                Modifier
                     .fillMaxWidth()
-                    .background(colors.background)
+                    .offset(y = -fullHeight * collapse)
                     .padding(horizontal = Spacing.md)
                     .padding(top = Spacing.xs, bottom = 0.dp),
         ) {
@@ -285,7 +276,7 @@ internal fun KomiTabCard(
                     .navigationBarsPadding()
                     .then(if (showHeader) Modifier.imePadding() else Modifier)
                     .padding(start = Spacing.md, end = Spacing.md, top = Spacing.sm)
-                .padding(bottom = if (showHeader) Spacing.sm else 20.dp),
+                    .padding(bottom = if (showHeader) Spacing.sm else 20.dp),
             horizontalAlignment = if (showHeader) Alignment.End else Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
