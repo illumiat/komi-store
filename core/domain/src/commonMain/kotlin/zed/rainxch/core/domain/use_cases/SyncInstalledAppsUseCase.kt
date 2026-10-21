@@ -251,60 +251,77 @@ class SyncInstalledAppsUseCase(
     ) {
         try {
             val resolution = app.pendingInstallResolution(systemInfo)
-            if (resolution !is PendingInstallResolution.Reached) {
-                val hasPendingIdentity =
-                    app.pendingInstallReleaseId != null ||
-                        app.pendingInstallAssetId != null ||
-                        app.pendingInstallAssetDigest != null
-                if (hasPendingIdentity && systemInfo != null && app.installedAfterPark(systemInfo)) {
-                    // lastUpdateTime moved past the park: the system installed our file even
-                    // though versionCode/versionName did not change. Settle the parked identity.
-                    val tag = app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
-                    installedAppsRepository.updateApp(
-                        app.resolvePendingFromProvenEvent(
-                            tag = tag,
-                            versionName = systemInfo.versionName,
-                            versionCode = systemInfo.versionCode,
-                        ),
-                    )
-                    parkedCleanups += ParkedCleanup(
-                        packageName = app.packageName,
-                        expectedPath = app.pendingInstallFilePath,
-                        deleteRow = false,
-                        reason = "same-version install proved by lastUpdateTime",
-                    )
-                    logger.info("Resolved same-version install via lastUpdateTime: ${app.packageName}")
-                    return
-                }
-                if (app.pendingInstallFilePath == null && !hasPendingIdentity) {
-                    installedAppsRepository.updatePendingStatus(app.packageName, false)
-                    logger.info("Resolved pending install without a parked file: ${app.packageName}")
-                } else if (hasPendingIdentity) {
-                    // Keep the parked identity alive: a self-update kills the process before the
-                    // package broadcast settles it, and a later sync must not erase that proof.
-                    logger.info("Kept parked identity awaiting the install event: ${app.packageName}")
-                } else {
-                    logger.info("Kept parked install (target not proven): ${app.packageName}")
-                }
-                return
+            if (resolution is PendingInstallResolution.Reached) {
+                installedAppsRepository.updateApp(app.resolvePendingFromSystem(resolution))
+                logger.info(
+                    "Resolved pending install: ${app.packageName} " +
+                        "(v${resolution.versionName}, code=${resolution.versionCode}, tag=${resolution.resolvedTag})",
+                )
+                parkedCleanups += ParkedCleanup(
+                    packageName = app.packageName,
+                    expectedPath = app.pendingInstallFilePath,
+                    deleteRow = false,
+                    reason = "resolved pending install",
+                )
+            } else {
+                resolveUnreachedPending(app, systemInfo, parkedCleanups)
             }
-            installedAppsRepository.updateApp(app.resolvePendingFromSystem(resolution))
-            logger.info(
-                "Resolved pending install: ${app.packageName} " +
-                    "(v${resolution.versionName}, code=${resolution.versionCode}, tag=${resolution.resolvedTag})",
-            )
-            parkedCleanups += ParkedCleanup(
-                packageName = app.packageName,
-                expectedPath = app.pendingInstallFilePath,
-                deleteRow = false,
-                reason = "resolved pending install",
-            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             logger.error("Failed to resolve pending ${app.packageName}: ${e.message}")
         }
     }
+
+    private suspend fun resolveUnreachedPending(
+        app: InstalledApp,
+        systemInfo: SystemPackageInfo?,
+        parkedCleanups: MutableList<ParkedCleanup>,
+    ) {
+        val hasPendingIdentity =
+            app.pendingInstallReleaseId != null ||
+                app.pendingInstallAssetId != null ||
+                app.pendingInstallAssetDigest != null
+        val provedBySystemInstall =
+            hasPendingIdentity && systemInfo != null && app.installedAfterPark(systemInfo)
+        val startedAt = app.pendingInstallStartedAt
+        val abandoned =
+            startedAt != null && System.currentTimeMillis() - startedAt > PENDING_INSTALL_TIMEOUT_MS
+        when {
+            provedBySystemInstall -> {
+                settleFromSystemInstall(installedAppsRepository, logger, app, requireNotNull(systemInfo), parkedCleanups)
+            }
+
+            abandoned -> {
+                // The install never reached the system (cancelled or dropped session). Drop the
+                // pending state so the row cannot stay "installing" forever; the installed
+                // identity stays untouched.
+                installedAppsRepository.updatePendingStatus(app.packageName, false)
+                installedAppsRepository.setPendingInstallFilePath(app.packageName, null)
+                parkedCleanups += ParkedCleanup(
+                    packageName = app.packageName,
+                    expectedPath = app.pendingInstallFilePath,
+                    deleteRow = false,
+                    reason = "abandoned pending install",
+                )
+                logger.info("Dropped an abandoned parked install: ${app.packageName}")
+            }
+
+            app.pendingInstallFilePath == null && !hasPendingIdentity -> {
+                installedAppsRepository.updatePendingStatus(app.packageName, false)
+                logger.info("Resolved pending install without a parked file: ${app.packageName}")
+            }
+
+            hasPendingIdentity -> {
+                logger.info("Kept parked identity awaiting the install event: ${app.packageName}")
+            }
+
+            else -> {
+                logger.info("Kept parked install (target not proven): ${app.packageName}")
+            }
+        }
+    }
+
 
     private suspend fun migrate(
         appsInDb: List<InstalledApp>,
@@ -437,10 +454,38 @@ class SyncInstalledAppsUseCase(
         val source: String,
     )
 
-    private data class ParkedCleanup(
-        val packageName: String,
-        val expectedPath: String?,
-        val deleteRow: Boolean,
-        val reason: String,
-    )
 }
+
+
+private suspend fun settleFromSystemInstall(
+    repository: InstalledAppsRepository,
+    logger: KomiStoreLogger,
+    app: InstalledApp,
+    systemInfo: SystemPackageInfo,
+    parkedCleanups: MutableList<ParkedCleanup>,
+) {
+    val tag = app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
+    repository.updateApp(
+        app.resolvePendingFromProvenEvent(
+            tag = tag,
+            versionName = systemInfo.versionName,
+            versionCode = systemInfo.versionCode,
+        ),
+    )
+    parkedCleanups += ParkedCleanup(
+        packageName = app.packageName,
+        expectedPath = app.pendingInstallFilePath,
+        deleteRow = false,
+        reason = "same-version install proved by lastUpdateTime",
+    )
+    logger.info("Resolved same-version install via lastUpdateTime: ${app.packageName}")
+}
+
+private data class ParkedCleanup(
+    val packageName: String,
+    val expectedPath: String?,
+    val deleteRow: Boolean,
+    val reason: String,
+)
+
+private const val PENDING_INSTALL_TIMEOUT_MS: Long = 24L * 60L * 60L * 1000L
