@@ -514,6 +514,7 @@ class DefaultDownloadOrchestrator(
                 releaseId = spec.releaseId,
                 assetId = spec.asset.id.takeIf { it > 0L },
                 releasePublishedAt = releasePublishedAt,
+                startedAt = System.currentTimeMillis(),
             )
         } catch (e: CancellationException) {
             throw e

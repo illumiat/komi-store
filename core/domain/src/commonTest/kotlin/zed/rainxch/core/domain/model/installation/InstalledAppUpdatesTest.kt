@@ -8,6 +8,70 @@ import kotlin.test.assertTrue
 
 class InstalledAppUpdatesTest {
     @Test
+    fun a_same_code_install_adopts_the_parked_identity() {
+        val parked =
+            testInstalledApp(
+                installedVersion = "testbuild-d",
+                installedVersionCode = 22L,
+                installedAssetId = 1L,
+                installedAssetDigest = "sha256:old",
+                isPendingInstall = true,
+                pendingInstallFilePath = "/tmp/a.apk",
+                pendingInstallVersion = "testbuild-a",
+                pendingInstallReleaseId = 900L,
+                pendingInstallAssetId = 800L,
+                pendingInstallAssetDigest = "sha256:new",
+                pendingInstallStartedAt = 1_000L,
+            )
+
+        val settled =
+            parked.resolvePendingFromProvenEvent(
+                tag = "testbuild-a",
+                versionName = "1.9.3",
+                versionCode = 22L,
+            )
+
+        assertEquals(900L, settled.installedReleaseId)
+        assertEquals(800L, settled.installedAssetId)
+        assertEquals("sha256:new", settled.installedAssetDigest)
+        assertEquals(null, settled.pendingInstallAssetDigest)
+        assertEquals(null, settled.pendingInstallStartedAt)
+    }
+
+    @Test
+    fun a_park_older_than_the_install_time_proves_the_install() {
+        val parked =
+            testInstalledApp(
+                isPendingInstall = true,
+                pendingInstallStartedAt = 1_000L,
+            )
+        assertTrue(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = 2_000L,
+                ),
+            ),
+        )
+        assertFalse(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = 500L,
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun a_confirmed_install_records_the_release_timestamp() {
         val result =
             app().confirmInstall(

@@ -16,6 +16,7 @@ class AndroidPackageMonitor(
     context: Context,
 ) : PackageMonitor {
     private val packageManager: PackageManager = context.packageManager
+    private val selfPackageName: String = context.packageName
 
     override suspend fun isPackageInstalled(packageName: String): Boolean = getInstalledPackageInfo(packageName) != null
 
@@ -53,13 +54,26 @@ class AndroidPackageMonitor(
 
                 val signingFingerprint = SigningFingerprint.fromPackageInfo(packageInfo)
 
+                val apkPath = packageInfo.applicationInfo?.sourceDir
+
                 SystemPackageInfo(
                     packageName = packageInfo.packageName,
                     versionName = packageInfo.versionName ?: SystemPackageInfo.UNKNOWN_VERSION_NAME,
                     versionCode = versionCode,
                     isInstalled = true,
                     signingFingerprint = signingFingerprint,
-                    apkPath = packageInfo.applicationInfo?.sourceDir,
+                    apkPath = apkPath,
+                    apkSize =
+                        apkPath?.let {
+                            java.io
+                                .File(it)
+                                .length()
+                                .takeIf { size -> size > 0L }
+                        },
+                    installedBySelf =
+                        resolveInstallerPackageName(packageInfo.packageName)
+                            ?.let { installer -> installer == selfPackageName },
+                    lastUpdateTime = packageInfo.lastUpdateTime.takeIf { it > 0L },
                 )
             }.getOrElse { e ->
                 // null means ONLY "positively not installed" (NameNotFoundException). Any other

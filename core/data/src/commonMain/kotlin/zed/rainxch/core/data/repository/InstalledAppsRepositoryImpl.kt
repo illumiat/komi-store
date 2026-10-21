@@ -271,7 +271,7 @@ class InstalledAppsRepositoryImpl(
 
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
-            val bound =
+            val resolvedBinding =
                 resolveInstalledBinding(
                     app = app,
                     releases = releases,
@@ -281,6 +281,7 @@ class InstalledAppsRepositoryImpl(
                     packageMonitor = packageMonitor,
                     verifier = digestVerifier,
                 )
+            val bound = resolvedBinding.bound
 
             // A rolling tag reuses one tag string across builds. Without a binding, only the
             // installed file can tell whether the release is the build the device runs.
@@ -300,6 +301,9 @@ class InstalledAppsRepositoryImpl(
                 } else {
                     null
                 }
+            if (selfAttestedDigest != null && selfAttestedDigest == primaryAsset.digest) {
+                rebindProvenIdentity(app, matchedRelease, primaryAsset, selfAttestedDigest, installedAppsDao)
+            }
 
             val verdict =
                 UpdateVerdict.decide(
@@ -377,6 +381,7 @@ class InstalledAppsRepositoryImpl(
                     installedTag = app.installedVersion,
                     matchedTag = matchedRelease.tagName,
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
+                    identityContradicts = identityContradicts(app, primaryAsset, resolvedBinding),
                 )
             if (shouldRewriteTag) {
                 installedAppsDao.adoptMatchedTag(
@@ -533,6 +538,7 @@ class InstalledAppsRepositoryImpl(
                             assetId = app.latestAssetId,
                             assetDigest = app.latestAssetDigest,
                             releasePublishedAt = app.latestReleasePublishedAt,
+                            startedAt = System.currentTimeMillis(),
                         )
                     } else {
                         it.clearPending()
@@ -669,6 +675,7 @@ class InstalledAppsRepositoryImpl(
         releaseId: Long?,
         assetId: Long?,
         releasePublishedAt: String?,
+        startedAt: Long?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
@@ -678,6 +685,7 @@ class InstalledAppsRepositoryImpl(
             releaseId = releaseId,
             assetId = assetId,
             releasePublishedAt = releasePublishedAt,
+            startedAt = startedAt,
         )
     }
 

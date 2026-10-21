@@ -1,6 +1,8 @@
 package zed.rainxch.core.data.repository
 
+import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -30,14 +32,12 @@ class InstalledReleaseBindingTest {
 
     @Test
     fun an_unchanged_timestamp_never_pays_for_a_hash() {
-        assertFalse(
-            shouldConfirmDigest(input(matchedPublishedAt = "2026-10-01T00:00:00Z")),
-        )
+        assertFalse(shouldConfirmDigest(input(matchedPublishedAt = "2026-10-01T00:00:00Z")))
     }
 
     @Test
-    fun a_row_that_already_carries_a_digest_needs_no_hash() {
-        assertFalse(shouldConfirmDigest(input(installedAssetDigest = "sha256:aaaa")))
+    fun a_known_digest_is_never_rehashed() {
+        assertFalse(shouldConfirmDigest(input(installedAssetDigest = "sha256:bbbb")))
     }
 
     @Test
@@ -56,7 +56,24 @@ class InstalledReleaseBindingTest {
     }
 
     @Test
-    fun a_missing_installed_timestamp_is_not_a_suspicion() {
-        assertFalse(shouldConfirmDigest(input(installedPublishedAt = null)))
+    fun a_row_without_a_binding_has_nothing_to_compare() {
+        assertFalse(shouldConfirmDigest(input(installedAssetId = null, installedAssetDigest = null)))
     }
+
+    @Test
+    fun the_installer_provenance_maps_to_trust() {
+        assertEquals(IdentityTrust.Trusted, identityTrust(info(installedBySelf = true)))
+        assertEquals(IdentityTrust.Untrusted, identityTrust(info(installedBySelf = false)))
+        assertEquals(IdentityTrust.Unknown, identityTrust(info(installedBySelf = null)))
+    }
+
+    private fun info(installedBySelf: Boolean?): SystemPackageInfo =
+        SystemPackageInfo(
+            packageName = "com.example.app",
+            versionName = "1.0.0",
+            versionCode = 1L,
+            isInstalled = true,
+            signingFingerprint = null,
+            installedBySelf = installedBySelf,
+        )
 }
