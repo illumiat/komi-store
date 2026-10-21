@@ -1,4 +1,4 @@
-﻿package zed.rainxch.core.presentation.components.bars
+package zed.rainxch.core.presentation.components.bars
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -11,6 +11,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -82,8 +83,6 @@ val LocalTabCardHeaderOnTop = staticCompositionLocalOf { false }
 // the screen's own composition, after its top bar hands over the search field and actions, so the
 // field never recomposes with a value its screen has already replaced (that loses typing). A
 // shared element keeps the card in place while the tabs slide.
-private val TAB_CARD_MAX_WIDTH = 640.dp
-
 private const val FOLD_THRESHOLD = 96f
 private const val UNFOLD_THRESHOLD = 64f
 
@@ -280,92 +279,100 @@ internal fun KomiTabCard(
     val ime = WindowInsets.ime
     val density = LocalDensity.current
     val typing by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
-    Column(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .then(if (showHeader) Modifier.imePadding() else Modifier)
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        horizontalAlignment = if (showHeader) Alignment.End else Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        // The screen's FAB rides above the card's end, like Chocola's shuffle button.
-        if (!typing) {
-            fab?.let {
-                if (showHeader) {
-                    CompositionLocalProvider(LocalInBar provides true, content = it)
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().widthIn(max = TAB_CARD_MAX_WIDTH),
-                        contentAlignment = Alignment.CenterEnd,
-                    ) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val navCardWidth =
+            when {
+                maxWidth < 600.dp -> maxWidth
+                maxWidth < 840.dp -> maxWidth * 0.82f
+                else -> 560.dp
+            }
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .then(if (showHeader) Modifier.imePadding() else Modifier)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            horizontalAlignment = if (showHeader) Alignment.End else Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            // The screen's FAB rides above the card's end, like Chocola's shuffle button.
+            if (!typing) {
+                fab?.let {
+                    if (showHeader) {
                         CompositionLocalProvider(LocalInBar provides true, content = it)
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().widthIn(max = navCardWidth),
+                            contentAlignment = Alignment.CenterEnd,
+                        ) {
+                            CompositionLocalProvider(LocalInBar provides true, content = it)
+                        }
                     }
                 }
             }
-        }
-        AnimatedVisibility(
-            visible = showHeader || !state.folded,
-            enter =
-                if (showHeader) {
-                    expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects())
-                } else {
-                    scaleIn(initialScale = 0.92f, animationSpec = motion.bouncySpatial()) + fadeIn(motion.fastEffects())
-                },
-            exit =
-                if (showHeader) {
-                    shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects())
-                } else {
-                    scaleOut(targetScale = 0.92f, animationSpec = motion.fastEffects()) + fadeOut(motion.fastEffects())
-                },
-        ) {
-            CardSurface(
-                modifier = tabSwitchModifier().then(if (showHeader) Modifier else Modifier.widthIn(max = TAB_CARD_MAX_WIDTH)),
-            ) {
-                Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
+            AnimatedVisibility(
+                visible = showHeader || !state.folded,
+                enter =
                     if (showHeader) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight).padding(horizontal = Spacing.sm),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        ) {
-                            AnimatedVisibility(
-                                visible = state.folded && !typing,
-                                enter = scaleIn(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
-                                exit = scaleOut(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+                        expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects())
+                    } else {
+                        scaleIn(initialScale = 0.92f, animationSpec = motion.bouncySpatial()) + fadeIn(motion.fastEffects())
+                    },
+                exit =
+                    if (showHeader) {
+                        shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects())
+                    } else {
+                        scaleOut(targetScale = 0.92f, animationSpec = motion.fastEffects()) + fadeOut(motion.fastEffects())
+                    },
+            ) {
+                CardSurface(
+                    modifier = tabSwitchModifier().then(if (showHeader) Modifier else Modifier.widthIn(max = navCardWidth)),
+                ) {
+                    Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
+                        if (showHeader) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight).padding(horizontal = Spacing.sm),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                             ) {
-                                TabToggle(
-                                    item = state.items.firstOrNull { it.id == slot.tabId },
-                                    anyBadge = state.items.any { it.badgeCount > 0 },
-                                    onClick = { state.folded = false },
-                                )
-                            }
-                            Box(modifier = Modifier.weight(1f)) {
-                                if (search != null) search() else SearchPill(onClick = { state.onSearch() })
-                            }
-                            actions?.let { content ->
-                                CompositionLocalProvider(LocalInBar provides true) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, content = content)
+                                AnimatedVisibility(
+                                    visible = state.folded && !typing,
+                                    enter = scaleIn(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
+                                    exit = scaleOut(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+                                ) {
+                                    TabToggle(
+                                        item = state.items.firstOrNull { it.id == slot.tabId },
+                                        anyBadge = state.items.any { it.badgeCount > 0 },
+                                        onClick = { state.folded = false },
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (search != null) search() else SearchPill(onClick = { state.onSearch() })
+                                }
+                                actions?.let { content ->
+                                    CompositionLocalProvider(LocalInBar provides true) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, content = content)
+                                    }
                                 }
                             }
                         }
-                    }
-                    AnimatedVisibility(
-                        visible = if (!hidesHeader && showHeader) !state.folded && !typing else true,
-                        enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
-                        exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
-                    ) {
-                        ClassicNavRow(
-                            items = state.items,
-                            selectedId = slot.tabId,
-                            onSelect = { id ->
-                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                state.onSelect(id)
-                            },
-                            containerColor = Color.Transparent,
-                            windowInsets = WindowInsets(0, 0, 0, 0),
-                        )
+                        AnimatedVisibility(
+                            visible = if (!hidesHeader && showHeader) !state.folded && !typing else true,
+                            enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
+                            exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+                        ) {
+                            ClassicNavRow(
+                                items = state.items,
+                                selectedId = slot.tabId,
+                                onSelect = { id ->
+                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    state.onSelect(id)
+                                },
+                                containerColor = Color.Transparent,
+                                windowInsets = WindowInsets(0, 0, 0, 0),
+                            )
+                        }
                     }
                 }
             }
