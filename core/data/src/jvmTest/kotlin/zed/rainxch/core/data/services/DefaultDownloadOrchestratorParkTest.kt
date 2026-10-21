@@ -361,6 +361,7 @@ class DefaultDownloadOrchestratorParkTest {
             releaseId: Long?,
             assetId: Long?,
             releasePublishedAt: String?,
+            startedAt: Long?,
         ) {
             awaitingInstallWrites +=
                 ParkWrite(

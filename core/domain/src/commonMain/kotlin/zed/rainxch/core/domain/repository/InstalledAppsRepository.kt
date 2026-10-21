@@ -126,6 +126,7 @@ interface InstalledAppsRepository {
         releaseId: Long? = null,
         assetId: Long? = null,
         releasePublishedAt: String? = null,
+        startedAt: Long? = null,
     )
 
     suspend fun discardParkedInstall(

@@ -752,6 +752,26 @@ class UpdateVerdictTest {
     }
 
     @Test
+    fun adopt_gate_refuses_a_contradicted_identity() {
+        assertFalse(
+            UpdateVerdict.shouldAdoptMatchedTag(
+                codesAlreadyMatch = true,
+                installedTag = "testbuild-d",
+                matchedTag = "testbuild-a",
+                identityContradicts = true,
+            ),
+        )
+        assertTrue(
+            UpdateVerdict.shouldAdoptMatchedTag(
+                codesAlreadyMatch = true,
+                installedTag = "testbuild-d",
+                matchedTag = "testbuild-a",
+                identityContradicts = false,
+            ),
+        )
+    }
+
+    @Test
     fun stable_install_keeps_its_tag_when_a_newer_nightly_is_matched() {
         val result =
             decide(

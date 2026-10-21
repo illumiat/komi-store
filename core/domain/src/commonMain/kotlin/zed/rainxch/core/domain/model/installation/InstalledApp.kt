@@ -56,6 +56,9 @@ data class InstalledApp(
     val pendingInstallAssetId: Long? = null,
     val pendingInstallAssetDigest: String? = null,
     val pendingInstallReleasePublishedAt: String? = null,
+    // When the download was parked for installation. PackageManager.lastUpdateTime after this
+    // moment proves the install happened, even when the version fields did not move.
+    val pendingInstallStartedAt: Long? = null,
     val skippedReleaseTag: String? = null,
     val sourceHost: String? = null,
 )

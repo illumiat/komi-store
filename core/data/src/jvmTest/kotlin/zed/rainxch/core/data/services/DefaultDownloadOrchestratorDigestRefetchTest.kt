@@ -269,6 +269,7 @@ class DefaultDownloadOrchestratorDigestRefetchTest {
             releaseId: Long?,
             assetId: Long?,
             releasePublishedAt: String?,
+            startedAt: Long?,
         ) = Unit
 
         override suspend fun discardParkedInstall(

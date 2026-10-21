@@ -407,6 +407,7 @@ class SyncInstalledAppsUseCaseParkTest {
             releaseId: Long?,
             assetId: Long?,
             releasePublishedAt: String?,
+        startedAt: Long?,
         ) = Unit
 
         override fun getAppsWithUpdates(): Flow<List<InstalledApp>> = emptyFlow()

@@ -13,8 +13,10 @@ import zed.rainxch.core.domain.model.installation.PendingInstallResolution
 import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.bindingStatusAgainst
 import zed.rainxch.core.domain.model.installation.deviceChangeAgainst
+import zed.rainxch.core.domain.model.installation.installedAfterPark
 import zed.rainxch.core.domain.model.installation.observeExternalInstall
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
+import zed.rainxch.core.domain.model.installation.resolvePendingFromProvenEvent
 import zed.rainxch.core.domain.model.installation.resolvePendingFromSystem
 import zed.rainxch.core.domain.model.installation.withMigratedVersionInfo
 import zed.rainxch.core.domain.model.system.Platform
@@ -250,9 +252,37 @@ class SyncInstalledAppsUseCase(
         try {
             val resolution = app.pendingInstallResolution(systemInfo)
             if (resolution !is PendingInstallResolution.Reached) {
-                if (app.pendingInstallFilePath == null) {
+                val hasPendingIdentity =
+                    app.pendingInstallReleaseId != null ||
+                        app.pendingInstallAssetId != null ||
+                        app.pendingInstallAssetDigest != null
+                if (hasPendingIdentity && systemInfo != null && app.installedAfterPark(systemInfo)) {
+                    // lastUpdateTime moved past the park: the system installed our file even
+                    // though versionCode/versionName did not change. Settle the parked identity.
+                    val tag = app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
+                    installedAppsRepository.updateApp(
+                        app.resolvePendingFromProvenEvent(
+                            tag = tag,
+                            versionName = systemInfo.versionName,
+                            versionCode = systemInfo.versionCode,
+                        ),
+                    )
+                    parkedCleanups += ParkedCleanup(
+                        packageName = app.packageName,
+                        expectedPath = app.pendingInstallFilePath,
+                        deleteRow = false,
+                        reason = "same-version install proved by lastUpdateTime",
+                    )
+                    logger.info("Resolved same-version install via lastUpdateTime: ${app.packageName}")
+                    return
+                }
+                if (app.pendingInstallFilePath == null && !hasPendingIdentity) {
                     installedAppsRepository.updatePendingStatus(app.packageName, false)
                     logger.info("Resolved pending install without a parked file: ${app.packageName}")
+                } else if (hasPendingIdentity) {
+                    // Keep the parked identity alive: a self-update kills the process before the
+                    // package broadcast settles it, and a later sync must not erase that proof.
+                    logger.info("Kept parked identity awaiting the install event: ${app.packageName}")
                 } else {
                     logger.info("Kept parked install (target not proven): ${app.packageName}")
                 }
@@ -303,6 +333,12 @@ class SyncInstalledAppsUseCase(
     private suspend fun syncVersion(app: InstalledApp, systemInfo: SystemPackageInfo?) {
         try {
             val local = systemInfo ?: return
+
+            if (local.installedBySelf == false) {
+                // A foreign installer replaced the build. #998: drop the untrusted binding
+                // instead of re-verifying it; the next install through this app rebinds.
+                installedAppsRepository.clearInstallBinding(app.packageName)
+            }
 
             val binding = app.bindingStatusAgainst(local)
             val change = app.deviceChangeAgainst(local)
