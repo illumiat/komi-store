@@ -277,7 +277,7 @@ internal fun KomiTabCard(
                     .then(if (showHeader) Modifier.imePadding() else Modifier)
                     .padding(start = Spacing.md, end = Spacing.md, top = Spacing.sm)
                     .padding(bottom = if (showHeader) Spacing.sm else 20.dp),
-            horizontalAlignment = if (showHeader) Alignment.End else Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             // The screen's FAB rides above the card's end, like Chocola's shuffle button.
@@ -311,7 +311,7 @@ internal fun KomiTabCard(
                     },
             ) {
                 CardSurface(
-                    modifier = tabSwitchModifier().then(if (showHeader) Modifier else Modifier.widthIn(max = navCardWidth)),
+                    modifier = tabSwitchModifier().widthIn(max = navCardWidth),
                 ) {
                     Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
                         if (showHeader) {
