@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -218,8 +220,8 @@ internal fun KomiTabCardHeader(
     val colors = LocalPersonality.current.colors
     AnimatedVisibility(
         visible = !state.folded,
-        enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
-        exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+        enter = slideInVertically(initialOffsetY = { -it }, animationSpec = motion.bouncySpatial()) + expandVertically(motion.bouncySpatial()),
+        exit = slideOutVertically(targetOffsetY = { -it }, animationSpec = motion.fastEffects()) + shrinkVertically(motion.fastEffects()),
     ) {
         Column(
             modifier =
