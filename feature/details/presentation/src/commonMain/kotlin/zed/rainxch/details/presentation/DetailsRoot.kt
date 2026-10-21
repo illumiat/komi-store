@@ -50,6 +50,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -64,6 +65,7 @@ import zed.rainxch.core.domain.model.error.RefreshError
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.presentation.components.ScrollbarContainer
 import zed.rainxch.core.presentation.components.bars.KomiTopBar
+import zed.rainxch.core.presentation.testing.KomiTestTags
 import zed.rainxch.core.presentation.components.buttons.KomiActionRow
 import zed.rainxch.core.presentation.components.buttons.KomiActionRowItem
 import zed.rainxch.core.presentation.components.buttons.KomiButton
@@ -519,6 +521,7 @@ fun DetailsScreen(
     onOpenSecurity: (() -> Unit)? = null,
 ) {
     KomiScaffold(
+        modifier = Modifier.testTag(KomiTestTags.SCREEN_DETAILS),
         topBar = {
             KomiTopBar(
                 title = "",
