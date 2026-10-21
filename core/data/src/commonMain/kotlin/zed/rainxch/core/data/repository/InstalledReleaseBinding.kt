@@ -1,6 +1,8 @@
 package zed.rainxch.core.data.repository
 
+import co.touchlab.kermit.Logger
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
+import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
 import zed.rainxch.core.data.local.db.dao.resolveInstalledReleasePublishedAt
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.domain.model.account.github.GithubAsset
@@ -11,34 +13,14 @@ import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
 
-// How far the stored binding can be trusted without reading bytes.
-internal enum class IdentityTrust {
-    // The current install came from this app, so the digest written at install time describes it.
-    Trusted,
-
-    // Another installer replaced the build, so the stored binding may describe the old bytes.
-    Untrusted,
-
-    // The platform cannot tell who installed it.
-    Unknown,
-}
-
-internal fun identityTrust(info: SystemPackageInfo?): IdentityTrust =
-    when (info?.installedBySelf) {
-        true -> IdentityTrust.Trusted
-        false -> IdentityTrust.Untrusted
-        null -> IdentityTrust.Unknown
-    }
-
 internal data class ResolvedBinding(
     val bound: UpdateVerdict.Bound?,
-    val trust: IdentityTrust,
-    // The stored identity was dropped because it could not be trusted (see #998).
-    val unbound: Boolean,
 )
 
-// Cheap evidence decides first: a foreign installer means the stored identity is dropped, not
-// verified. A legacy row without a digest keeps the timestamp-gated confirmation.
+// The installer attribution cannot decide whether a stored identity still describes the
+// installed bytes: Shizuku/Dhizuku/third-party installer paths all install for this app but
+// report another installer package. The binding is therefore never dropped here; a legacy row
+// without a digest keeps the timestamp-gated confirmation.
 @Suppress("LongParameterList")
 internal suspend fun resolveInstalledBinding(
     app: InstalledAppEntity,
@@ -50,31 +32,13 @@ internal suspend fun resolveInstalledBinding(
     verifier: DigestVerifier,
 ): ResolvedBinding {
     val info = packageMonitor.getInstalledPackageInfo(app.packageName)
-    val trust = identityTrust(info)
     val hasBinding = app.installedAssetId != null || app.installedAssetDigest != null
-    val trustedResult =
-        when {
-            !hasBinding -> {
-                ResolvedBinding(bound = null, trust = trust, unbound = false)
-            }
-
-            trust == IdentityTrust.Untrusted -> {
-                // #998: an untrusted binding is dropped instead of being re-verified.
-                runCatching { dao.clearInstallBinding(app.packageName) }
-                ResolvedBinding(bound = null, trust = trust, unbound = true)
-            }
-
-            else -> {
-                null
-            }
-        }
-    if (trustedResult != null) return trustedResult
-
-    return resolveTrustedBinding(app, releases, matchedRelease, matchedAsset, info, dao, verifier)
+    if (!hasBinding) return ResolvedBinding(bound = null)
+    return resolveBound(app, releases, matchedRelease, matchedAsset, info, dao, verifier)
 }
 
 @Suppress("LongParameterList")
-private suspend fun resolveTrustedBinding(
+private suspend fun resolveBound(
     app: InstalledAppEntity,
     releases: List<GithubRelease>,
     matchedRelease: GithubRelease,
@@ -83,7 +47,6 @@ private suspend fun resolveTrustedBinding(
     dao: InstalledAppDao,
     verifier: DigestVerifier,
 ): ResolvedBinding {
-    val trust = identityTrust(info)
     val installedPublishedAt = dao.resolveInstalledReleasePublishedAt(app, releases)
     val storedDigest = app.installedAssetDigest
     val matchedDigest = matchedAsset.digest
@@ -120,7 +83,7 @@ private suspend fun resolveTrustedBinding(
                 releasePublishedAt = installedPublishedAt,
             )
         }
-    return ResolvedBinding(bound = bound, trust = trust, unbound = false)
+    return ResolvedBinding(bound = bound)
 }
 
 @Suppress("LongParameterList")
@@ -175,6 +138,8 @@ internal suspend fun rebindProvenIdentity(
             digest = matchedDigest,
             publishedAt = matchedRelease.publishedAt,
         )
+    }.onFailure { error ->
+        Logger.w(error) { "Failed to rebind the proven identity for ${app.packageName}" }
     }
 }
 
@@ -196,15 +161,60 @@ internal fun shouldConfirmDigest(input: DigestConfirmationInput): Boolean =
         VersionMath.isExactSameVersion(input.matchedTag, input.installedVersion) &&
         VersionMath.publishedAtAfter(input.matchedPublishedAt, input.installedPublishedAt)
 
+// When the digest is already proven equal, adoption also refreshes the release identity so the
+// tag and the four identity fields can never describe different releases.
+internal suspend fun adoptTagWhenProven(
+    dao: InstalledAppDao,
+    app: InstalledAppEntity,
+    matchedRelease: GithubRelease,
+    matchedAsset: GithubAsset,
+    isUpdateAvailable: Boolean,
+    clearBindingWhenUnproven: Boolean = false,
+) {
+    val digestProven =
+        app.installedAssetDigest != null &&
+            matchedAsset.digest != null &&
+            app.installedAssetDigest == matchedAsset.digest
+    if (digestProven && matchedAsset.digest != null) {
+        dao.adoptMatchedTagWithIdentity(
+            packageName = app.packageName,
+            installedVersion = matchedRelease.tagName,
+            installedVersionName = app.installedVersionName,
+            installedVersionCode = app.installedVersionCode,
+            releaseId = matchedRelease.id,
+            assetId = matchedAsset.id,
+            digest = matchedAsset.digest,
+            publishedAt = matchedRelease.publishedAt,
+        )
+    } else {
+        dao.adoptMatchedTag(
+            app = app,
+            matchedTag = matchedRelease.tagName,
+            isUpdateAvailable = isUpdateAvailable,
+        )
+        if (clearBindingWhenUnproven) {
+            // The device is confirmed to run the matched release, so a binding recorded for a
+            // different channel must go; keeping it would compare timestamps across channels.
+            runCatching { dao.clearInstallBinding(app.packageName) }
+                .onFailure { error ->
+                    Logger.w(error) { "Failed to clear a cross-channel binding for ${app.packageName}" }
+                }
+        }
+    }
+}
+
 // Adoption may rewrite the tag only when the stored identity does not contradict the release.
 internal fun identityContradicts(
     app: InstalledAppEntity,
     matchedAsset: GithubAsset,
-    binding: ResolvedBinding,
 ): Boolean =
-    binding.unbound ||
+    (
+        app.installedAssetDigest != null &&
+            matchedAsset.digest != null &&
+            app.installedAssetDigest != matchedAsset.digest
+    ) ||
         (
-            app.installedAssetDigest != null &&
-                matchedAsset.digest != null &&
-                app.installedAssetDigest != matchedAsset.digest
+            app.installedAssetDigest == null &&
+                app.installedAssetId != null &&
+                app.installedAssetId != matchedAsset.id
         )

@@ -300,7 +300,10 @@ class InstalledAppsRepositoryImpl(
             val tagRunsRelease =
                 VersionMath.isExactSameVersion(matchedRelease.tagName, app.installedVersion)
             val selfAttestationApplies =
-                bound == null && primaryAsset.digest != null && tagRunsRelease && tagNeedsSelfAttestation
+                bound == null &&
+                    primaryAsset.digest != null &&
+                    tagRunsRelease &&
+                    tagNeedsSelfAttestation
             val selfAttestedDigest =
                 if (selfAttestationApplies) {
                     packageMonitor
@@ -390,18 +393,17 @@ class InstalledAppsRepositoryImpl(
                     installedTag = app.installedVersion,
                     matchedTag = matchedRelease.tagName,
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
-                    identityContradicts = identityContradicts(app, primaryAsset, resolvedBinding),
+                    identityContradicts = identityContradicts(app, primaryAsset),
                 )
             if (shouldRewriteTag) {
-                installedAppsDao.adoptMatchedTag(
+                adoptTagWhenProven(
+                    dao = installedAppsDao,
                     app = app,
-                    matchedTag = matchedRelease.tagName,
+                    matchedRelease = matchedRelease,
+                    matchedAsset = primaryAsset,
                     isUpdateAvailable = isUpdateAvailable,
+                    clearBindingWhenUnproven = true,
                 )
-                // The device is confirmed to run the matched release, so the binding to the
-                // pre-release it came from must go: keeping it would make later checks compare
-                // timestamps against a build from the previous channel.
-                installedAppsDao.clearInstallBinding(packageName)
             }
 
             if (variantWasLost != app.preferredVariantStale) {

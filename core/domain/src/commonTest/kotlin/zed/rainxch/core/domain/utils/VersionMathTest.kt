@@ -9,6 +9,7 @@ class VersionMathTest {
     @Test
     fun a_stored_timestamp_only_counts_while_it_parses() {
         assertEquals("2026-10-01T00:00:00Z", VersionMath.publishedAtOrNull("2026-10-01T00:00:00Z"))
+        assertEquals("2026-10-01T00:00:00Z", VersionMath.publishedAtOrNull(" 2026-10-01T00:00:00Z "))
         assertEquals(null, VersionMath.publishedAtOrNull("not-a-date"))
         assertEquals(null, VersionMath.publishedAtOrNull("   "))
         assertEquals(null, VersionMath.publishedAtOrNull(null))

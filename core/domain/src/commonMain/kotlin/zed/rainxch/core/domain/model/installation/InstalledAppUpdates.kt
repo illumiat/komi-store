@@ -146,22 +146,41 @@ fun InstalledApp.installedAfterPark(info: SystemPackageInfo?): Boolean {
     return startedAt != null && updatedAt != null && updatedAt >= startedAt
 }
 
+// A park that still carries its release identity is waiting for the install event.
+val InstalledApp.hasPendingIdentity: Boolean
+    get() =
+        pendingInstallReleaseId != null ||
+            pendingInstallAssetId != null ||
+            pendingInstallAssetDigest != null
+
+// PackageManager's install timestamp moved past our last recorded settlement: some install
+// happened after we wrote the identity, whatever installer performed it.
+fun InstalledApp.installedAfter(info: SystemPackageInfo?): Boolean {
+    val updatedAt = info?.lastUpdateTime ?: return false
+    return updatedAt > lastUpdatedAt
+}
+
 // Used only when an install event (broadcast, or lastUpdateTime past the park) proves the
 // parked file landed. The version fields may not have moved, so the parked identity wins.
 fun InstalledApp.resolvePendingFromProvenEvent(
     tag: String,
     versionName: String,
     versionCode: Long,
-): InstalledApp =
-    copy(
+): InstalledApp {
+    val parkedIdentity =
+        pendingInstallReleaseId != null ||
+            pendingInstallAssetId != null ||
+            pendingInstallAssetDigest != null
+    return copy(
         isPendingInstall = false,
         installedVersion = tag,
         installedVersionName = versionName,
         installedVersionCode = versionCode,
-        installedReleaseId = pendingInstallReleaseId ?: installedReleaseId,
-        installedAssetId = pendingInstallAssetId ?: installedAssetId,
-        installedAssetDigest = pendingInstallAssetDigest ?: installedAssetDigest,
-        installedReleasePublishedAt = pendingInstallReleasePublishedAt ?: installedReleasePublishedAt,
+        installedReleaseId = if (parkedIdentity) pendingInstallReleaseId else installedReleaseId,
+        installedAssetId = if (parkedIdentity) pendingInstallAssetId else installedAssetId,
+        installedAssetDigest = if (parkedIdentity) pendingInstallAssetDigest else installedAssetDigest,
+        installedReleasePublishedAt =
+            if (parkedIdentity) pendingInstallReleasePublishedAt else installedReleasePublishedAt,
         isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName),
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
@@ -169,6 +188,7 @@ fun InstalledApp.resolvePendingFromProvenEvent(
         pendingInstallReleasePublishedAt = null,
         pendingInstallStartedAt = null,
     )
+}
 
 sealed interface PendingInstallResolution {
     data object Keep : PendingInstallResolution

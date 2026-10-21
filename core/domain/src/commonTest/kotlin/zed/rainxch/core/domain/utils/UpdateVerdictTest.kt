@@ -82,15 +82,36 @@ class UpdateVerdictTest {
                 matchedTag = "2.0.5",
                 matchedPublishedAt = "2026-10-20T00:00:00Z",
                 matchedAssetId = 899L,
+                matchedAssetDigest = "sha256:aaaa",
                 bound =
                     UpdateVerdict.Bound(
                         assetId = 899L,
-                        assetDigest = null,
+                        assetDigest = "sha256:aaaa",
                         releasePublishedAt = "2026-10-01T00:00:00Z",
                     ),
             )
 
         assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun a_republished_stable_tag_with_different_digests_is_an_update() {
+        val result =
+            decide(
+                installedTag = "2.0.5",
+                matchedTag = "2.0.5",
+                matchedPublishedAt = "2026-10-20T00:00:00Z",
+                matchedAssetId = 899L,
+                matchedAssetDigest = "sha256:bbbb",
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 899L,
+                        assetDigest = "sha256:aaaa",
+                        releasePublishedAt = "2026-10-01T00:00:00Z",
+                    ),
+            )
+
+        assertTrue(result.isUpdateAvailable)
     }
 
     @Test

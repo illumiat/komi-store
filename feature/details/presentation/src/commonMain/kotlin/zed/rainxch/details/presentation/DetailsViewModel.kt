@@ -2504,7 +2504,7 @@ class DetailsViewModel(
                     releaseId = sourceRelease?.id.takeIf { identityKnown },
                     assetId = sourceAsset?.id.takeIf { identityKnown },
                     assetDigest = sourceAsset?.digest.takeIf { identityKnown },
-                    releasePublishedAt = sourceRelease?.publishedAt,
+                    releasePublishedAt = sourceRelease?.publishedAt.takeIf { identityKnown },
                     isPendingInstall = isPending,
                 ),
             )
@@ -2539,7 +2539,7 @@ class DetailsViewModel(
                         releaseId = sourceRelease?.id.takeIf { identityKnown },
                         assetId = sourceAsset?.id.takeIf { identityKnown },
                         assetDigest = sourceAsset?.digest.takeIf { identityKnown },
-                        releasePublishedAt = sourceRelease?.publishedAt,
+                        releasePublishedAt = sourceRelease?.publishedAt.takeIf { identityKnown },
                         isPendingInstall = isPending,
                         isFavourite = _state.value.isFavourite,
                         siblingAssetCount = installable.size,
