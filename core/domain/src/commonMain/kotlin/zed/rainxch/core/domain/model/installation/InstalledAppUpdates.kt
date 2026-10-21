@@ -136,7 +136,7 @@ private fun InstalledApp.installReachedTarget(
 ): Boolean {
     val targetCode = latestVersionCode ?: 0L
     return when {
-        parkedBuildAlreadyOnDevice() -> {
+        parkedBuildAlreadyOnDevice(versionCode) -> {
             true
         }
 
@@ -171,7 +171,10 @@ private fun InstalledApp.parkedTagIsAmbiguous(): Boolean {
 // #998 records both what the park points at and what the device runs. When the two name the
 // same release, or the device already runs the parked version tag, there is nothing left to
 // install: a duplicate install has to clear the park instead of leaving it on screen forever.
-private fun InstalledApp.parkedBuildAlreadyOnDevice(): Boolean {
+private fun InstalledApp.parkedBuildAlreadyOnDevice(versionCode: Long): Boolean {
+    // The installed fields count only while the device runs the recorded build: a park from
+    // Details writes the downloaded build into them before the system installs it.
+    if (installedVersionCode <= 0L || versionCode != installedVersionCode) return false
     val sameRelease =
         pendingInstallReleaseId != null && pendingInstallReleaseId == installedReleaseId
     val parkedTag = pendingInstallVersion ?: latestVersion

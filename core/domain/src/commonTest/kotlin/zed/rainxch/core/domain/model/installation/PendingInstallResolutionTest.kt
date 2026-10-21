@@ -146,6 +146,18 @@ class PendingInstallResolutionTest {
         )
     }
 
+    // A park from Details writes the downloaded build into the installed fields before the system
+    // installs it. Until the device reports that build, the park has to hold.
+    @Test
+    fun a_details_park_the_device_has_not_installed_keeps_the_park() {
+        assertEquals(
+            PendingInstallResolution.Keep,
+            parked(installedVersion = "2.0.0", installedVersionName = "2.0.0")
+                .copy(installedVersionCode = 200L, installedReleaseId = 77L, pendingInstallReleaseId = 77L)
+                .pendingInstallResolution(system("1.0.0", 100L)),
+        )
+    }
+
     private fun system(
         versionName: String,
         versionCode: Long,
