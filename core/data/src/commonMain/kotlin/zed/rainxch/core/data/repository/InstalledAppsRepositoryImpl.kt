@@ -216,7 +216,6 @@ class InstalledAppsRepositoryImpl(
             installedVersionCode = app.installedVersionCode,
             isUpdateAvailable = isUpdateAvailable,
         )
-        installedAppsDao.clearInstallBinding(app.packageName)
     }
 
     override suspend fun checkForUpdates(packageName: String): Boolean {
