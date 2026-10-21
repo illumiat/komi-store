@@ -116,8 +116,41 @@ fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
         pendingInstallReleasePublishedAt = null,
+        pendingInstallStartedAt = null,
     )
 }
+
+// The system's install timestamp is the cheap proof that an install happened after the park,
+// even when versionCode/versionName did not move.
+fun InstalledApp.installedAfterPark(info: SystemPackageInfo?): Boolean {
+    val startedAt = pendingInstallStartedAt
+    val updatedAt = info?.lastUpdateTime
+    return startedAt != null && updatedAt != null && updatedAt >= startedAt
+}
+
+// Used only when an install event (broadcast, or lastUpdateTime past the park) proves the
+// parked file landed. The version fields may not have moved, so the parked identity wins.
+fun InstalledApp.resolvePendingFromProvenEvent(
+    tag: String,
+    versionName: String,
+    versionCode: Long,
+): InstalledApp =
+    copy(
+        isPendingInstall = false,
+        installedVersion = tag,
+        installedVersionName = versionName,
+        installedVersionCode = versionCode,
+        installedReleaseId = pendingInstallReleaseId ?: installedReleaseId,
+        installedAssetId = pendingInstallAssetId ?: installedAssetId,
+        installedAssetDigest = pendingInstallAssetDigest ?: installedAssetDigest,
+        installedReleasePublishedAt = pendingInstallReleasePublishedAt ?: installedReleasePublishedAt,
+        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName),
+        pendingInstallReleaseId = null,
+        pendingInstallAssetId = null,
+        pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
+        pendingInstallStartedAt = null,
+    )
 
 sealed interface PendingInstallResolution {
     data object Keep : PendingInstallResolution
@@ -291,6 +324,7 @@ fun InstalledApp.markPending(
     assetId: Long?,
     assetDigest: String?,
     releasePublishedAt: String? = null,
+    startedAt: Long? = null,
 ): InstalledApp =
     copy(
         isPendingInstall = true,
@@ -298,6 +332,7 @@ fun InstalledApp.markPending(
         pendingInstallAssetId = assetId,
         pendingInstallAssetDigest = assetDigest,
         pendingInstallReleasePublishedAt = releasePublishedAt,
+        pendingInstallStartedAt = startedAt,
     )
 
 fun InstalledApp.clearPending(): InstalledApp =
@@ -307,6 +342,7 @@ fun InstalledApp.clearPending(): InstalledApp =
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
         pendingInstallReleasePublishedAt = null,
+        pendingInstallStartedAt = null,
     )
 
 fun InstalledApp.withLatestSnapshot(

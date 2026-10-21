@@ -220,7 +220,11 @@ object UpdateVerdict {
         installedTag: String?,
         matchedTag: String,
         deviceRunsMatchedRelease: Boolean = false,
-    ): Boolean = installedTag != matchedTag && (codesAlreadyMatch || deviceRunsMatchedRelease)
+        identityContradicts: Boolean = false,
+    ): Boolean =
+        installedTag != matchedTag &&
+            !identityContradicts &&
+            (codesAlreadyMatch || deviceRunsMatchedRelease)
 
     fun isSameFile(
         installedAssetId: Long?,
