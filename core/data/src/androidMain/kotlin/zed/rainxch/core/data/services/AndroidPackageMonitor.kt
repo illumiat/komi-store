@@ -16,7 +16,6 @@ class AndroidPackageMonitor(
     context: Context,
 ) : PackageMonitor {
     private val packageManager: PackageManager = context.packageManager
-    private val selfPackageName: String = context.packageName
 
     override suspend fun isPackageInstalled(packageName: String): Boolean = getInstalledPackageInfo(packageName) != null
 
@@ -63,16 +62,6 @@ class AndroidPackageMonitor(
                     isInstalled = true,
                     signingFingerprint = signingFingerprint,
                     apkPath = apkPath,
-                    apkSize =
-                        apkPath?.let {
-                            java.io
-                                .File(it)
-                                .length()
-                                .takeIf { size -> size > 0L }
-                        },
-                    installedBySelf =
-                        resolveInstallerPackageName(packageInfo.packageName)
-                            ?.let { installer -> installer == selfPackageName },
                     lastUpdateTime = packageInfo.lastUpdateTime.takeIf { it > 0L },
                 )
             }.getOrElse { e ->

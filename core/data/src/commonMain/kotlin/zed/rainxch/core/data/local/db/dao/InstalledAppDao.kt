@@ -264,18 +264,6 @@ interface InstalledAppDao {
     @Query(
         """
         UPDATE installed_apps
-           SET installedAssetDigest = :digest
-         WHERE packageName = :packageName
-        """,
-    )
-    suspend fun setInstalledAssetDigest(
-        packageName: String,
-        digest: String,
-    )
-
-    @Query(
-        """
-        UPDATE installed_apps
            SET installedReleasePublishedAt = :publishedAt
          WHERE packageName = :packageName
         """,

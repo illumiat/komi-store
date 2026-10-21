@@ -66,6 +66,26 @@ class SyncInstalledAppsUseCaseParkTest {
     }
 
     @Test
+    fun a_fresh_park_stays_put_before_it_can_expire() = runBlocking {
+        val parked =
+            parked(
+                pendingInstallStartedAt = System.currentTimeMillis(),
+                pendingInstallAssetDigest = "sha256:new",
+            )
+        val repo = RecordingInstalledAppsRepository(listOf(parked))
+        val monitor = FakePackageMonitor(
+            packageName = parked.packageName,
+            systemInfo = systemInfo(parked.packageName, versionName = "1.0.0", versionCode = 100L),
+        )
+
+        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+
+        assertTrue(repo.pendingStatusWrites.isEmpty())
+        assertTrue(repo.pendingPathWrites.isEmpty())
+        assertTrue(repo.discardedPackages.isEmpty())
+    }
+
+    @Test
     fun parkedUpdateSurvivesTheLibrarySyncWhenTheSystemReportsNoInfo() = runBlocking {
         val parked = parked()
         val repo = RecordingInstalledAppsRepository(listOf(parked))
@@ -430,7 +450,7 @@ class SyncInstalledAppsUseCaseParkTest {
             releaseId: Long?,
             assetId: Long?,
             releasePublishedAt: String?,
-        startedAt: Long?,
+            startedAt: Long?,
         ) = Unit
 
         override fun getAppsWithUpdates(): Flow<List<InstalledApp>> = emptyFlow()
