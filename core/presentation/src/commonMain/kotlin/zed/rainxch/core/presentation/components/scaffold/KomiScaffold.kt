@@ -75,7 +75,7 @@ fun KomiScaffold(
     // On a Classic tab screen the tab card at the bottom holds the top bar's search and actions
     // and the FAB, and folds as the content scrolls; the content keeps room for the status bar.
     val tabCard = LocalTabCardSlot.current?.takeIf { !isManga }
-    val tabCardHeaderOnTop = tabCard != null && LocalTabCardHeaderOnTop.current
+    val tabCardHeaderOnTop = tabCard != null && LocalTabCardHeaderOnTop.current && !tabCard.state.hidesHeader(tabCard.tabId)
     val scaffoldTopBar = topBar.takeIf { tabCard == null }
     val scaffoldFab = floatingActionButton.takeIf { tabCard == null }
     val chrome = rememberScaffoldChrome(enabled = !isManga && scaffoldTopBar != null)

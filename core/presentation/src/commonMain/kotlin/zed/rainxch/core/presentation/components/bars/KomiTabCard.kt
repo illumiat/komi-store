@@ -1,4 +1,4 @@
-package zed.rainxch.core.presentation.components.bars
+﻿package zed.rainxch.core.presentation.components.bars
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -90,6 +91,8 @@ class KomiTabCardState {
     internal var onSelect: (String) -> Unit = {}
     internal var onSearch: () -> Unit = {}
     private val parts = HashMap<String, TabCardParts>()
+    internal var headerlessTabs: Set<String> = emptySet()
+        private set
 
     // Fold only after a deliberate scroll in one direction. Tiny back-and-forth gestures
     // accumulate and reset instead of toggling the card on every frame, which used to make the
@@ -130,11 +133,15 @@ class KomiTabCardState {
         items: ImmutableList<KomiNavItem>,
         onSelect: (String) -> Unit,
         onSearch: () -> Unit,
+        headerlessTabs: Set<String> = emptySet(),
     ) {
         this.items = items
         this.onSelect = onSelect
         this.onSearch = onSearch
+        this.headerlessTabs = headerlessTabs
     }
+
+    internal fun hidesHeader(tabId: String): Boolean = tabId in headerlessTabs
 
     internal fun parts(tabId: String): TabCardParts = parts.getOrPut(tabId) { TabCardParts() }
 }
@@ -199,37 +206,48 @@ internal fun KomiTabCardHeader(
     modifier: Modifier = Modifier,
 ) {
     if (slot == null) return
+    if (slot.state.hidesHeader(slot.tabId)) return
     val state = slot.state
     val parts = state.parts(slot.tabId)
     val search = parts.search
     val actions = parts.actions
     ResizeWindowForKeyboard()
     val motion = LocalPersonality.current.motion
-    AnimatedVisibility(
-        visible = !state.folded,
-        enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
-        exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+    val colors = LocalPersonality.current.colors
+    // Keep the header's layout height constant: folding only fades it out. Resizing the header
+    // while the list scrolls would move the viewport and make small gestures jump.
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(SearchRowHeight + Spacing.xs)
+                .background(colors.background),
     ) {
-        val colors = LocalPersonality.current.colors
-        Column(
-            modifier =
-                modifier
-                    .fillMaxWidth()
-                    .background(colors.background)
-                    .padding(horizontal = Spacing.md)
-                    .padding(top = Spacing.xs, bottom = 0.dp),
+        AnimatedVisibility(
+            visible = !state.folded,
+            enter = fadeIn(motion.fastEffects()),
+            exit = fadeOut(motion.fastEffects()),
+            modifier = Modifier.fillMaxSize(),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = Spacing.md)
+                        .padding(top = Spacing.xs, bottom = 0.dp),
             ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    if (search != null) search() else SearchPill(onClick = { state.onSearch() })
-                }
-                actions?.let { content ->
-                    CompositionLocalProvider(LocalInBar provides true) {
-                        Row(verticalAlignment = Alignment.CenterVertically, content = content)
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (search != null) search() else SearchPill(onClick = { state.onSearch() })
+                    }
+                    actions?.let { content ->
+                        CompositionLocalProvider(LocalInBar provides true) {
+                            Row(verticalAlignment = Alignment.CenterVertically, content = content)
+                        }
                     }
                 }
             }
@@ -247,7 +265,8 @@ internal fun KomiTabCard(
     showHeader: Boolean = true,
 ) {
     if (slot == null) return
-    if (showHeader) ResizeWindowForKeyboard()
+    val hidesHeader = slot.state.hidesHeader(slot.tabId)
+    if (showHeader && !hidesHeader) ResizeWindowForKeyboard()
     val state = slot.state
     val parts = state.parts(slot.tabId)
     val search = parts.search
@@ -273,13 +292,13 @@ internal fun KomiTabCard(
         AnimatedVisibility(
             visible = showHeader || !state.folded,
             enter =
-                if (showHeader) {
+                if (showHeader && !hidesHeader) {
                     expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects())
                 } else {
                     scaleIn(initialScale = 0.92f, animationSpec = motion.bouncySpatial()) + fadeIn(motion.fastEffects())
                 },
             exit =
-                if (showHeader) {
+                if (showHeader && !hidesHeader) {
                     shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects())
                 } else {
                     scaleOut(targetScale = 0.92f, animationSpec = motion.fastEffects()) + fadeOut(motion.fastEffects())
@@ -315,7 +334,7 @@ internal fun KomiTabCard(
                         }
                     }
                     AnimatedVisibility(
-                        visible = if (showHeader) !state.folded && !typing else true,
+                        visible = if (showHeader && !hidesHeader) !state.folded && !typing else true,
                         enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
                         exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
                     ) {

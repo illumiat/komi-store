@@ -52,7 +52,12 @@ fun BottomNavigation(
     if (tabCard != null) {
         // Classic's tab screens draw the tab card themselves; on a tab without a search field of
         // its own, the card's field opens the Search tab.
-        tabCard.setTabs(items = items, onSelect = onSelect, onSearch = { onSelect(tabIdOf(GithubStoreGraph.SearchScreen())) })
+        tabCard.setTabs(
+            items = items,
+            onSelect = onSelect,
+            onSearch = { onSelect(tabIdOf(GithubStoreGraph.SearchScreen())) },
+            headerlessTabs = setOf(tabIdOf(GithubStoreGraph.ProfileGraph.ProfileScreen)),
+        )
     } else {
         KomiBottomBar(items = items, selectedId = selectedId, onSelect = onSelect, modifier = modifier)
     }
