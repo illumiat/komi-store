@@ -216,40 +216,30 @@ internal fun KomiTabCardHeader(
     ResizeWindowForKeyboard()
     val motion = LocalPersonality.current.motion
     val colors = LocalPersonality.current.colors
-    // Keep the header's layout height constant: folding only fades it out. Resizing the header
-    // while the list scrolls would move the viewport and make small gestures jump.
-    Box(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .height(SearchRowHeight + Spacing.xs)
-                .background(colors.background),
+    AnimatedVisibility(
+        visible = !state.folded,
+        enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
+        exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
     ) {
-        AnimatedVisibility(
-            visible = !state.folded,
-            enter = fadeIn(motion.fastEffects()),
-            exit = fadeOut(motion.fastEffects()),
-            modifier = Modifier.fillMaxSize(),
+        Column(
+            modifier =
+                modifier
+                    .fillMaxWidth()
+                    .background(colors.background)
+                    .padding(horizontal = Spacing.md)
+                    .padding(top = Spacing.xs, bottom = 0.dp),
         ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = Spacing.md)
-                        .padding(top = Spacing.xs, bottom = 0.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (search != null) search() else SearchPill(onClick = { state.onSearch() })
-                    }
-                    actions?.let { content ->
-                        CompositionLocalProvider(LocalInBar provides true) {
-                            Row(verticalAlignment = Alignment.CenterVertically, content = content)
-                        }
+                Box(modifier = Modifier.weight(1f)) {
+                    if (search != null) search() else SearchPill(onClick = { state.onSearch() })
+                }
+                actions?.let { content ->
+                    CompositionLocalProvider(LocalInBar provides true) {
+                        Row(verticalAlignment = Alignment.CenterVertically, content = content)
                     }
                 }
             }
