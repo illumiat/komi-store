@@ -471,6 +471,7 @@ class DefaultDownloadOrchestrator(
                         assetDigest = spec.asset.digest,
                         releasePublishedAt =
                             app.latestReleasePublishedAt.takeIf { app.latestReleaseId == spec.releaseId },
+                        startedAt = System.currentTimeMillis(),
                     ).withLatestSnapshot(
                         version = spec.releaseTag,
                         assetName = spec.asset.name,

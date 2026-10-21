@@ -291,7 +291,10 @@ class InstalledAppsRepositoryImpl(
             val tagRunsRelease =
                 VersionMath.isExactSameVersion(matchedRelease.tagName, app.installedVersion)
             val selfAttestationApplies =
-                bound == null && primaryAsset.digest != null && tagRunsRelease && tagNeedsSelfAttestation
+                bound == null &&
+                    primaryAsset.digest != null &&
+                    tagRunsRelease &&
+                    tagNeedsSelfAttestation
             val selfAttestedDigest =
                 if (selfAttestationApplies) {
                     packageMonitor
@@ -381,14 +384,10 @@ class InstalledAppsRepositoryImpl(
                     installedTag = app.installedVersion,
                     matchedTag = matchedRelease.tagName,
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
-                    identityContradicts = identityContradicts(app, primaryAsset, resolvedBinding),
+                    identityContradicts = identityContradicts(app, primaryAsset),
                 )
             if (shouldRewriteTag) {
-                installedAppsDao.adoptMatchedTag(
-                    app = app,
-                    matchedTag = matchedRelease.tagName,
-                    isUpdateAvailable = isUpdateAvailable,
-                )
+                adoptTagWhenProven(installedAppsDao, app, matchedRelease, primaryAsset, isUpdateAvailable)
             }
 
             if (variantWasLost != app.preferredVariantStale) {

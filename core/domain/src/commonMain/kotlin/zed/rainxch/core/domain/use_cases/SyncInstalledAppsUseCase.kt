@@ -13,6 +13,8 @@ import zed.rainxch.core.domain.model.installation.PendingInstallResolution
 import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.bindingStatusAgainst
 import zed.rainxch.core.domain.model.installation.deviceChangeAgainst
+import zed.rainxch.core.domain.model.installation.hasPendingIdentity
+import zed.rainxch.core.domain.model.installation.installedAfter
 import zed.rainxch.core.domain.model.installation.installedAfterPark
 import zed.rainxch.core.domain.model.installation.observeExternalInstall
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
@@ -278,12 +280,8 @@ class SyncInstalledAppsUseCase(
         systemInfo: SystemPackageInfo?,
         parkedCleanups: MutableList<ParkedCleanup>,
     ) {
-        val hasPendingIdentity =
-            app.pendingInstallReleaseId != null ||
-                app.pendingInstallAssetId != null ||
-                app.pendingInstallAssetDigest != null
         val provedBySystemInstall =
-            hasPendingIdentity && systemInfo != null && app.installedAfterPark(systemInfo)
+            app.hasPendingIdentity && systemInfo != null && app.installedAfterPark(systemInfo)
         val startedAt = app.pendingInstallStartedAt
         val abandoned =
             startedAt != null && System.currentTimeMillis() - startedAt > PENDING_INSTALL_TIMEOUT_MS
@@ -307,12 +305,12 @@ class SyncInstalledAppsUseCase(
                 logger.info("Dropped an abandoned parked install: ${app.packageName}")
             }
 
-            app.pendingInstallFilePath == null && !hasPendingIdentity -> {
+            app.pendingInstallFilePath == null && !app.hasPendingIdentity -> {
                 installedAppsRepository.updatePendingStatus(app.packageName, false)
                 logger.info("Resolved pending install without a parked file: ${app.packageName}")
             }
 
-            hasPendingIdentity -> {
+            app.hasPendingIdentity -> {
                 logger.info("Kept parked identity awaiting the install event: ${app.packageName}")
             }
 
@@ -351,9 +349,10 @@ class SyncInstalledAppsUseCase(
         try {
             val local = systemInfo ?: return
 
-            if (local.installedBySelf == false) {
-                // A foreign installer replaced the build. #998: drop the untrusted binding
-                // instead of re-verifying it; the next install through this app rebinds.
+            if (!app.isPendingInstall && !app.hasPendingIdentity && app.installedAfter(local)) {
+                // An install happened after the last recorded settlement. Drop the binding
+                // instead of trusting it (#998). The installer identity is irrelevant here:
+                // in-app, Shizuku and third-party installer paths all count as ours.
                 installedAppsRepository.clearInstallBinding(app.packageName)
             }
 

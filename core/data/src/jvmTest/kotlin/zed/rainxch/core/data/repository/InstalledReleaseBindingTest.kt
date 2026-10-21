@@ -1,8 +1,6 @@
 package zed.rainxch.core.data.repository
 
-import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -51,29 +49,7 @@ class InstalledReleaseBindingTest {
     }
 
     @Test
-    fun a_row_without_an_asset_id_has_no_binding_to_compare() {
-        assertFalse(shouldConfirmDigest(input(installedAssetId = null)))
-    }
-
-    @Test
     fun a_row_without_a_binding_has_nothing_to_compare() {
         assertFalse(shouldConfirmDigest(input(installedAssetId = null, installedAssetDigest = null)))
     }
-
-    @Test
-    fun the_installer_provenance_maps_to_trust() {
-        assertEquals(IdentityTrust.Trusted, identityTrust(info(installedBySelf = true)))
-        assertEquals(IdentityTrust.Untrusted, identityTrust(info(installedBySelf = false)))
-        assertEquals(IdentityTrust.Unknown, identityTrust(info(installedBySelf = null)))
-    }
-
-    private fun info(installedBySelf: Boolean?): SystemPackageInfo =
-        SystemPackageInfo(
-            packageName = "com.example.app",
-            versionName = "1.0.0",
-            versionCode = 1L,
-            isInstalled = true,
-            signingFingerprint = null,
-            installedBySelf = installedBySelf,
-        )
 }

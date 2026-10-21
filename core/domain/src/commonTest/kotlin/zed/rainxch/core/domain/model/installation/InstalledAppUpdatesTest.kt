@@ -21,6 +21,7 @@ class InstalledAppUpdatesTest {
                 pendingInstallReleaseId = 900L,
                 pendingInstallAssetId = 800L,
                 pendingInstallAssetDigest = "sha256:new",
+                pendingInstallReleasePublishedAt = "2026-10-01T00:00:00Z",
                 pendingInstallStartedAt = 1_000L,
             )
 
@@ -34,6 +35,8 @@ class InstalledAppUpdatesTest {
         assertEquals(900L, settled.installedReleaseId)
         assertEquals(800L, settled.installedAssetId)
         assertEquals("sha256:new", settled.installedAssetDigest)
+        assertEquals("2026-10-01T00:00:00Z", settled.installedReleasePublishedAt)
+        assertFalse(settled.isPendingInstall)
         assertEquals(null, settled.pendingInstallAssetDigest)
         assertEquals(null, settled.pendingInstallStartedAt)
     }
@@ -66,6 +69,30 @@ class InstalledAppUpdatesTest {
                     isInstalled = true,
                     signingFingerprint = null,
                     lastUpdateTime = 500L,
+                ),
+            ),
+        )
+        assertTrue(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = 1_000L,
+                ),
+            ),
+        )
+        assertFalse(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = null,
                 ),
             ),
         )

@@ -16,10 +16,10 @@ import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
 import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.installation.PendingInstallResolution
 import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
+import zed.rainxch.core.domain.model.installation.hasPendingIdentity
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
 import zed.rainxch.core.domain.model.installation.resolvePendingFromProvenEvent
 import zed.rainxch.core.domain.model.installation.tagForObservedBuild
-import zed.rainxch.core.domain.model.installation.withSettledInstallIdentity
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
@@ -159,12 +159,9 @@ class PackageEventReceiver() :
             systemInfo.versionCode != app.installedVersionCode ||
                 systemInfo.versionName != app.installedVersionName
         if (!versionChanged) {
-            if (systemInfo.installedBySelf == false) {
-                // A foreign installer replaced a same-version build. #998: drop the untrusted
-                // binding instead of re-verifying it; the next install through this app writes
-                // a fresh identity.
-                repo.clearInstallBinding(packageName)
-            }
+            // A same-version install that did not come through a parked install is external
+            // (the store's own installs always leave a park). #998: drop the binding.
+            repo.clearInstallBinding(packageName)
             Logger.d {
                 "Broadcast touch with no version change: $packageName (v${systemInfo.versionName})"
             }
@@ -237,11 +234,7 @@ class PackageEventReceiver() :
         repo: InstalledAppsRepository,
         monitor: PackageMonitor,
     ) {
-        val hasPendingIdentity =
-            app.pendingInstallReleaseId != null ||
-                app.pendingInstallAssetId != null ||
-                app.pendingInstallAssetDigest != null
-        if (!app.isPendingInstall && !hasPendingIdentity) {
+        if (!app.isPendingInstall && !app.hasPendingIdentity) {
             handleExternalInstall(packageName, app, repo, monitor)
             return
         }
@@ -256,7 +249,7 @@ class PackageEventReceiver() :
                 // The broadcast itself proves the package was replaced after our park, so a
                 // recorded identity settles even when the version did not move.
                 PendingInstallResolution.Keep -> {
-                    if (hasPendingIdentity && systemInfo != null) {
+                    if (app.hasPendingIdentity && systemInfo != null) {
                         app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
                     } else {
                         null
@@ -294,7 +287,6 @@ class PackageEventReceiver() :
         } catch (e: Exception) {
             Logger.e(e) { "Parked install not discarded for $packageName; the next sync will retry" }
         }
-        repo.setPendingInstallFilePath(packageName, null)
         Logger.i {
             "Update settled via broadcast: $packageName (v${systemInfo.versionName}, tag=$tag)"
         }
