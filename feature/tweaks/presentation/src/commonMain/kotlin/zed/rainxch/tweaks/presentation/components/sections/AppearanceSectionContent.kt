@@ -102,6 +102,7 @@ fun appearanceSectionContent(
                     SettingsRow(
                         title = stringResource(Res.string.amoled_black_theme),
                         subtitle = stringResource(Res.string.amoled_black_description),
+                        last = false,
                         trailing = {
                             KomiSwitch(
                                 checked = state.isAmoledThemeEnabled,
@@ -110,6 +111,18 @@ fun appearanceSectionContent(
                         },
                     )
                 }
+
+                SettingsRow(
+                    title = stringResource(Res.string.tab_card_header_on_top_title),
+                    subtitle = stringResource(Res.string.tab_card_header_on_top_description),
+                    last = !desktop,
+                    trailing = {
+                        KomiSwitch(
+                            checked = state.isTabCardHeaderOnTop,
+                            onCheckedChange = { onAction(TweaksAction.OnTabCardHeaderOnTopToggled(it)) },
+                        )
+                    },
+                )
             }
         }
 

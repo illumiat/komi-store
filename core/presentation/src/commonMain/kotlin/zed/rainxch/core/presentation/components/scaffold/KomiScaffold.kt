@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -28,7 +29,9 @@ import androidx.compose.ui.unit.dp
 import zed.rainxch.core.presentation.components.bars.HandTopBarToTabCard
 import zed.rainxch.core.presentation.components.bars.KomiActionBar
 import zed.rainxch.core.presentation.components.bars.KomiTabCard
+import zed.rainxch.core.presentation.components.bars.KomiTabCardHeader
 import zed.rainxch.core.presentation.components.bars.LocalScaffoldChrome
+import zed.rainxch.core.presentation.components.bars.LocalTabCardHeaderOnTop
 import zed.rainxch.core.presentation.components.bars.LocalTabCardSlot
 import zed.rainxch.core.presentation.components.bars.ScaffoldChrome
 import zed.rainxch.core.presentation.components.bars.foldsTabCard
@@ -52,6 +55,7 @@ import zed.rainxch.core.presentation.personality.mangaPersonality
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
 import zed.rainxch.core.presentation.spacing.Spacing
 
+@Suppress("CyclomaticComplexMethod")
 @Composable
 fun KomiScaffold(
     modifier: Modifier = Modifier,
@@ -71,6 +75,7 @@ fun KomiScaffold(
     // On a Classic tab screen the tab card at the bottom holds the top bar's search and actions
     // and the FAB, and folds as the content scrolls; the content keeps room for the status bar.
     val tabCard = LocalTabCardSlot.current?.takeIf { !isManga }
+    val tabCardHeaderOnTop = tabCard != null && LocalTabCardHeaderOnTop.current
     val scaffoldTopBar = topBar.takeIf { tabCard == null }
     val scaffoldFab = floatingActionButton.takeIf { tabCard == null }
     val chrome = rememberScaffoldChrome(enabled = !isManga && scaffoldTopBar != null)
@@ -84,11 +89,18 @@ fun KomiScaffold(
             contentColor = colors.onBackground,
             contentWindowInsets = tabCardContentInsets(tabCard),
             topBar = {
-                scaffoldTopBar?.let { bar ->
-                    CompositionLocalProvider(LocalScaffoldChrome provides chrome) {
-                        Column {
-                            bar()
-                            if (inkDividers) HorizontalDivider(thickness = 3.dp, color = colors.outline)
+                if (tabCardHeaderOnTop) {
+                    KomiTabCardHeader(
+                        slot = tabCard,
+                        modifier = Modifier.statusBarsPadding(),
+                    )
+                } else {
+                    scaffoldTopBar?.let { bar ->
+                        CompositionLocalProvider(LocalScaffoldChrome provides chrome) {
+                            Column {
+                                bar()
+                                if (inkDividers) HorizontalDivider(thickness = 3.dp, color = colors.outline)
+                            }
                         }
                     }
                 }
@@ -125,7 +137,12 @@ fun KomiScaffold(
                 chrome?.let { FloatingActionBar(chrome = it, floatingActionButton = floatingActionButton, padding = innerPadding) }
             }
         }
-        KomiTabCard(slot = tabCard, fab = floatingActionButton, modifier = Modifier.align(Alignment.BottomCenter))
+        KomiTabCard(
+            slot = tabCard,
+            fab = floatingActionButton,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            showHeader = !tabCardHeaderOnTop,
+        )
         toastState?.let { KomiToastHost(state = it) }
         overlay?.invoke()
     }

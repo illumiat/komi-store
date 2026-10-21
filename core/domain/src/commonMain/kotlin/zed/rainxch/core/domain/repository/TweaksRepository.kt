@@ -25,6 +25,10 @@ interface TweaksRepository {
 
     suspend fun setAmoledTheme(enabled: Boolean)
 
+    fun getTabCardHeaderOnTop(): Flow<Boolean>
+
+    suspend fun setTabCardHeaderOnTop(enabled: Boolean)
+
     fun getMangaPaper(): Flow<MangaPaperId>
 
     suspend fun setMangaPaper(paper: MangaPaperId)

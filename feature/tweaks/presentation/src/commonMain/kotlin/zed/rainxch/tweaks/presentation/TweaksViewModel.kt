@@ -181,6 +181,7 @@ class TweaksViewModel(
         }
     }
 
+    @Suppress("LongMethod")
     private fun loadCurrentTheme() {
         viewModelScope.launch {
             tweaksRepository.getThemeColor().collect { theme ->
@@ -212,6 +213,14 @@ class TweaksViewModel(
             tweaksRepository.getAmoledTheme().collect { isAmoled ->
                 _state.update {
                     it.copy(isAmoledThemeEnabled = isAmoled)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            tweaksRepository.getTabCardHeaderOnTop().collect { onTop ->
+                _state.update {
+                    it.copy(isTabCardHeaderOnTop = onTop)
                 }
             }
         }
@@ -616,6 +625,9 @@ class TweaksViewModel(
             is TweaksAction.OnRepoLayoutSelected -> {
                 viewModelScope.launch {
                     tweaksRepository.setRepoGridLayout(action.grid)
+            is TweaksAction.OnTabCardHeaderOnTopToggled -> {
+                viewModelScope.launch {
+                    tweaksRepository.setTabCardHeaderOnTop(action.enabled)
                 }
             }
 

@@ -39,6 +39,10 @@ sealed interface TweaksAction {
         val grid: Boolean,
     ) : TweaksAction
 
+    data class OnTabCardHeaderOnTopToggled(
+        val enabled: Boolean,
+    ) : TweaksAction
+
     data class OnDarkThemeChange(
         val isDarkTheme: Boolean?,
     ) : TweaksAction

@@ -90,6 +90,13 @@ class TweaksRepositoryImpl(
         ksafe.safePut(K_AMOLED, enabled)
     }
 
+    override fun getTabCardHeaderOnTop(): Flow<Boolean> = gatedGetFlow(K_TAB_CARD_HEADER_ON_TOP, false)
+
+    override suspend fun setTabCardHeaderOnTop(enabled: Boolean) {
+        migrationDeferred.await()
+        ksafe.safePut(K_TAB_CARD_HEADER_ON_TOP, enabled)
+    }
+
     override fun getMangaPaper(): Flow<MangaPaperId> = gatedGetFlow(K_MANGA_PAPER, "").map { MangaPaperId.fromName(it.ifEmpty { null }) }
 
     override suspend fun setMangaPaper(paper: MangaPaperId) {
@@ -568,6 +575,7 @@ class TweaksRepositoryImpl(
 
         private const val K_THEME = "app_theme"
         private const val K_AMOLED = "amoled_theme"
+        private const val K_TAB_CARD_HEADER_ON_TOP = "tab_card_header_on_top"
         private const val K_IS_DARK = "is_dark_theme"
         private const val K_FONT = "font_theme"
         private const val K_PERSONALITY = "app_personality"

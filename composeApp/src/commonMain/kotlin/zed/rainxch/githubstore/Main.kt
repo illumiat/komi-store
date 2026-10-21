@@ -4,6 +4,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -39,6 +40,7 @@ import zed.rainxch.githubstore.app.whatsnew.WhatsNewSheet
 import zed.rainxch.githubstore.utils.HandleDesktopToolbarDeeplinks
 import zed.rainxch.githubstore.utils.HandleKeyboardEvents
 import zed.rainxch.profile.presentation.whatsnew.WhatsNewViewModel
+import zed.rainxch.core.presentation.components.bars.LocalTabCardHeaderOnTop
 
 @Composable
 fun App(
@@ -134,11 +136,13 @@ fun App(
         }
 
     PersonalityTheme(personality, languageTag = mainState.appLanguageTag) {
+        CompositionLocalProvider(LocalTabCardHeaderOnTop provides mainState.isTabCardHeaderOnTop) {
         AppNavigation(
             navController = navController,
             isScrollbarEnabled = mainState.isScrollbarEnabled,
             contentWidth = mainState.contentWidth,
         )
+        }
 
         if (mainState.showRateLimitDialog && mainState.rateLimitInfo != null && !onAuthScreen) {
             RateLimitDialog(

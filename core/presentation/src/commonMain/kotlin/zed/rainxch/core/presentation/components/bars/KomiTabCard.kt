@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,8 @@ import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.search_repositories_hint
 import zed.rainxch.githubstore.core.presentation.res.show_tabs
 
+val LocalTabCardHeaderOnTop = staticCompositionLocalOf { false }
+
 // Classic's tab card, after Chocola: one card at the bottom of the tab screens with the screen's
 // search field and actions, and the tab row under them. The row folds behind a toggle while the
 // content scrolls down and unfolds on the way up. The app shell owns the tabs and the fold, shared
@@ -77,6 +80,9 @@ import zed.rainxch.githubstore.core.presentation.res.show_tabs
 // the screen's own composition, after its top bar hands over the search field and actions, so the
 // field never recomposes with a value its screen has already replaced (that loses typing). A
 // shared element keeps the card in place while the tabs slide.
+private const val FOLD_THRESHOLD = 96f
+private const val UNFOLD_THRESHOLD = 64f
+
 @Stable
 class KomiTabCardState {
     internal var folded by mutableStateOf(false)
@@ -85,6 +91,12 @@ class KomiTabCardState {
     internal var onSearch: () -> Unit = {}
     private val parts = HashMap<String, TabCardParts>()
 
+    // Fold only after a deliberate scroll in one direction. Tiny back-and-forth gestures
+    // accumulate and reset instead of toggling the card on every frame, which used to make the
+    // layout twitch while the finger was still moving.
+    private var foldDistance = 0f
+    private var foldDirection = 0
+
     internal val foldConnection =
         object : NestedScrollConnection {
             override fun onPostScroll(
@@ -92,10 +104,20 @@ class KomiTabCardState {
                 available: Offset,
                 source: NestedScrollSource,
             ): Offset {
-                if (consumed.y < 0f) {
+                val delta = consumed.y
+                if (delta == 0f) return Offset.Zero
+                val direction = if (delta < 0f) -1 else 1
+                if (direction != foldDirection) {
+                    foldDirection = direction
+                    foldDistance = 0f
+                }
+                foldDistance += delta
+                if (!folded && foldDistance <= -FOLD_THRESHOLD) {
                     folded = true
-                } else if (consumed.y > 0f) {
+                    foldDistance = 0f
+                } else if (folded && foldDistance >= UNFOLD_THRESHOLD) {
                     folded = false
+                    foldDistance = 0f
                 }
                 return Offset.Zero
             }
@@ -135,6 +157,7 @@ internal class TabCardParts {
     var actions by mutableStateOf<(@Composable RowScope.() -> Unit)?>(null)
 }
 
+@Suppress("FunctionNaming")
 @Composable
 internal fun HandToTabCard(
     slot: KomiTabCardSlot,
@@ -148,6 +171,7 @@ internal fun HandToTabCard(
 
 // A tab screen's scaffold runs its top bar here, ahead of the card, instead of in Material's top
 // bar slot, which is composed during layout, after the card.
+@Suppress("FunctionNaming")
 @Composable
 internal fun HandTopBarToTabCard(
     slot: KomiTabCardSlot?,
@@ -168,15 +192,62 @@ internal fun tabCardContentInsets(slot: KomiTabCardSlot?): WindowInsets =
         ScaffoldDefaults.contentWindowInsets.add(WindowInsets(bottom = FoldedHeight))
     }
 
+@Suppress("FunctionNaming")
+@Composable
+internal fun KomiTabCardHeader(
+    slot: KomiTabCardSlot?,
+    modifier: Modifier = Modifier,
+) {
+    if (slot == null) return
+    val state = slot.state
+    val parts = state.parts(slot.tabId)
+    val search = parts.search
+    val actions = parts.actions
+    ResizeWindowForKeyboard()
+    val motion = LocalPersonality.current.motion
+    AnimatedVisibility(
+        visible = !state.folded,
+        enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
+        exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+    ) {
+        val colors = LocalPersonality.current.colors
+        Column(
+            modifier =
+                modifier
+                    .fillMaxWidth()
+                    .background(colors.background)
+                    .padding(horizontal = Spacing.md)
+                    .padding(top = Spacing.xs, bottom = 0.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    if (search != null) search() else SearchPill(onClick = { state.onSearch() })
+                }
+                actions?.let { content ->
+                    CompositionLocalProvider(LocalInBar provides true) {
+                        Row(verticalAlignment = Alignment.CenterVertically, content = content)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun KomiTabCard(
     slot: KomiTabCardSlot?,
     fab: (@Composable () -> Unit)?,
     modifier: Modifier = Modifier,
+    showHeader: Boolean = true,
 ) {
     if (slot == null) return
-    ResizeWindowForKeyboard()
+    if (showHeader) ResizeWindowForKeyboard()
     val state = slot.state
     val parts = state.parts(slot.tabId)
     val search = parts.search
@@ -192,61 +263,80 @@ internal fun KomiTabCard(
             modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .imePadding()
+                .then(if (showHeader) Modifier.imePadding() else Modifier)
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         // The screen's FAB rides above the card's end, like Chocola's shuffle button.
         if (!typing) fab?.let { CompositionLocalProvider(LocalInBar provides true, content = it) }
-        CardSurface(modifier = tabSwitchModifier()) {
-            Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight).padding(horizontal = Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    AnimatedVisibility(
-                        visible = state.folded && !typing,
-                        enter = scaleIn(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
-                        exit = scaleOut(motion.fastEffects()) + fadeOut(motion.fastEffects()),
-                    ) {
-                        TabToggle(
-                            item = state.items.firstOrNull { it.id == slot.tabId },
-                            anyBadge = state.items.any { it.badgeCount > 0 },
-                            onClick = { state.folded = false },
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (search != null) search() else SearchPill(onClick = { state.onSearch() })
-                    }
-                    actions?.let { content ->
-                        CompositionLocalProvider(LocalInBar provides true) {
-                            Row(verticalAlignment = Alignment.CenterVertically, content = content)
+        AnimatedVisibility(
+            visible = showHeader || !state.folded,
+            enter =
+                if (showHeader) {
+                    expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects())
+                } else {
+                    scaleIn(initialScale = 0.92f, animationSpec = motion.bouncySpatial()) + fadeIn(motion.fastEffects())
+                },
+            exit =
+                if (showHeader) {
+                    shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects())
+                } else {
+                    scaleOut(targetScale = 0.92f, animationSpec = motion.fastEffects()) + fadeOut(motion.fastEffects())
+                },
+        ) {
+            CardSurface(modifier = tabSwitchModifier()) {
+                Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
+                    if (showHeader) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight).padding(horizontal = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            AnimatedVisibility(
+                                visible = state.folded && !typing,
+                                enter = scaleIn(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
+                                exit = scaleOut(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+                            ) {
+                                TabToggle(
+                                    item = state.items.firstOrNull { it.id == slot.tabId },
+                                    anyBadge = state.items.any { it.badgeCount > 0 },
+                                    onClick = { state.folded = false },
+                                )
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (search != null) search() else SearchPill(onClick = { state.onSearch() })
+                            }
+                            actions?.let { content ->
+                                CompositionLocalProvider(LocalInBar provides true) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, content = content)
+                                }
+                            }
                         }
                     }
-                }
-                AnimatedVisibility(
-                    visible = !state.folded && !typing,
-                    enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
-                    exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
-                ) {
-                    ClassicNavRow(
-                        items = state.items,
-                        selectedId = slot.tabId,
-                        onSelect = { id ->
-                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                            state.onSelect(id)
-                        },
-                        containerColor = Color.Transparent,
-                        windowInsets = WindowInsets(0, 0, 0, 0),
-                    )
+                    AnimatedVisibility(
+                        visible = if (showHeader) !state.folded && !typing else true,
+                        enter = expandVertically(motion.bouncySpatial()) + fadeIn(motion.fastEffects()),
+                        exit = shrinkVertically(motion.fastEffects()) + fadeOut(motion.fastEffects()),
+                    ) {
+                        ClassicNavRow(
+                            items = state.items,
+                            selectedId = slot.tabId,
+                            onSelect = { id ->
+                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                state.onSelect(id)
+                            },
+                            containerColor = Color.Transparent,
+                            windowInsets = WindowInsets(0, 0, 0, 0),
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@Suppress("FunctionNaming")
 @Composable
 private fun CardSurface(
     modifier: Modifier = Modifier,
@@ -274,6 +364,7 @@ private fun tabSwitchModifier(): Modifier {
 
 // The current tab's icon, standing in for the folded row; a dot when any tab has news.
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Suppress("FunctionNaming")
 @Composable
 private fun TabToggle(
     item: KomiNavItem?,
@@ -289,6 +380,7 @@ private fun TabToggle(
 }
 
 // On a tab without a search of its own, the field opens Search.
+@Suppress("FunctionNaming")
 @Composable
 private fun SearchPill(onClick: () -> Unit) {
     val personality = LocalPersonality.current

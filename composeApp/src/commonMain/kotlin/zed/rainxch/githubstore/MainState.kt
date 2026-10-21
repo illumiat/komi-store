@@ -15,6 +15,7 @@ data class MainState(
     val accent: AccentId = AccentId.CRIMSON,
     val mangaPaper: MangaPaperId = MangaPaperId.DAY,
     val isAmoledTheme: Boolean = false,
+    val isTabCardHeaderOnTop: Boolean = false,
     val isDarkTheme: Boolean? = null,
     val isScrollbarEnabled: Boolean = false,
     val contentWidth: ContentWidth = ContentWidth.COMPACT,

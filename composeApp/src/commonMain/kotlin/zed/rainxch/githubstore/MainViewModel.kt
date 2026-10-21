@@ -116,6 +116,8 @@ class MainViewModel(
                     Appearance(personality, accent, paper, amoled, isDark)
                 }.combine(tweaksRepository.getAppLanguage()) { appearance, appLanguageTag ->
                     appearance.copy(appLanguageTag = appLanguageTag)
+                }.combine(tweaksRepository.getTabCardHeaderOnTop()) { appearance, onTop ->
+                    appearance.copy(tabCardHeaderOnTop = onTop)
                 }.collect { snapshot ->
                     localizationManager.setActiveLanguageTag(snapshot.appLanguageTag)
                     _state.update { it.withAppearance(snapshot).copy(isAppearanceLoaded = true) }
@@ -190,6 +192,7 @@ private data class Appearance(
     val mangaPaper: MangaPaperId,
     val isAmoledTheme: Boolean,
     val isDarkTheme: Boolean?,
+    val tabCardHeaderOnTop: Boolean = false,
     val appLanguageTag: String? = null,
 )
 
@@ -199,6 +202,7 @@ private fun MainState.withAppearance(snapshot: Appearance): MainState =
         accent = snapshot.accent,
         mangaPaper = snapshot.mangaPaper,
         isAmoledTheme = snapshot.isAmoledTheme,
+        isTabCardHeaderOnTop = snapshot.tabCardHeaderOnTop,
         isDarkTheme = snapshot.isDarkTheme,
         appLanguageTag = snapshot.appLanguageTag,
     )
