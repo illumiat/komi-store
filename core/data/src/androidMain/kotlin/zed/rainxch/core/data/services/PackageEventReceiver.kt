@@ -32,7 +32,6 @@ import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.system.SystemInstallSerializer
 import zed.rainxch.core.domain.utils.VersionVerdict
 import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
-import java.util.concurrent.ConcurrentHashMap
 
 class PackageEventReceiver() :
     BroadcastReceiver(),
@@ -52,9 +51,12 @@ class PackageEventReceiver() :
     private var explicitSystemInstallSerializer: SystemInstallSerializer? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val eventLocks = ConcurrentHashMap<String, Mutex>()
 
-    private fun lockFor(packageName: String): Mutex = eventLocks.getOrPut(packageName) { Mutex() }
+    // Fixed stripes instead of a per-package map: no entries to leak, and packages that
+    // hash to the same stripe are still serialized.
+    private val eventLocks = List(32) { Mutex() }
+
+    private fun lockFor(packageName: String): Mutex = eventLocks[(packageName.hashCode() and Int.MAX_VALUE) % eventLocks.size]
 
     constructor(
         installedAppsRepository: InstalledAppsRepository,
