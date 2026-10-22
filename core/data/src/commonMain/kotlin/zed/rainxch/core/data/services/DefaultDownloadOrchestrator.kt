@@ -469,6 +469,9 @@ class DefaultDownloadOrchestrator(
                         releaseId = releaseId,
                         assetId = spec.asset.id,
                         assetDigest = spec.asset.digest,
+                        releasePublishedAt =
+                            app.latestReleasePublishedAt.takeIf { app.latestReleaseId == spec.releaseId },
+                        startedAt = System.currentTimeMillis(),
                     ).withLatestSnapshot(
                         version = spec.releaseTag,
                         assetName = spec.asset.name,
@@ -491,12 +494,28 @@ class DefaultDownloadOrchestrator(
         filePath: String,
         notify: Boolean,
     ) {
+        val releasePublishedAt =
+            try {
+                installedAppsRepository
+                    .getAppByPackage(spec.packageName)
+                    ?.takeIf { spec.releaseId != null && it.latestReleaseId == spec.releaseId }
+                    ?.latestReleasePublishedAt
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.w(e) { "Orchestrator: could not read the parked release timestamp" }
+                null
+            }
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
                 path = filePath,
                 version = spec.releaseTag,
                 assetName = spec.asset.name,
+                releaseId = spec.releaseId,
+                assetId = spec.asset.id.takeIf { it > 0L },
+                releasePublishedAt = releasePublishedAt,
+                startedAt = System.currentTimeMillis(),
             )
         } catch (e: CancellationException) {
             throw e

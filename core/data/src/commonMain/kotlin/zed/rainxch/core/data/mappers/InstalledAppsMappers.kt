@@ -3,6 +3,7 @@ package zed.rainxch.core.data.mappers
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.domain.model.installation.InstalledApp
 
+@Suppress("LongMethod")
 fun InstalledApp.toEntity(): InstalledAppEntity =
     InstalledAppEntity(
         packageName = packageName,
@@ -17,6 +18,7 @@ fun InstalledApp.toEntity(): InstalledAppEntity =
         installedReleaseId = installedReleaseId,
         installedAssetId = installedAssetId,
         installedAssetDigest = installedAssetDigest,
+        installedReleasePublishedAt = installedReleasePublishedAt,
         installedAssetName = installedAssetName,
         installedAssetUrl = installedAssetUrl,
         latestVersion = latestVersion,
@@ -58,10 +60,13 @@ fun InstalledApp.toEntity(): InstalledAppEntity =
         pendingInstallReleaseId = pendingInstallReleaseId,
         pendingInstallAssetId = pendingInstallAssetId,
         pendingInstallAssetDigest = pendingInstallAssetDigest,
+        pendingInstallReleasePublishedAt = pendingInstallReleasePublishedAt,
+        pendingInstallStartedAt = pendingInstallStartedAt,
         skippedReleaseTag = skippedReleaseTag,
         sourceHost = sourceHost,
     )
 
+@Suppress("LongMethod")
 fun InstalledAppEntity.toDomain(): InstalledApp =
     InstalledApp(
         packageName = packageName,
@@ -76,6 +81,7 @@ fun InstalledAppEntity.toDomain(): InstalledApp =
         installedReleaseId = installedReleaseId,
         installedAssetId = installedAssetId,
         installedAssetDigest = installedAssetDigest,
+        installedReleasePublishedAt = installedReleasePublishedAt,
         installedAssetName = installedAssetName,
         installedAssetUrl = installedAssetUrl,
         latestVersion = latestVersion,
@@ -117,6 +123,8 @@ fun InstalledAppEntity.toDomain(): InstalledApp =
         pendingInstallReleaseId = pendingInstallReleaseId,
         pendingInstallAssetId = pendingInstallAssetId,
         pendingInstallAssetDigest = pendingInstallAssetDigest,
+        pendingInstallReleasePublishedAt = pendingInstallReleasePublishedAt,
+        pendingInstallStartedAt = pendingInstallStartedAt,
         skippedReleaseTag = skippedReleaseTag,
         sourceHost = sourceHost,
     )

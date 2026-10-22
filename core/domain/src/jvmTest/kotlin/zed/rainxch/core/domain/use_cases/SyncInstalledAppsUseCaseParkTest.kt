@@ -46,6 +46,46 @@ class SyncInstalledAppsUseCaseParkTest {
     }
 
     @Test
+    fun an_abandoned_park_is_dropped_after_the_timeout() = runBlocking {
+        val parked =
+            parked(
+                pendingInstallStartedAt = 1L,
+                pendingInstallAssetDigest = "sha256:new",
+            )
+        val repo = RecordingInstalledAppsRepository(listOf(parked))
+        val monitor = FakePackageMonitor(
+            packageName = parked.packageName,
+            systemInfo = systemInfo(parked.packageName, versionName = "1.0.0", versionCode = 100L),
+        )
+
+        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+
+        assertEquals(listOf(parked.packageName to false), repo.pendingStatusWrites)
+        assertEquals(listOf(null as String?), repo.pendingPathWrites)
+        assertEquals(listOf(parked.packageName), repo.discardedPackages)
+    }
+
+    @Test
+    fun a_fresh_park_stays_put_before_it_can_expire() = runBlocking {
+        val parked =
+            parked(
+                pendingInstallStartedAt = System.currentTimeMillis(),
+                pendingInstallAssetDigest = "sha256:new",
+            )
+        val repo = RecordingInstalledAppsRepository(listOf(parked))
+        val monitor = FakePackageMonitor(
+            packageName = parked.packageName,
+            systemInfo = systemInfo(parked.packageName, versionName = "1.0.0", versionCode = 100L),
+        )
+
+        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+
+        assertTrue(repo.pendingStatusWrites.isEmpty())
+        assertTrue(repo.pendingPathWrites.isEmpty())
+        assertTrue(repo.discardedPackages.isEmpty())
+    }
+
+    @Test
     fun parkedUpdateSurvivesTheLibrarySyncWhenTheSystemReportsNoInfo() = runBlocking {
         val parked = parked()
         val repo = RecordingInstalledAppsRepository(listOf(parked))
@@ -294,6 +334,8 @@ class SyncInstalledAppsUseCaseParkTest {
         pendingFilePath: String? = "/data/parked.apk",
         isPendingInstall: Boolean = true,
         installedAt: Long = 1_000L,
+        pendingInstallStartedAt: Long? = null,
+        pendingInstallAssetDigest: String? = null,
     ): InstalledApp = testInstalledApp(
         packageName = packageName,
         installedVersion = installedVersion,
@@ -304,6 +346,8 @@ class SyncInstalledAppsUseCaseParkTest {
         pendingInstallFilePath = pendingFilePath,
         isPendingInstall = isPendingInstall,
         installedAt = installedAt,
+        pendingInstallStartedAt = pendingInstallStartedAt,
+        pendingInstallAssetDigest = pendingInstallAssetDigest,
         latestReleasePublishedAt = "2026-08-01T00:00:00Z",
     )
 
@@ -403,6 +447,10 @@ class SyncInstalledAppsUseCaseParkTest {
             path: String,
             version: String?,
             assetName: String?,
+            releaseId: Long?,
+            assetId: Long?,
+            releasePublishedAt: String?,
+            startedAt: Long?,
         ) = Unit
 
         override fun getAppsWithUpdates(): Flow<List<InstalledApp>> = emptyFlow()
@@ -440,6 +488,7 @@ class SyncInstalledAppsUseCaseParkTest {
             newReleaseId: Long?,
             newAssetId: Long?,
             newAssetDigest: String?,
+            newReleasePublishedAt: String?,
             newAssetName: String?,
             newAssetUrl: String?,
             newVersionName: String,

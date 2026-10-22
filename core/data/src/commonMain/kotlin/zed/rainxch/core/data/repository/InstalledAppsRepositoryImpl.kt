@@ -17,6 +17,8 @@ import zed.rainxch.core.data.dto.ReleaseNetwork
 import zed.rainxch.core.data.local.db.AppDatabase
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.UpdateHistoryDao
+import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
+import zed.rainxch.core.data.local.db.dao.recordUnmatchedRelease
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.data.local.db.entities.UpdateHistoryEntity
 import zed.rainxch.core.data.mappers.toDomain
@@ -201,24 +203,6 @@ class InstalledAppsRepositoryImpl(
         )
     }
 
-    private suspend fun recordUnmatchedRelease(packageName: String) {
-        installedAppsDao.clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
-    }
-
-    private suspend fun adoptMatchedTag(
-        app: InstalledAppEntity,
-        matchedTag: String,
-        isUpdateAvailable: Boolean,
-    ) {
-        installedAppsDao.updateInstalledVersion(
-            packageName = app.packageName,
-            installedVersion = matchedTag,
-            installedVersionName = app.installedVersionName,
-            installedVersionCode = app.installedVersionCode,
-            isUpdateAvailable = isUpdateAvailable,
-        )
-    }
-
     override suspend fun checkForUpdates(packageName: String): Boolean =
         checkEnabledApp(packageName, recordUnmatched = true) { app ->
             fetchReleaseWindow(
@@ -281,25 +265,23 @@ class InstalledAppsRepositoryImpl(
                         "filter=${app.assetFilterRegex}, fallback=${app.fallbackToOlderReleases}"
                 }
                 if (!recordUnmatched) return app.isUpdateAvailable
-                recordUnmatchedRelease(packageName)
+                installedAppsDao.recordUnmatchedRelease(packageName)
                 return false
             }
 
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
-            val bound =
-                if (app.installedAssetId != null || app.installedAssetDigest != null) {
-                    UpdateVerdict.Bound(
-                        assetId = app.installedAssetId,
-                        assetDigest = app.installedAssetDigest,
-                        releasePublishedAt =
-                            app.installedReleaseId?.let { id ->
-                                releases.firstOrNull { it.id == id }?.publishedAt
-                            },
-                    )
-                } else {
-                    null
-                }
+            val resolvedBinding =
+                resolveInstalledBinding(
+                    app = app,
+                    releases = releases,
+                    matchedRelease = matchedRelease,
+                    matchedAsset = primaryAsset,
+                    dao = installedAppsDao,
+                    packageMonitor = packageMonitor,
+                    verifier = digestVerifier,
+                )
+            val bound = resolvedBinding.bound
 
             // A rolling tag reuses one tag string across builds. Without a binding, only the
             // installed file can tell whether the release is the build the device runs.
@@ -309,7 +291,10 @@ class InstalledAppsRepositoryImpl(
             val tagRunsRelease =
                 VersionMath.isExactSameVersion(matchedRelease.tagName, app.installedVersion)
             val selfAttestationApplies =
-                bound == null && primaryAsset.digest != null && tagRunsRelease && tagNeedsSelfAttestation
+                bound == null &&
+                    primaryAsset.digest != null &&
+                    tagRunsRelease &&
+                    tagNeedsSelfAttestation
             val selfAttestedDigest =
                 if (selfAttestationApplies) {
                     packageMonitor
@@ -319,6 +304,9 @@ class InstalledAppsRepositoryImpl(
                 } else {
                     null
                 }
+            if (selfAttestedDigest != null && selfAttestedDigest == primaryAsset.digest) {
+                rebindProvenIdentity(app, matchedRelease, primaryAsset, selfAttestedDigest, installedAppsDao)
+            }
 
             val verdict =
                 UpdateVerdict.decide(
@@ -396,13 +384,10 @@ class InstalledAppsRepositoryImpl(
                     installedTag = app.installedVersion,
                     matchedTag = matchedRelease.tagName,
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
+                    identityContradicts = identityContradicts(app, primaryAsset),
                 )
             if (shouldRewriteTag) {
-                adoptMatchedTag(
-                    app = app,
-                    matchedTag = matchedRelease.tagName,
-                    isUpdateAvailable = isUpdateAvailable,
-                )
+                adoptTagWhenProven(installedAppsDao, app, matchedRelease, primaryAsset, isUpdateAvailable)
             }
 
             if (variantWasLost != app.preferredVariantStale) {
@@ -465,6 +450,7 @@ class InstalledAppsRepositoryImpl(
         newReleaseId: Long?,
         newAssetId: Long?,
         newAssetDigest: String?,
+        newReleasePublishedAt: String?,
         newAssetName: String?,
         newAssetUrl: String?,
         newVersionName: String,
@@ -500,6 +486,7 @@ class InstalledAppsRepositoryImpl(
                     releaseId = newReleaseId,
                     assetId = newAssetId,
                     assetDigest = newAssetDigest,
+                    releasePublishedAt = newReleasePublishedAt,
                     assetName = newAssetName,
                     assetUrl = newAssetUrl,
                     versionName = newVersionName,
@@ -549,6 +536,8 @@ class InstalledAppsRepositoryImpl(
                             releaseId = app.latestReleaseId,
                             assetId = app.latestAssetId,
                             assetDigest = app.latestAssetDigest,
+                            releasePublishedAt = app.latestReleasePublishedAt,
+                            startedAt = System.currentTimeMillis(),
                         )
                     } else {
                         it.clearPending()
@@ -682,12 +671,20 @@ class InstalledAppsRepositoryImpl(
         path: String,
         version: String?,
         assetName: String?,
+        releaseId: Long?,
+        assetId: Long?,
+        releasePublishedAt: String?,
+        startedAt: Long?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
             path = path,
             version = version,
             assetName = assetName,
+            releaseId = releaseId,
+            assetId = assetId,
+            releasePublishedAt = releasePublishedAt,
+            startedAt = startedAt,
         )
     }
 

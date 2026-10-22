@@ -7,6 +7,134 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InstalledAppUpdatesTest {
+    @Test
+    fun a_same_code_install_adopts_the_parked_identity() {
+        val parked =
+            testInstalledApp(
+                installedVersion = "testbuild-d",
+                installedVersionCode = 22L,
+                installedAssetId = 1L,
+                installedAssetDigest = "sha256:old",
+                isPendingInstall = true,
+                pendingInstallFilePath = "/tmp/a.apk",
+                pendingInstallVersion = "testbuild-a",
+                pendingInstallReleaseId = 900L,
+                pendingInstallAssetId = 800L,
+                pendingInstallAssetDigest = "sha256:new",
+                pendingInstallReleasePublishedAt = "2026-10-01T00:00:00Z",
+                pendingInstallStartedAt = 1_000L,
+            )
+
+        val settled =
+            parked.resolvePendingFromProvenEvent(
+                tag = "testbuild-a",
+                versionName = "1.9.3",
+                versionCode = 22L,
+            )
+
+        assertEquals(900L, settled.installedReleaseId)
+        assertEquals(800L, settled.installedAssetId)
+        assertEquals("sha256:new", settled.installedAssetDigest)
+        assertEquals("2026-10-01T00:00:00Z", settled.installedReleasePublishedAt)
+        assertFalse(settled.isPendingInstall)
+        assertEquals(null, settled.pendingInstallAssetDigest)
+        assertEquals(null, settled.pendingInstallStartedAt)
+    }
+
+    @Test
+    fun a_park_older_than_the_install_time_proves_the_install() {
+        val parked =
+            testInstalledApp(
+                isPendingInstall = true,
+                pendingInstallStartedAt = 1_000L,
+            )
+        assertTrue(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = 2_000L,
+                ),
+            ),
+        )
+        assertFalse(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = 500L,
+                ),
+            ),
+        )
+        assertTrue(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = 1_000L,
+                ),
+            ),
+        )
+        assertFalse(
+            parked.installedAfterPark(
+                SystemPackageInfo(
+                    packageName = "com.example.app",
+                    versionName = "1.0.0",
+                    versionCode = 1L,
+                    isInstalled = true,
+                    signingFingerprint = null,
+                    lastUpdateTime = null,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun a_confirmed_install_records_the_release_timestamp() {
+        val result =
+            app().confirmInstall(
+                tag = "2.0.0",
+                releaseId = 7L,
+                assetId = 8L,
+                assetDigest = "sha256:abc",
+                releasePublishedAt = "2026-10-01T00:00:00Z",
+                assetName = "app-2.0.0.apk",
+                assetUrl = "https://dl/app-2.0.0.apk",
+                versionName = "2.0.0",
+                versionCode = 200L,
+                signingFingerprint = "SHA",
+                at = 3_000L,
+            )
+
+        assertEquals("2026-10-01T00:00:00Z", result.installedReleasePublishedAt)
+    }
+
+    @Test
+    fun a_settled_identity_adopts_the_parked_release_timestamp() {
+        val parked =
+            app(latestVersionCode = 200L).copy(
+                isPendingInstall = true,
+                pendingInstallReleaseId = 7L,
+                pendingInstallAssetId = 8L,
+                pendingInstallAssetDigest = "sha256:abc",
+                pendingInstallReleasePublishedAt = "2026-10-01T00:00:00Z",
+            )
+
+        val settled = parked.withSettledInstallIdentity(versionCode = 200L)
+
+        assertEquals("2026-10-01T00:00:00Z", settled.installedReleasePublishedAt)
+        assertEquals(null, settled.pendingInstallReleasePublishedAt)
+    }
+
     private fun app(
         installedVersion: String = "1.0.0",
         installedVersionCode: Long = 100L,

@@ -204,12 +204,40 @@ interface InstalledAppDao {
         isUpdateAvailable: Boolean,
     )
 
+    // A proven binding is written in one statement: the tag and the four identity fields must
+    // never diverge, otherwise the next check reads an installed version it cannot explain.
+    @Query(
+        """
+        UPDATE installed_apps
+           SET installedVersion = :installedVersion,
+               installedVersionName = :installedVersionName,
+               installedVersionCode = :installedVersionCode,
+               installedReleaseId = :releaseId,
+               installedAssetId = :assetId,
+               installedAssetDigest = :digest,
+               installedReleasePublishedAt = :publishedAt
+         WHERE packageName = :packageName
+        """,
+    )
+    @Suppress("LongParameterList")
+    suspend fun adoptMatchedTagWithIdentity(
+        packageName: String,
+        installedVersion: String,
+        installedVersionName: String?,
+        installedVersionCode: Long,
+        releaseId: Long?,
+        assetId: Long?,
+        digest: String?,
+        publishedAt: String?,
+    )
+
     @Query(
         """
         UPDATE installed_apps
            SET installedReleaseId = NULL,
                installedAssetId = NULL,
-               installedAssetDigest = NULL
+               installedAssetDigest = NULL,
+               installedReleasePublishedAt = NULL
          WHERE packageName = :packageName
         """,
     )
@@ -236,6 +264,18 @@ interface InstalledAppDao {
     @Query(
         """
         UPDATE installed_apps
+           SET installedReleasePublishedAt = :publishedAt
+         WHERE packageName = :packageName
+        """,
+    )
+    suspend fun setInstalledReleasePublishedAt(
+        packageName: String,
+        publishedAt: String?,
+    )
+
+    @Query(
+        """
+        UPDATE installed_apps
            SET pendingInstallFilePath = NULL,
                pendingInstallVersion = NULL,
                pendingInstallAssetName = NULL,
@@ -255,15 +295,25 @@ interface InstalledAppDao {
            SET pendingInstallFilePath = :path,
                pendingInstallVersion = :version,
                pendingInstallAssetName = :assetName,
+               pendingInstallReleaseId = :releaseId,
+               pendingInstallAssetId = :assetId,
+               pendingInstallAssetDigest = NULL,
+               pendingInstallReleasePublishedAt = :releasePublishedAt,
+               pendingInstallStartedAt = :startedAt,
                isPendingInstall = 1
          WHERE packageName = :packageName
         """,
     )
+    @Suppress("LongParameterList")
     suspend fun markAwaitingInstall(
         packageName: String,
         path: String,
         version: String?,
         assetName: String?,
+        releaseId: Long?,
+        assetId: Long?,
+        releasePublishedAt: String?,
+        startedAt: Long?,
     )
 
     @Query(

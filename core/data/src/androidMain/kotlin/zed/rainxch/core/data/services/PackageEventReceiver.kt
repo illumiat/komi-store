@@ -16,9 +16,10 @@ import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
 import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
 import zed.rainxch.core.domain.model.installation.PendingInstallResolution
 import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
+import zed.rainxch.core.domain.model.installation.hasPendingIdentity
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
+import zed.rainxch.core.domain.model.installation.resolvePendingFromProvenEvent
 import zed.rainxch.core.domain.model.installation.tagForObservedBuild
-import zed.rainxch.core.domain.model.installation.withSettledInstallIdentity
 import zed.rainxch.core.domain.repository.ExternalImportRepository
 import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.ExternalLinkState
@@ -116,56 +117,7 @@ class PackageEventReceiver() :
             val app = repo.getAppByPackage(packageName)
 
             if (app != null) {
-                if (app.isPendingInstall) {
-                    val resolution =
-                        app.pendingInstallResolution(monitor.getInstalledPackageInfo(packageName))
-                    when (resolution) {
-                        PendingInstallResolution.Keep -> {
-                            Logger.i {
-                                "Kept parked install via broadcast (target not proven): $packageName"
-                            }
-                        }
-
-                        is PendingInstallResolution.Reached -> {
-                            val settled = app.withSettledInstallIdentity(resolution.versionCode)
-                            repo.updateAppVersion(
-                                packageName = packageName,
-                                newTag = resolution.resolvedTag,
-                                newReleaseId = settled.installedReleaseId,
-                                newAssetId = settled.installedAssetId,
-                                newAssetDigest = settled.installedAssetDigest,
-                                newAssetName = app.latestAssetName ?: "",
-                                newAssetUrl = app.latestAssetUrl ?: "",
-                                newVersionName = resolution.versionName,
-                                newVersionCode = resolution.versionCode,
-                                signingFingerprint = app.signingFingerprint,
-                                isPendingInstall = true,
-                            )
-                            try {
-                                val disposal =
-                                    repo.discardParkedInstall(packageName, app.pendingInstallFilePath)
-                                if (disposal == ParkedInstallDisposal.Retained) {
-                                    Logger.w {
-                                        "Parked install not fully discarded for $packageName; " +
-                                            "the next sync will retry"
-                                    }
-                                }
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                Logger.e(e) {
-                                    "Parked install not discarded for $packageName; the next sync will retry"
-                                }
-                            }
-                            Logger.i {
-                                "Update confirmed via broadcast: $packageName " +
-                                    "(v${resolution.versionName}, tag=${resolution.resolvedTag})"
-                            }
-                        }
-                    }
-                } else {
-                    handleExternalInstall(packageName, app, repo, monitor)
-                }
+                handleTrackedInstall(packageName, app, repo, monitor)
             }
         } catch (e: CancellationException) {
             throw e
@@ -207,6 +159,9 @@ class PackageEventReceiver() :
             systemInfo.versionCode != app.installedVersionCode ||
                 systemInfo.versionName != app.installedVersionName
         if (!versionChanged) {
+            // A same-version install that did not come through a parked install is external
+            // (the store's own installs always leave a park). #998: drop the binding.
+            repo.clearInstallBinding(packageName)
             Logger.d {
                 "Broadcast touch with no version change: $packageName (v${systemInfo.versionName})"
             }
@@ -270,6 +225,70 @@ class PackageEventReceiver() :
                     "External-install re-validation failed for $packageName: ${e.message}"
                 }
             }
+        }
+    }
+
+    private suspend fun handleTrackedInstall(
+        packageName: String,
+        app: zed.rainxch.core.domain.model.installation.InstalledApp,
+        repo: InstalledAppsRepository,
+        monitor: PackageMonitor,
+    ) {
+        if (!app.isPendingInstall && !app.hasPendingIdentity) {
+            handleExternalInstall(packageName, app, repo, monitor)
+            return
+        }
+        val systemInfo = monitor.getInstalledPackageInfo(packageName)
+        val resolution = app.pendingInstallResolution(systemInfo)
+        val tag =
+            when (resolution) {
+                is PendingInstallResolution.Reached -> {
+                    resolution.resolvedTag
+                }
+
+                // The broadcast itself proves the package was replaced after our park, so a
+                // recorded identity settles even when the version did not move.
+                PendingInstallResolution.Keep -> {
+                    if (app.hasPendingIdentity && systemInfo != null) {
+                        app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
+                    } else {
+                        null
+                    }
+                }
+            }
+        if (tag == null || systemInfo == null) {
+            Logger.i { "Kept parked install via broadcast (target not proven): $packageName" }
+        } else {
+            settlePendingFromEvent(packageName, app, repo, tag, systemInfo)
+        }
+    }
+
+    private suspend fun settlePendingFromEvent(
+        packageName: String,
+        app: zed.rainxch.core.domain.model.installation.InstalledApp,
+        repo: InstalledAppsRepository,
+        tag: String,
+        systemInfo: zed.rainxch.core.domain.model.installation.SystemPackageInfo,
+    ) {
+        val settled =
+            app.resolvePendingFromProvenEvent(
+                tag = tag,
+                versionName = systemInfo.versionName,
+                versionCode = systemInfo.versionCode,
+            )
+        repo.updateApp(settled)
+        try {
+            val disposal = repo.discardParkedInstall(packageName, app.pendingInstallFilePath)
+            if (disposal == ParkedInstallDisposal.Retained) {
+                Logger.w { "Parked install not fully discarded for $packageName; the next sync will retry" }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.e(e) { "Parked install not discarded for $packageName; the next sync will retry" }
+        }
+        Logger.i {
+            "Update settled via broadcast: $packageName (v${systemInfo.versionName}, tag=$tag)"
         }
     }
 

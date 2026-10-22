@@ -53,13 +53,16 @@ class AndroidPackageMonitor(
 
                 val signingFingerprint = SigningFingerprint.fromPackageInfo(packageInfo)
 
+                val apkPath = packageInfo.applicationInfo?.sourceDir
+
                 SystemPackageInfo(
                     packageName = packageInfo.packageName,
                     versionName = packageInfo.versionName ?: SystemPackageInfo.UNKNOWN_VERSION_NAME,
                     versionCode = versionCode,
                     isInstalled = true,
                     signingFingerprint = signingFingerprint,
-                    apkPath = packageInfo.applicationInfo?.sourceDir,
+                    apkPath = apkPath,
+                    lastUpdateTime = packageInfo.lastUpdateTime.takeIf { it > 0L },
                 )
             }.getOrElse { e ->
                 // null means ONLY "positively not installed" (NameNotFoundException). Any other

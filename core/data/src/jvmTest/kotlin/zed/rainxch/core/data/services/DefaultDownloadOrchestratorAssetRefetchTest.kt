@@ -337,6 +337,10 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             path: String,
             version: String?,
             assetName: String?,
+            releaseId: Long?,
+            assetId: Long?,
+            releasePublishedAt: String?,
+            startedAt: Long?,
         ) {
             pendingPathVersion = version
         }
@@ -387,6 +391,7 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             newReleaseId: Long?,
             newAssetId: Long?,
             newAssetDigest: String?,
+            newReleasePublishedAt: String?,
             newAssetName: String?,
             newAssetUrl: String?,
             newVersionName: String,

@@ -16,7 +16,15 @@ CodeQL (`codeql.yml`) and Dependabot (`dependabot.yml`) run separately.
 
 ## Spotless
 
-Spotless checks only files changed against `origin/main`, but it checks the whole file. The codebase was formatted once in #1080 (listed in `.git-blame-ignore-revs`). Compose rule findings (missing `modifier`, parameter order, naming) are not auto-fixable and have to be fixed by hand in files you touch.
+Spotless checks only files changed against `origin/main`, but it checks the whole file. The codebase was formatted once in #1080 (listed in `.git-blame-ignore-revs`). Compose rule findings (missing `modifier`, parameter order, naming) are not auto-fixable and have to be fixed by hand in files you touch. A new `CompositionLocal` goes into `compose_allowed_composition_locals` in `.editorconfig`.
+
+After editing `.editorconfig`, Spotless can keep reporting results from before the edit, because Gradle's build cache restores the `spotlessKotlin` lint output. To see the real result:
+
+```bash
+./gradlew --stop
+rm -rf build/spotless-clean build/spotless-lints .gradle/configuration-cache
+./gradlew spotlessApply --no-build-cache
+```
 
 ## Baselines
 
@@ -33,6 +41,8 @@ Kotlin warnings are errors (`allWarningsAsErrors`). A module can opt out with `k
 The rules and their allowlists live in `konsist-test/src/test/kotlin/zed/rainxch/konsist/`. An allowlist can only shrink: the file-size test fails when an allowlisted file drops under the limit, so remove the entry in the same PR.
 
 `DocsRulesTest` reads `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/agents/*.md` and `feature/*/CLAUDE.md`. A backticked route such as `GithubStoreGraph.DetailsScreen` must exist in the graph, and any backticked name ending in Screen or Graph must still exist in production code. When you rename a route or screen, update the docs in the same PR.
+
+`DesignTokenRulesTest` keeps design values in the personality package (`core/presentation/.../personality/`). Outside it, it bans raw `.sp` sizes, `FontWeight.`, hand-built `TextStyle(`, literal `tween` durations, literal `.copy(alpha = ...)` tints and `Color(0x...)`. Outside `core/presentation` it also bans Material's `Text`, `MaterialTheme.typography`, `Popup` and `TooltipBox`. Today's matches are counted per file in `konsist-test/src/test/resources/design-tokens/`: a file may not go over its count, and when it drops, lower or delete its line in the same PR.
 
 ## Agent config
 

@@ -4,11 +4,13 @@ import zed.rainxch.core.domain.utils.VersionMath
 import zed.rainxch.core.domain.utils.VersionVerdict
 import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
 
+@Suppress("LongParameterList", "CyclomaticComplexMethod")
 fun InstalledApp.confirmInstall(
     tag: String,
     releaseId: Long? = null,
     assetId: Long? = null,
     assetDigest: String? = null,
+    releasePublishedAt: String? = null,
     // Unknown must be null, never "": "" never equals a real asset name.
     assetName: String?,
     assetUrl: String?,
@@ -46,6 +48,7 @@ fun InstalledApp.confirmInstall(
         installedReleaseId = releaseId,
         installedAssetId = assetId,
         installedAssetDigest = assetDigest,
+        installedReleasePublishedAt = releasePublishedAt,
         isUpdateAvailable =
             when {
                 latestIsSkipped -> false
@@ -65,6 +68,7 @@ fun InstalledApp.confirmInstall(
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
     )
 }
 
@@ -102,9 +106,69 @@ fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
                 recordedBuildStands -> installedAssetDigest
                 else -> null
             },
+        installedReleasePublishedAt =
+            when {
+                parkedBuildLanded -> pendingInstallReleasePublishedAt
+                recordedBuildStands -> installedReleasePublishedAt
+                else -> null
+            },
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
+        pendingInstallStartedAt = null,
+    )
+}
+
+// The system's install timestamp is the cheap proof that an install happened after the park,
+// even when versionCode/versionName did not move.
+fun InstalledApp.installedAfterPark(info: SystemPackageInfo?): Boolean {
+    val startedAt = pendingInstallStartedAt
+    val updatedAt = info?.lastUpdateTime
+    return startedAt != null && updatedAt != null && updatedAt >= startedAt
+}
+
+// A park that still carries its release identity is waiting for the install event.
+val InstalledApp.hasPendingIdentity: Boolean
+    get() =
+        pendingInstallReleaseId != null ||
+            pendingInstallAssetId != null ||
+            pendingInstallAssetDigest != null
+
+// PackageManager's install timestamp moved past our last recorded settlement: some install
+// happened after we wrote the identity, whatever installer performed it.
+fun InstalledApp.installedAfter(info: SystemPackageInfo?): Boolean {
+    val updatedAt = info?.lastUpdateTime ?: return false
+    return updatedAt > lastUpdatedAt
+}
+
+// Used only when an install event (broadcast, or lastUpdateTime past the park) proves the
+// parked file landed. The version fields may not have moved, so the parked identity wins.
+fun InstalledApp.resolvePendingFromProvenEvent(
+    tag: String,
+    versionName: String,
+    versionCode: Long,
+): InstalledApp {
+    val parkedIdentity =
+        pendingInstallReleaseId != null ||
+            pendingInstallAssetId != null ||
+            pendingInstallAssetDigest != null
+    return copy(
+        isPendingInstall = false,
+        installedVersion = tag,
+        installedVersionName = versionName,
+        installedVersionCode = versionCode,
+        installedReleaseId = if (parkedIdentity) pendingInstallReleaseId else installedReleaseId,
+        installedAssetId = if (parkedIdentity) pendingInstallAssetId else installedAssetId,
+        installedAssetDigest = if (parkedIdentity) pendingInstallAssetDigest else installedAssetDigest,
+        installedReleasePublishedAt =
+            if (parkedIdentity) pendingInstallReleasePublishedAt else installedReleasePublishedAt,
+        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName),
+        pendingInstallReleaseId = null,
+        pendingInstallAssetId = null,
+        pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
+        pendingInstallStartedAt = null,
     )
 }
 
@@ -135,17 +199,55 @@ private fun InstalledApp.installReachedTarget(
     versionCode: Long,
 ): Boolean {
     val targetCode = latestVersionCode ?: 0L
-    return if (targetCode > 0L) {
-        versionCode >= targetCode
-    } else {
-        versionName.isNotBlank() &&
-            versionName != SystemPackageInfo.UNKNOWN_VERSION_NAME &&
-            (
-                installedVersionName == null ||
-                    versionName != installedVersionName ||
-                    matchesParkedTargetName(versionName)
-            )
+    return when {
+        parkedBuildAlreadyOnDevice(versionCode) -> {
+            true
+        }
+
+        targetCode > 0L -> {
+            versionCode >= targetCode
+        }
+
+        // A rolling build reuses one tag across builds, so a matching name proves nothing.
+        // Only a version code or the parked release identity can settle those.
+        parkedTagIsAmbiguous() -> {
+            false
+        }
+
+        else -> {
+            versionName.isNotBlank() &&
+                versionName != SystemPackageInfo.UNKNOWN_VERSION_NAME &&
+                (
+                    installedVersionName == null ||
+                        versionName != installedVersionName ||
+                        matchesParkedTargetName(versionName)
+                )
+        }
     }
+}
+
+private fun InstalledApp.parkedTagIsAmbiguous(): Boolean {
+    val parkedTag = pendingInstallVersion ?: latestVersion ?: return false
+    return VersionMath.isTimestampTrackedTag(parkedTag) ||
+        VersionMath.detectScheme(parkedTag) == VersionMath.Scheme.Unknown
+}
+
+// #998 records both what the park points at and what the device runs. When the two name the
+// same release, or the device already runs the parked version tag, there is nothing left to
+// install: a duplicate install has to clear the park instead of leaving it on screen forever.
+private fun InstalledApp.parkedBuildAlreadyOnDevice(versionCode: Long): Boolean {
+    // The installed fields count only while the device runs the recorded build: a park from
+    // Details writes the downloaded build into them before the system installs it.
+    if (installedVersionCode <= 0L || versionCode != installedVersionCode) return false
+    val sameRelease =
+        pendingInstallReleaseId != null && pendingInstallReleaseId == installedReleaseId
+    val parkedTag = pendingInstallVersion ?: latestVersion
+    return sameRelease ||
+        (
+            parkedTag != null &&
+                !parkedTagIsAmbiguous() &&
+                VersionMath.isSameVersion(parkedTag, installedVersion)
+        )
 }
 
 private fun InstalledApp.matchesParkedTargetName(systemName: String): Boolean {
@@ -270,6 +372,7 @@ fun InstalledApp.observeExternalInstall(
         installedReleaseId = null,
         installedAssetId = null,
         installedAssetDigest = null,
+        installedReleasePublishedAt = null,
         isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
     )
 }
@@ -278,12 +381,16 @@ fun InstalledApp.markPending(
     releaseId: Long?,
     assetId: Long?,
     assetDigest: String?,
+    releasePublishedAt: String? = null,
+    startedAt: Long? = null,
 ): InstalledApp =
     copy(
         isPendingInstall = true,
         pendingInstallReleaseId = releaseId,
         pendingInstallAssetId = assetId,
         pendingInstallAssetDigest = assetDigest,
+        pendingInstallReleasePublishedAt = releasePublishedAt,
+        pendingInstallStartedAt = startedAt,
     )
 
 fun InstalledApp.clearPending(): InstalledApp =
@@ -292,6 +399,8 @@ fun InstalledApp.clearPending(): InstalledApp =
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
+        pendingInstallStartedAt = null,
     )
 
 fun InstalledApp.withLatestSnapshot(
