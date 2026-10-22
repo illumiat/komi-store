@@ -908,6 +908,7 @@ class DefaultDownloadOrchestrator(
         }
     }
 
+    @Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
     private suspend fun adoptUntrackedDownload(
         entry: OrchestratedDownload?,
         filePath: String,
@@ -939,9 +940,12 @@ class DefaultDownloadOrchestrator(
                     repoDescription = entry.repoDescription,
                     primaryLanguage = null,
                     repoUrl = "https://${entry.sourceHost ?: "github.com"}/${entry.repoOwner}/${entry.repoName}",
-                    installedVersion = entry.releaseTag,
-                    installedAssetName = entry.assetName,
-                    installedAssetUrl = entry.downloadUrl,
+                    // A pending hand-off has not installed anything yet: keep the target in the
+                    // pending fields and leave the installed identity unset until the system
+                    // proves the package landed.
+                    installedVersion = if (isPending) "" else entry.releaseTag,
+                    installedAssetName = entry.assetName.takeUnless { isPending },
+                    installedAssetUrl = entry.downloadUrl.takeUnless { isPending },
                     latestVersion = null,
                     latestAssetName = null,
                     latestAssetUrl = null,
@@ -957,13 +961,17 @@ class DefaultDownloadOrchestrator(
                     systemArchitecture = installer.detectSystemArchitecture().name,
                     fileExtension = entry.assetName.substringAfterLast('.', ""),
                     isPendingInstall = isPending,
-                    installedVersionName = apkInfo.versionName,
-                    installedVersionCode = apkInfo.versionCode,
-                    installedAssetId = entry.assetId.takeIf { it > 0L },
-                    installedAssetDigest = entry.assetDigest,
+                    installedVersionName = apkInfo.versionName.takeUnless { isPending },
+                    installedVersionCode = if (isPending) 0L else apkInfo.versionCode,
+                    installedAssetId = entry.assetId.takeIf { !isPending && it > 0L },
+                    installedAssetDigest = entry.assetDigest.takeUnless { isPending },
                     pendingInstallFilePath = filePath.takeIf { isPending },
                     pendingInstallVersion = entry.releaseTag.takeIf { isPending },
                     pendingInstallAssetName = entry.assetName.takeIf { isPending },
+                    pendingInstallReleaseId = entry.releaseId.takeIf { isPending },
+                    pendingInstallAssetId = entry.assetId.takeIf { isPending && it > 0L },
+                    pendingInstallAssetDigest = entry.assetDigest.takeIf { isPending },
+                    pendingInstallStartedAt = now.takeIf { isPending },
                     sourceHost = entry.sourceHost,
                 ),
             )
