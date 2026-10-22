@@ -122,7 +122,6 @@ fun SmartInstallButton(
     val displaySelected = normSelected?.let { tag ->
         VersionMath.normalizeVersion(tag).takeIf { it.isNotBlank() } ?: tag
     }
-    val selectedIsTimestampTracked = normSelected?.let { VersionMath.isTimestampTrackedTag(it) } == true
     val selectedIsLatestRelease =
         normSelected != null &&
             (installedApp?.latestVersion.isNullOrBlank() ||
@@ -132,11 +131,9 @@ fun SmartInstallButton(
             normInstalled != null &&
             normSelected != null &&
             VersionMath.isExactSameVersion(normInstalled, normSelected) &&
-            !(
-                selectedIsTimestampTracked &&
-                    installedApp.isUpdateAvailable &&
-                    selectedIsLatestRelease
-            )
+            // An explicit update flag beats tag equality: a rebuilt release can keep the same
+            // tag without being timestamp-tracked.
+            !(installedApp.isUpdateAvailable && selectedIsLatestRelease)
     val showUpdateAffordance = isUpdateAvailable && selectedIsLatestRelease
 
     val enabled = remember(primaryAsset, isDownloading, isInstalling) {
