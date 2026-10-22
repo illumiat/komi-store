@@ -1506,4 +1506,24 @@
     <string name="display_mode_description">Ekrandan belirli bir yenileme hızı ister. Otomatik, kararı sisteme bırakır.</string>
     <string name="display_mode_auto">Otomatik</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Sekmeleri göster</string>
+    <string name="repo_layout_title">Depo düzeni</string>
+    <string name="repo_layout_list">Liste</string>
+    <string name="repo_layout_grid">Izgara</string>
+    <string name="apps_tag_updates_ignored">Güncellemeler yok sayıldı</string>
+    <string name="apps_tag_skipped">%1$s atlandı</string>
+    <string name="apps_tag_asset_filter">Varlık filtresi</string>
+    <string name="apps_variant_stale_pick">Varyant değişti. Yeniden seçin.</string>
+    <string name="apps_no_release_found">Yüklenecek bir sürüm bulunamadı.</string>
+
+    <!-- Tweaks: developer diagnostics -->
+    <string name="tweaks_diagnostics_section_title">Geliştirici ve tanılama</string>
+    <string name="tweaks_diagnostics_capture_title">Tanılama günlüklerini yakala</string>
+    <string name="tweaks_diagnostics_capture_body">Uygulama günlüklerini yalnızca bu oturum için yerel bir dosyaya yazar. Uygulama yeniden başlatıldığında anahtar kapanır.</string>
+    <string name="tweaks_diagnostics_share_title">Tanılama günlüklerini paylaş</string>
+    <string name="tweaks_diagnostics_share_body">Oturum günlüğünü, son çökme raporunu ve cihaz bilgilerini tek bir metin dosyasında birleştirir.</string>
+    <string name="tweaks_diagnostics_share_unavailable">Henüz oturum günlüğü yok. Önce yakalamayı açıp sorunu yeniden oluşturun.</string>
+    <string name="tweaks_diagnostics_share_action">Paylaş</string>
+    <string name="tweaks_diagnostics_warning">Günlükler bu cihazda kalır ve uygulama verileri içerebilir. Hiçbir şey otomatik olarak yüklenmez.</string>
+    <string name="tweaks_diagnostics_share_error">Tanılama günlükleri hazırlanamadı</string>
 </resources>

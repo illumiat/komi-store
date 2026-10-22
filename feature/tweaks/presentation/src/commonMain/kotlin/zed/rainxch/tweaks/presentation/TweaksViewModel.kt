@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.getString
+import zed.rainxch.core.domain.diagnostics.DiagnosticSessionController
+import zed.rainxch.core.domain.helpers.ShareManager
 import zed.rainxch.core.domain.isDesktop
 import zed.rainxch.core.domain.logging.KomiStoreLogger
 import zed.rainxch.core.domain.model.installation.InstallerType
@@ -72,9 +74,12 @@ class TweaksViewModel(
     private val logger: KomiStoreLogger,
     private val aggressiveOemDetector: AggressiveOemDetector,
     private val cacheRepository: CacheRepository,
+    private val diagnosticSession: DiagnosticSessionController,
+    private val shareManager: ShareManager,
 ) : ViewModel() {
     private companion object {
         private const val BATTERY_OPT_PREF_READ_TIMEOUT_MS: Long = 1_000
+        private const val DIAGNOSTIC_BUNDLE_FILE_NAME = "komi-store-diagnostics.txt"
 
         private val IPV4_PATTERN =
             Regex(
@@ -115,6 +120,7 @@ class TweaksViewModel(
                     loadTranslationSettings()
                     loadAppLanguage()
                     loadAutoTranslate()
+                    refreshDiagnosticState()
 
                     observeShizukuStatus()
                     observeDhizukuStatus()
@@ -1578,6 +1584,55 @@ class TweaksViewModel(
                     }
                 }
             }
+
+            is TweaksAction.OnDiagnosticCaptureToggled -> {
+                diagnosticSession.setEnabled(action.enabled)
+                refreshDiagnosticState()
+            }
+
+            TweaksAction.OnRefreshDiagnosticState -> {
+                refreshDiagnosticState()
+            }
+
+            TweaksAction.OnShareDiagnosticLogs -> {
+                viewModelScope.launch { shareDiagnostics() }
+            }
+        }
+    }
+
+    private fun refreshDiagnosticState() {
+        _state.update {
+            it.copy(
+                isDiagnosticCaptureEnabled = diagnosticSession.isEnabled,
+                hasDiagnosticSessionLog = diagnosticSession.hasSessionLog(),
+            )
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun shareDiagnostics() {
+        val bundle =
+            try {
+                diagnosticSession.buildShareBundle()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error("TweaksViewModel: failed to build diagnostic logs", e)
+                null
+            }
+        if (bundle == null) {
+            _events.send(TweaksEvent.OnDiagnosticsShareFailed)
+            return
+        }
+        try {
+            shareManager.shareFile(
+                fileName = DIAGNOSTIC_BUNDLE_FILE_NAME,
+                content = bundle,
+                mimeType = "text/plain",
+            )
+        } catch (e: Exception) {
+            logger.error("TweaksViewModel: failed to share diagnostic logs", e)
+            _events.send(TweaksEvent.OnDiagnosticsShareFailed)
         }
     }
 

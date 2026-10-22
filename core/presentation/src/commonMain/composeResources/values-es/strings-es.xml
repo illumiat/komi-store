@@ -1474,4 +1474,24 @@
     <string name="display_mode_description">Solicita al panel una frecuencia concreta. Automático deja decidir al sistema.</string>
     <string name="display_mode_auto">Automático</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Mostrar pestañas</string>
+    <string name="repo_layout_title">Diseño del repositorio</string>
+    <string name="repo_layout_list">Lista</string>
+    <string name="repo_layout_grid">Cuadrícula</string>
+    <string name="apps_tag_updates_ignored">Actualizaciones ignoradas</string>
+    <string name="apps_tag_skipped">Omitido %1$s</string>
+    <string name="apps_tag_asset_filter">Filtro de recursos</string>
+    <string name="apps_variant_stale_pick">La variante cambió. Vuelve a elegirla.</string>
+    <string name="apps_no_release_found">No se encontró una versión para instalar.</string>
+
+    <!-- Tweaks: developer diagnostics -->
+    <string name="tweaks_diagnostics_section_title">Desarrollador y diagnóstico</string>
+    <string name="tweaks_diagnostics_capture_title">Capturar registros de diagnóstico</string>
+    <string name="tweaks_diagnostics_capture_body">Escribe los registros de la app en un archivo local solo para esta sesión. El interruptor se apaga al reiniciar la app.</string>
+    <string name="tweaks_diagnostics_share_title">Compartir registros de diagnóstico</string>
+    <string name="tweaks_diagnostics_share_body">Combina el registro de la sesión, el último informe de fallos y los datos del dispositivo en un solo archivo de texto.</string>
+    <string name="tweaks_diagnostics_share_unavailable">Aún no hay registro de sesión. Activa la captura y reproduce el problema primero.</string>
+    <string name="tweaks_diagnostics_share_action">Compartir</string>
+    <string name="tweaks_diagnostics_warning">Los registros se quedan en este dispositivo y pueden contener datos de la app. No se sube nada automáticamente.</string>
+    <string name="tweaks_diagnostics_share_error">No se pudieron preparar los registros de diagnóstico</string>
 </resources>

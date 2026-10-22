@@ -12,6 +12,7 @@ import zed.rainxch.githubstore.core.presentation.res.section_installs_and_update
 import zed.rainxch.githubstore.core.presentation.res.section_look_and_feel
 import zed.rainxch.githubstore.core.presentation.res.section_privacy_and_data
 import zed.rainxch.githubstore.core.presentation.res.select_language
+import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_section_title
 import zed.rainxch.githubstore.core.presentation.res.tweaks_entry_access_tokens
 import zed.rainxch.githubstore.core.presentation.res.tweaks_entry_feedback
 import zed.rainxch.githubstore.core.presentation.res.tweaks_entry_subtitle_tap
@@ -129,4 +130,19 @@ fun ColumnScope.appSection(
             last = true,
         )
     }
+}
+
+@Composable
+fun ColumnScope.diagnosticsSection(
+    state: TweaksState,
+    onAction: (TweaksAction) -> Unit,
+    showHead: Boolean = true,
+) {
+    if (showHead) {
+        SettingsSectionHead(
+            label = stringResource(Res.string.tweaks_diagnostics_section_title),
+            slot = TweaksDecorSlot.Diagnostics,
+        )
+    }
+    DiagnosticsSectionContent(state = state, onAction = onAction)
 }

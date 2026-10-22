@@ -1510,4 +1510,24 @@
     <string name="display_mode_description">डिस्प्ले से एक विशेष रिफ़्रेश दर माँगता है। स्वचालित में निर्णय सिस्टम का होता है।</string>
     <string name="display_mode_auto">स्वचालित</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">टैब दिखाएँ</string>
+    <string name="repo_layout_title">रिपॉज़िटरी लेआउट</string>
+    <string name="repo_layout_list">सूची</string>
+    <string name="repo_layout_grid">ग्रिड</string>
+    <string name="apps_tag_updates_ignored">अपडेट अनदेखे किए गए</string>
+    <string name="apps_tag_skipped">%1$s छोड़ा गया</string>
+    <string name="apps_tag_asset_filter">एसेट फ़िल्टर</string>
+    <string name="apps_variant_stale_pick">वेरिएंट बदल गया है। इसे फिर से चुनें।</string>
+    <string name="apps_no_release_found">इंस्टॉल करने के लिए कोई रिलीज़ नहीं मिली।</string>
+
+    <!-- Tweaks: developer diagnostics -->
+    <string name="tweaks_diagnostics_section_title">डेवलपर और निदान</string>
+    <string name="tweaks_diagnostics_capture_title">डायग्नोस्टिक लॉग कैप्चर करें</string>
+    <string name="tweaks_diagnostics_capture_body">सिर्फ़ इस सत्र के लिए ऐप के लॉग एक स्थानीय फ़ाइल में लिखता है। ऐप फिर से चालू होने पर स्विच बंद हो जाता है।</string>
+    <string name="tweaks_diagnostics_share_title">डायग्नोस्टिक लॉग शेयर करें</string>
+    <string name="tweaks_diagnostics_share_body">सत्र लॉग, नवीनतम क्रैश रिपोर्ट और डिवाइस की जानकारी को एक टेक्स्ट फ़ाइल में जोड़ता है।</string>
+    <string name="tweaks_diagnostics_share_unavailable">अभी कोई सत्र लॉग नहीं है। पहले कैप्चर चालू करके समस्या दोबारा बनाएं।</string>
+    <string name="tweaks_diagnostics_share_action">शेयर करें</string>
+    <string name="tweaks_diagnostics_warning">लॉग इसी डिवाइस पर रहते हैं और उनमें ऐप का डेटा हो सकता है। कुछ भी अपने आप अपलोड नहीं होता।</string>
+    <string name="tweaks_diagnostics_share_error">डायग्नोस्टिक लॉग तैयार नहीं हो सके</string>
 </resources>

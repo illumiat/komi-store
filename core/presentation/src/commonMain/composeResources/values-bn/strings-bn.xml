@@ -1495,4 +1495,24 @@
     <string name="display_mode_description">ডিসপ্লে থেকে নির্দিষ্ট রিফ্রেশ রেট চায়। স্বয়ংক্রিয় হলে সিস্টেমই সিদ্ধান্ত নেয়।</string>
     <string name="display_mode_auto">স্বয়ংক্রিয়</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">ট্যাব দেখান</string>
+    <string name="repo_layout_title">রিপোজিটরি লেআউট</string>
+    <string name="repo_layout_list">তালিকা</string>
+    <string name="repo_layout_grid">গ্রিড</string>
+    <string name="apps_tag_updates_ignored">আপডেট উপেক্ষা করা হয়েছে</string>
+    <string name="apps_tag_skipped">%1$s এড়িয়ে যাওয়া হয়েছে</string>
+    <string name="apps_tag_asset_filter">অ্যাসেট ফিল্টার</string>
+    <string name="apps_variant_stale_pick">ভ্যারিয়েন্ট পরিবর্তিত হয়েছে। আবার নির্বাচন করুন।</string>
+    <string name="apps_no_release_found">ইনস্টল করার জন্য কোনো রিলিজ পাওয়া যায়নি।</string>
+
+    <!-- Tweaks: developer diagnostics -->
+    <string name="tweaks_diagnostics_section_title">ডেভেলপার ও ডায়াগনস্টিকস</string>
+    <string name="tweaks_diagnostics_capture_title">ডায়াগনস্টিক লগ ক্যাপচার করুন</string>
+    <string name="tweaks_diagnostics_capture_body">শুধু এই সেশনের জন্য অ্যাপের লগ একটি স্থানীয় ফাইলে লেখে। অ্যাপ পুনরায় চালু হলে সুইচ বন্ধ হয়ে যায়।</string>
+    <string name="tweaks_diagnostics_share_title">ডায়াগনস্টিক লগ শেয়ার করুন</string>
+    <string name="tweaks_diagnostics_share_body">সেশন লগ, সর্বশেষ ক্র্যাশ রিপোর্ট ও ডিভাইসের তথ্য একটি টেক্সট ফাইলে একসাথে করে।</string>
+    <string name="tweaks_diagnostics_share_unavailable">এখনও কোনো সেশন লগ নেই। আগে ক্যাপচার চালু করে সমস্যাটি আবার ঘটান।</string>
+    <string name="tweaks_diagnostics_share_action">শেয়ার</string>
+    <string name="tweaks_diagnostics_warning">লগগুলো এই ডিভাইসেই থাকে এবং অ্যাপের ডেটা থাকতে পারে। স্বয়ংক্রিয়ভাবে কিছু আপলোড হয় না।</string>
+    <string name="tweaks_diagnostics_share_error">ডায়াগনস্টিক লগ প্রস্তুত করা যায়নি</string>
 </resources>

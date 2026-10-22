@@ -1509,4 +1509,24 @@
     <string name="display_mode_description">Chiede al display una frequenza specifica. Automatico lascia decidere al sistema.</string>
     <string name="display_mode_auto">Automatico</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Mostra schede</string>
+    <string name="repo_layout_title">Layout del repository</string>
+    <string name="repo_layout_list">Elenco</string>
+    <string name="repo_layout_grid">Griglia</string>
+    <string name="apps_tag_updates_ignored">Aggiornamenti ignorati</string>
+    <string name="apps_tag_skipped">Saltato %1$s</string>
+    <string name="apps_tag_asset_filter">Filtro asset</string>
+    <string name="apps_variant_stale_pick">La variante è cambiata. Selezionala di nuovo.</string>
+    <string name="apps_no_release_found">Impossibile trovare una release da installare.</string>
+
+    <!-- Tweaks: developer diagnostics -->
+    <string name="tweaks_diagnostics_section_title">Sviluppatore e diagnostica</string>
+    <string name="tweaks_diagnostics_capture_title">Acquisisci i log di diagnostica</string>
+    <string name="tweaks_diagnostics_capture_body">Scrive i log dell’app in un file locale solo per questa sessione. L’interruttore si disattiva al riavvio dell’app.</string>
+    <string name="tweaks_diagnostics_share_title">Condividi i log di diagnostica</string>
+    <string name="tweaks_diagnostics_share_body">Unisce il log della sessione, l’ultimo rapporto di crash e i dati del dispositivo in un unico file di testo.</string>
+    <string name="tweaks_diagnostics_share_unavailable">Nessun log di sessione per ora. Attiva l’acquisizione e riproduci il problema prima.</string>
+    <string name="tweaks_diagnostics_share_action">Condividi</string>
+    <string name="tweaks_diagnostics_warning">I log restano su questo dispositivo e possono contenere dati dell’app. Nulla viene caricato automaticamente.</string>
+    <string name="tweaks_diagnostics_share_error">Impossibile preparare i log di diagnostica</string>
 </resources>

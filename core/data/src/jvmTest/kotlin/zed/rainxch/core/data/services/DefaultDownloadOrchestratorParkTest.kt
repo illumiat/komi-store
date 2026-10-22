@@ -619,6 +619,8 @@ class DefaultDownloadOrchestratorParkTest {
         ) = Unit
 
         override fun markCompleted(packageName: String) = Unit
+
+        override fun onAppResumed() = Unit
     }
 
     private object NoOpInstallerInfoExtractor : InstallerInfoExtractor {
@@ -648,6 +650,8 @@ class DefaultDownloadOrchestratorParkTest {
         ) = error("parkForUser must not serialize an install")
 
         override fun markCompleted(packageName: String) = Unit
+
+        override fun onAppResumed() = Unit
     }
 
     private object FakeTokenStore : TokenStore {

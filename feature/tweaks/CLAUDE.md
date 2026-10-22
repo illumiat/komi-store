@@ -26,7 +26,7 @@ feature/tweaks/presentation/
 
 ## Sections
 
-Android: one scrolling column of Look & feel, Connectivity, Installs & updates, Privacy & data, App. Desktop: the same minus Installs & updates, one section at a time from a sidebar. Drill-ins: Mirror picker + custom forges (Connectivity), Skipped updates (Installs & updates), Hidden repos + Access tokens (Privacy & data), Feedback (App).
+Android: one scrolling column of Look & feel, Connectivity, Installs & updates, Privacy & data, App, Developer & diagnostics. Desktop: the same minus Installs & updates and Developer & diagnostics, one section at a time from a sidebar. Drill-ins: Mirror picker + custom forges (Connectivity), Skipped updates (Installs & updates), Hidden repos + Access tokens (Privacy & data), Feedback (App).
 
 ## Sub-screen VMs (registered in `composeApp/.../app/di/ViewModelsModule.kt`)
 
@@ -48,3 +48,4 @@ Android: one scrolling column of Look & feel, Connectivity, Installs & updates, 
 - **Translation provider:** Google and LibreTranslate switch immediately. Youdao, DeepL and Microsoft with a required credential field blank only set `draftTranslationProvider` (form shown, persisted provider unchanged); the switch happens on that provider's credentials save.
 - **Third-party installer:** the picked package is stored as `external_installer_package` in `TweaksRepository`. `ExternalInstallerDiscovery` lists apps with an APK `ACTION_VIEW` / `INSTALL_PACKAGE` filter, minus Komi and system apps. `SilentInstallerDispatcher` hands the APK over with `setPackage`, skipping Komi's own "Install unknown apps" check while an app is picked, and falls back to the Default install when nothing is picked or the app cannot be opened.
 - **Language:** `OnAppLanguageSelected` persists the tag. Android applies it from `MainActivity` (collects `getAppLanguage()`, then `recreate()`). Desktop gets `OnAppLanguageChangeRequiresRestart`; the toast action calls `restartAppAfterLanguageChange()` (relaunch + `exitProcess`). The Android actual is empty and never called.
+- **Diagnostic logs (Android only, Developer & diagnostics):** the switch reads `DiagnosticSession`, which is in-memory and reset to off by `DiagnosticSession.install` on every process start. While on, a Kermit `LogWriter` mirrors redacted records from a single writer thread into `filesDir/diagnostics/app.log` with a 2 MB cap. Share bundles that log, the latest `filesDir/crashes` report and app / device / OS details through the existing `ShareManager` FileProvider export; nothing is uploaded.
