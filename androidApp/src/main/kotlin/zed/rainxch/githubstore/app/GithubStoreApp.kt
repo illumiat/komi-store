@@ -44,6 +44,7 @@ class GithubStoreApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLogs.install(this)
 
         initKoin {
             androidContext(this@GithubStoreApp)
