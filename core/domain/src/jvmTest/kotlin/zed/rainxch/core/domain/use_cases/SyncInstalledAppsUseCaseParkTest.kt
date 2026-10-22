@@ -607,7 +607,15 @@ class SyncInstalledAppsUseCaseParkTest {
             apps =
                 apps.map {
                     if (it.packageName == packageName) {
-                        it.copy(installedReleaseId = null, installedAssetId = null, installedAssetDigest = null)
+                        it.copy(
+                            installedReleaseId = null,
+                            installedAssetId = null,
+                            installedAssetDigest = null,
+                            installedReleasePublishedAt = null,
+                            installedAssetName = null,
+                            installedAssetUrl = null,
+                            boundAt = null,
+                        )
                     } else {
                         it
                     }

@@ -21,7 +21,6 @@ import zed.rainxch.core.domain.model.installation.PendingInstallResolution
 import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
 import zed.rainxch.core.domain.model.installation.hasPendingIdentity
-import zed.rainxch.core.domain.model.installation.installedAfter
 import zed.rainxch.core.domain.model.installation.installedAfterBinding
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
 import zed.rainxch.core.domain.model.installation.resolvePendingFromProvenEvent

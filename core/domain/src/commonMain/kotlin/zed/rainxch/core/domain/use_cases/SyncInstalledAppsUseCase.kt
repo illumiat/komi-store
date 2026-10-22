@@ -14,7 +14,6 @@ import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.bindingStatusAgainst
 import zed.rainxch.core.domain.model.installation.deviceChangeAgainst
 import zed.rainxch.core.domain.model.installation.hasPendingIdentity
-import zed.rainxch.core.domain.model.installation.installedAfter
 import zed.rainxch.core.domain.model.installation.installedAfterBinding
 import zed.rainxch.core.domain.model.installation.installedAfterPark
 import zed.rainxch.core.domain.model.installation.observeExternalInstall
@@ -333,8 +332,13 @@ class SyncInstalledAppsUseCase(
                 logger.info("Dropped an abandoned parked install: ${app.packageName}")
             }
 
-            app.pendingInstallFilePath == null && !app.hasPendingIdentity -> {
+            app.pendingInstallFilePath == null &&
+                (app.pendingInstallVersionCode == null || !app.hasPendingIdentity) -> {
+                // No file means there is nothing that could ever be installed. This also
+                // clears legacy rows that predate pendingInstallVersionCode; rows that still
+                // have a parked file are left for the user/settler.
                 installedAppsRepository.updatePendingStatus(app.packageName, false)
+                installedAppsRepository.setPendingInstallFilePath(app.packageName, null)
                 logger.info("Resolved pending install without a parked file: ${app.packageName}")
             }
 

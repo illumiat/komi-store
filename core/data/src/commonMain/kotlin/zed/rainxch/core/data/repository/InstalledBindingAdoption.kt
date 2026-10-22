@@ -1,6 +1,5 @@
 package zed.rainxch.core.data.repository
 
-import co.touchlab.kermit.Logger
 import zed.rainxch.core.data.local.db.dao.InstalledAppDao
 import zed.rainxch.core.data.local.db.dao.adoptMatchedTag
 import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
