@@ -26,7 +26,6 @@
 
     <!-- Apps feature - Update states -->
     <string name="checking">확인 중…</string>
-    <string name="updated_successfully">성공적으로 업데이트됨</string>
     <string name="error_with_message">오류: %1$s</string>
 
     <!-- Apps feature - Update all progress -->
@@ -215,7 +214,6 @@
 
 
 
-    <string name="home_finding_repositories">저장소를 찾는 중...</string>
     <string name="home_retry">다시 시도</string>
     <string name="home_failed_to_load_repositories">저장소를 불러오지 못했습니다</string>
 
@@ -917,13 +915,6 @@
     <string name="apps_variant_subtitle">%1$s  ·  %2$s</string>
     <string name="apps_section_header_cd">%1$s, %2$d, %3$s</string>
     <string name="apps_section_header_static_cd">%1$s, %2$d</string>
-    <string name="apps_compact_status_filter_active">모노레포 필터 활성화됨</string>
-    <string name="apps_compact_status_pending_install">설치 대기 중</string>
-    <string name="apps_compact_status_pre_release_on">프리릴리스 켜짐</string>
-    <string name="apps_compact_status_ready_to_install">설치 준비 완료</string>
-    <string name="apps_compact_status_updates_ignored">업데이트 무시됨</string>
-    <string name="apps_compact_status_variant_pinned">변형 고정됨</string>
-    <string name="apps_compact_status_variant_stale">변형이 오래됨, 조치 필요</string>
     <string name="apps_ignore_updates">업데이트 무시</string>
     <string name="apps_section_collapse">섹션 접기</string>
     <string name="apps_section_count_suffix">· %1$d</string>
@@ -1445,14 +1436,9 @@
 
     <!-- Feed / Home masthead + sidebar (Japanese decorative stamps verbatim) -->
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
-    <string name="feed_layout_description_grid">그리드 보기로 전환</string>
-    <string name="feed_layout_description_list">목록 보기로 전환</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>
-    <string name="home_chart_popular_jp">人気</string>
-    <string name="home_chart_releases_jp">新着</string>
-    <string name="home_chart_trending_jp">急上昇</string>
     <string name="sidebar_browse_jp">航行</string>
     <string name="sidebar_categories_jp">部門</string>
     <string name="sidebar_nav_charts_jp">ランキング</string>
@@ -1491,7 +1477,6 @@
     <string name="home_chart_releases">릴리스</string>
     <string name="home_chart_trending">급상승</string>
     <string name="home_masthead_title">인기 차트</string>
-    <string name="home_platform_filter">플랫폼 필터링</string>
     <string name="paper_day">데이</string>
     <string name="paper_night">나이트</string>
     <string name="repo_card_details">세부 정보</string>

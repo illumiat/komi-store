@@ -20,7 +20,6 @@
     <string name="cancel">Отмена</string>
 
     <string name="checking">Проверка…</string>
-    <string name="updated_successfully">Успешно обновлено</string>
     <string name="error_with_message">Ошибка: %1$s</string>
 
     <string name="updating_x_of_y">Обновление %1$d из %2$d</string>
@@ -188,7 +187,6 @@
 
 
 
-    <string name="home_finding_repositories">Поиск репозиториев...</string>
     <string name="home_retry">Повторить</string>
     <string name="home_failed_to_load_repositories">Не удалось загрузить репозитории</string>
 
@@ -920,13 +918,6 @@
     <string name="apps_variant_subtitle">%1$s  ·  %2$s</string>
     <string name="apps_section_header_cd">%1$s, %2$d, %3$s</string>
     <string name="apps_section_header_static_cd">%1$s, %2$d</string>
-    <string name="apps_compact_status_filter_active">фильтр monorepo активен</string>
-    <string name="apps_compact_status_pending_install">установка в ожидании</string>
-    <string name="apps_compact_status_pre_release_on">пре-релиз включён</string>
-    <string name="apps_compact_status_ready_to_install">готов к установке</string>
-    <string name="apps_compact_status_updates_ignored">обновления игнорируются</string>
-    <string name="apps_compact_status_variant_pinned">вариант закреплён</string>
-    <string name="apps_compact_status_variant_stale">вариант устарел, нужно действие</string>
     <string name="apps_ignore_updates">Игнорировать обновления</string>
     <string name="apps_section_collapse">Свернуть раздел</string>
     <string name="apps_section_count_suffix">· %1$d</string>
@@ -1459,14 +1450,9 @@
     <string name="repo_pages_pr_draft">Черновик</string>
 
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
-    <string name="feed_layout_description_grid">Переключить на сетку</string>
-    <string name="feed_layout_description_list">Переключить на список</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>
-    <string name="home_chart_popular_jp">人気</string>
-    <string name="home_chart_releases_jp">新着</string>
-    <string name="home_chart_trending_jp">急上昇</string>
     <string name="sidebar_browse_jp">航行</string>
     <string name="sidebar_categories_jp">部門</string>
     <string name="sidebar_nav_charts_jp">ランキング</string>
@@ -1503,7 +1489,6 @@
     <string name="home_chart_releases">Релизы</string>
     <string name="home_chart_trending">В тренде</string>
     <string name="home_masthead_title">Топ-чарты</string>
-    <string name="home_platform_filter">Фильтр платформ</string>
     <string name="paper_day">День</string>
     <string name="paper_night">Ночь</string>
     <string name="repo_card_details">Подробнее</string>

@@ -26,7 +26,6 @@
 
     <!-- Apps feature - Update states -->
     <string name="checking">Controllo…</string>
-    <string name="updated_successfully">Aggiornata con successo</string>
     <string name="error_with_message">Errore: %1$s</string>
 
     <!-- Apps feature - Update all progress -->
@@ -217,7 +216,6 @@
 
 
 
-    <string name="home_finding_repositories">Ricerca di repositories...</string>
     <string name="home_retry">Riprova</string>
     <string name="home_failed_to_load_repositories">Impossibile caricare repositories</string>
 
@@ -929,13 +927,6 @@
     <string name="apps_variant_subtitle">%1$s  ·  %2$s</string>
     <string name="apps_section_header_cd">%1$s, %2$d, %3$s</string>
     <string name="apps_section_header_static_cd">%1$s, %2$d</string>
-    <string name="apps_compact_status_filter_active">filtro monorepo attivo</string>
-    <string name="apps_compact_status_pending_install">installazione in attesa</string>
-    <string name="apps_compact_status_pre_release_on">pre-release attivo</string>
-    <string name="apps_compact_status_ready_to_install">pronto da installare</string>
-    <string name="apps_compact_status_updates_ignored">aggiornamenti ignorati</string>
-    <string name="apps_compact_status_variant_pinned">variante fissata</string>
-    <string name="apps_compact_status_variant_stale">variante obsoleta, azione richiesta</string>
     <string name="apps_ignore_updates">Ignora gli aggiornamenti</string>
     <string name="apps_section_collapse">Comprimi sezione</string>
     <string name="apps_section_count_suffix">· %1$d</string>
@@ -1460,14 +1451,9 @@
     <string name="repo_pages_pr_draft">Bozza</string>
 
     <string name="feed_end_cap">続く · TO BE CONTINUED</string>
-    <string name="feed_layout_description_grid">Passa alla vista a griglia</string>
-    <string name="feed_layout_description_list">Passa alla vista a elenco</string>
     <string name="feed_masthead_subtitle">発見 · DISCOVER APPS</string>
     <string name="home_masthead_subtitle">ランキング · CHARTS &amp; PICKS</string>
     <string name="feed_platform_picker_title_jp">対応</string>
-    <string name="home_chart_popular_jp">人気</string>
-    <string name="home_chart_releases_jp">新着</string>
-    <string name="home_chart_trending_jp">急上昇</string>
     <string name="sidebar_browse_jp">航行</string>
     <string name="sidebar_categories_jp">部門</string>
     <string name="sidebar_nav_charts_jp">ランキング</string>
@@ -1504,7 +1490,6 @@
     <string name="home_chart_releases">Novità</string>
     <string name="home_chart_trending">Di tendenza</string>
     <string name="home_masthead_title">Classifiche</string>
-    <string name="home_platform_filter">Filtra piattaforme</string>
     <string name="paper_day">Giorno</string>
     <string name="paper_night">Notte</string>
     <string name="repo_card_details">Dettagli</string>
