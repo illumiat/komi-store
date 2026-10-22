@@ -134,6 +134,14 @@ class InstalledAppsRepositoryImpl(
             return backendReleases.toReleaseWindow(includePreReleases)
         }
 
+        return fetchGithubReleaseWindow(owner, repo, includePreReleases)
+    }
+
+    private suspend fun fetchGithubReleaseWindow(
+        owner: String,
+        repo: String,
+        includePreReleases: Boolean,
+    ): List<GithubRelease> {
         return try {
             val releases =
                 httpClient
@@ -157,7 +165,7 @@ class InstalledAppsRepositoryImpl(
                             "Pre-release flag/tag mismatch for $owner/$repo " +
                                 "release '${release.tagName}' (name='${release.name}'): " +
                                 "apiFlag=$flagSays, tagMarker=$tagSays — " +
-                                "treating as pre-release=${true}"
+                                "treating as pre-release=$flagSays"
                         }
                     }
                 }.filter { includePreReleases || !it.isEffectivelyPreRelease() }
@@ -391,13 +399,14 @@ class InstalledAppsRepositoryImpl(
     override suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease? {
         val app = installedAppsDao.getAppByPackage(packageName) ?: return null
 
+        // The dead URL came from the backend's stale release copy, so the fallback must read the
+        // host itself instead of asking the same backend again.
         val releases =
-            fetchReleaseWindow(
-                owner = app.repoOwner,
-                repo = app.repoName,
-                includePreReleases = app.includePreReleases,
-                sourceHost = app.sourceHost,
-            )
+            if (app.sourceHost != null) {
+                fetchForgejoReleaseWindow(app.sourceHost, app.repoOwner, app.repoName, app.includePreReleases)
+            } else {
+                fetchGithubReleaseWindow(app.repoOwner, app.repoName, app.includePreReleases)
+            }
 
         if (releases.isEmpty()) return null
 
