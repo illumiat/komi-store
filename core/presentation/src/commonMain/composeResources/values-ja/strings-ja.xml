@@ -1458,4 +1458,8 @@
     <string name="go_to_version">%1$s に移動</string>
     <string name="get_it_on_platform">%1$s 版を入手</string>
     <string name="share_link">リンクを共有</string>
+    <string name="display_mode_title">リフレッシュレート</string>
+    <string name="display_mode_description">画面に指定したリフレッシュレートを要求します。自動ではシステムに任せます。</string>
+    <string name="display_mode_auto">自動</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

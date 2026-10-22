@@ -77,6 +77,24 @@ fun InstalledApp.resolvePendingFromSystem(reached: PendingInstallResolution.Reac
         isUpdateAvailable = updateFlagAgainstSnapshot(reached.versionCode, reached.versionName),
     )
 
+// The device runs the parked build byte for byte even when the version number did not
+// change (test builds keep one versionCode). Settle the park without asking the tag to prove it.
+fun InstalledApp.settlePendingFromSystem(
+    versionName: String,
+    versionCode: Long,
+): InstalledApp =
+    resolvePendingFromSystem(
+        PendingInstallResolution.Reached(
+            resolvedTag = pendingInstallVersion ?: latestVersion ?: versionName,
+            versionName = versionName,
+            versionCode = versionCode,
+        ),
+    ).copy(
+        pendingInstallFilePath = null,
+        pendingInstallVersion = null,
+        pendingInstallAssetName = null,
+    )
+
 fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
     val hasParkedIdentity =
         pendingInstallReleaseId != null || pendingInstallAssetId != null || pendingInstallAssetDigest != null

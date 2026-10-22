@@ -403,6 +403,7 @@ class SyncInstalledAppsUseCaseParkTest {
             path: String,
             version: String?,
             assetName: String?,
+            assetDigest: String?,
         ) = Unit
 
         override fun getAppsWithUpdates(): Flow<List<InstalledApp>> = emptyFlow()

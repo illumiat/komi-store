@@ -1489,4 +1489,8 @@
     <string name="go_to_version">%1$s-এ যান</string>
     <string name="get_it_on_platform">%1$s-এর জন্য নিন</string>
     <string name="share_link">লিংক শেয়ার করুন</string>
+    <string name="display_mode_title">রিফ্রেশ রেট</string>
+    <string name="display_mode_description">ডিসপ্লে থেকে নির্দিষ্ট রিফ্রেশ রেট চায়। স্বয়ংক্রিয় হলে সিস্টেমই সিদ্ধান্ত নেয়।</string>
+    <string name="display_mode_auto">স্বয়ংক্রিয়</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

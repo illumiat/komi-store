@@ -1469,4 +1469,8 @@
     <string name="go_to_version">Aller à %1$s</string>
     <string name="get_it_on_platform">Obtenir pour %1$s</string>
     <string name="share_link">Partager le lien</string>
+    <string name="display_mode_title">Fréquence de rafraîchissement</string>
+    <string name="display_mode_description">Demande une fréquence d\'affichage précise. Automatique laisse le système décider.</string>
+    <string name="display_mode_auto">Automatique</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

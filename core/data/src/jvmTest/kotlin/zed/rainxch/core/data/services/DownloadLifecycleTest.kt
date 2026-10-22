@@ -294,6 +294,7 @@ class DownloadLifecycleTest {
             path: String,
             version: String?,
             assetName: String?,
+            assetDigest: String?,
         ) = Unit
 
         override suspend fun discardParkedInstall(

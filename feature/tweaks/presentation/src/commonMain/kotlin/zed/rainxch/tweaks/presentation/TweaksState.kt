@@ -21,6 +21,7 @@ import zed.rainxch.core.domain.model.settings.AppLanguages
 import zed.rainxch.core.domain.model.settings.ProxyScope
 import zed.rainxch.core.domain.model.settings.SupportedTranslationLanguages
 import zed.rainxch.core.domain.model.settings.TranslationProvider
+import zed.rainxch.core.domain.repository.SYSTEM_DEFAULT_DISPLAY_MODE_ID
 import zed.rainxch.tweaks.presentation.components.desktop.DesktopSection
 import zed.rainxch.tweaks.presentation.model.LanguagePickerOption
 import zed.rainxch.tweaks.presentation.model.ProxyScopeFormState
@@ -55,6 +56,7 @@ data class TweaksState(
     val isHideSeenEnabled: Boolean = false,
     val isScrollbarEnabled: Boolean = false,
     val contentWidth: ContentWidth = ContentWidth.COMPACT,
+    val displayModeId: Int = SYSTEM_DEFAULT_DISPLAY_MODE_ID,
     val translationProvider: TranslationProvider = TranslationProvider.Default,
     val draftTranslationProvider: TranslationProvider? = null,
     val youdaoAppKey: String = "",

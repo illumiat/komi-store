@@ -1459,4 +1459,8 @@
     <string name="go_to_version">前往 %1$s</string>
     <string name="get_it_on_platform">取得 %1$s 版</string>
     <string name="share_link">分享連結</string>
+    <string name="display_mode_title">重新整理率</string>
+    <string name="display_mode_description">向螢幕要求指定的重新整理率。自動由系統決定。</string>
+    <string name="display_mode_auto">自動</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>
