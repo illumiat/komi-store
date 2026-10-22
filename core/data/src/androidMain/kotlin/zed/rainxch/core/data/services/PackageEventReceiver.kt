@@ -20,6 +20,7 @@ import zed.rainxch.core.domain.model.installation.SystemPackageInfo
 import zed.rainxch.core.domain.model.installation.externalInstallUpdateFlag
 import zed.rainxch.core.domain.model.installation.hasPendingIdentity
 import zed.rainxch.core.domain.model.installation.installedAfter
+import zed.rainxch.core.domain.model.installation.installedAfterBinding
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
 import zed.rainxch.core.domain.model.installation.resolvePendingFromProvenEvent
 import zed.rainxch.core.domain.model.installation.tagForObservedBuild
@@ -231,13 +232,33 @@ class PackageEventReceiver() :
             // the identity before the broadcast arrives. When the system's install timestamp is
             // not newer than our recorded settlement, this touch repeats an install we already
             // bound ourselves, so the binding must stay.
-            if (app.installedAfter(systemInfo)) {
-                // A same-version install happened after the last settlement and no park was
-                // waiting for it: this is a foreign install. #998: drop the binding.
-                repo.clearInstallBinding(packageName)
+            if (app.installedAfterBinding(systemInfo)) {
+                // A same-version install happened after our binding: it is foreign, so the
+                // provenance claim must go. Also clear the stale update flag before the
+                // backstop check, otherwise the UI shows one forced update for an install
+                // that may already be the latest build.
+                repo.executeInTransaction {
+                    repo.updateInstalledVersion(
+                        packageName = packageName,
+                        installedVersion = app.tagForObservedBuild(systemInfo.versionName, systemInfo.versionCode),
+                        installedVersionName = systemInfo.versionName,
+                        installedVersionCode = systemInfo.versionCode,
+                        isUpdateAvailable = false,
+                    )
+                    repo.clearInstallBinding(packageName)
+                }
                 Logger.i {
                     "Dropped the binding for $packageName: a same-version install happened " +
-                        "after the recorded settlement"
+                        "after the recorded binding"
+                }
+                getBackstopScope().launch {
+                    try {
+                        repo.checkForUpdates(packageName)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.e(e) { "Backstop update check failed for $packageName" }
+                    }
                 }
             } else {
                 Logger.d {

@@ -15,6 +15,7 @@ import zed.rainxch.core.domain.model.installation.bindingStatusAgainst
 import zed.rainxch.core.domain.model.installation.deviceChangeAgainst
 import zed.rainxch.core.domain.model.installation.hasPendingIdentity
 import zed.rainxch.core.domain.model.installation.installedAfter
+import zed.rainxch.core.domain.model.installation.installedAfterBinding
 import zed.rainxch.core.domain.model.installation.installedAfterPark
 import zed.rainxch.core.domain.model.installation.observeExternalInstall
 import zed.rainxch.core.domain.model.installation.pendingInstallResolution
@@ -368,7 +369,7 @@ class SyncInstalledAppsUseCase(
         try {
             val local = systemInfo ?: return
 
-            if (!app.isPendingInstall && !app.hasPendingIdentity && app.installedAfter(local)) {
+            if (!app.isPendingInstall && !app.hasPendingIdentity && app.installedAfterBinding(local)) {
                 // An install happened after the last recorded settlement. Drop the binding
                 // instead of trusting it (#998). The installer identity is irrelevant here:
                 // in-app, Shizuku and third-party installer paths all count as ours.

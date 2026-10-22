@@ -271,7 +271,7 @@ class InstalledAppsRepositoryImpl(
                     null
                 }
             if (selfAttestedDigest != null && selfAttestedDigest == primaryAsset.digest) {
-                rebindProvenIdentity(installedAppsDao, app, matchedRelease, primaryAsset, selfAttestedDigest)
+                rebindProvenIdentity(installedAppsDao, app, matchedRelease, primaryAsset, selfAttestedDigest, System.currentTimeMillis())
             }
 
             val verdict =
@@ -353,7 +353,14 @@ class InstalledAppsRepositoryImpl(
                     identityContradicts = identityContradicts(app, primaryAsset),
                 )
             if (shouldRewriteTag) {
-                adoptTagWhenProven(installedAppsDao, app, matchedRelease, primaryAsset, isUpdateAvailable)
+                adoptTagWhenProven(
+                    installedAppsDao,
+                    app,
+                    matchedRelease,
+                    primaryAsset,
+                    isUpdateAvailable,
+                    System.currentTimeMillis(),
+                )
             }
 
             if (variantWasLost != app.preferredVariantStale) {

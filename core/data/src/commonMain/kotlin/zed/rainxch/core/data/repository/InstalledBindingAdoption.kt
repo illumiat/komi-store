@@ -9,12 +9,14 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 
 // When the digest is already proven equal, adoption also refreshes the release identity so
 // the tag and the identity fields can never describe different releases.
+@Suppress("LongParameterList")
 internal suspend fun adoptTagWhenProven(
     dao: InstalledAppDao,
     app: InstalledAppEntity,
     matchedRelease: GithubRelease,
     matchedAsset: GithubAsset,
     isUpdateAvailable: Boolean,
+    boundAt: Long,
 ) {
     val provenDigest = matchedAsset.digest
     if (provenDigest != null &&
@@ -30,6 +32,7 @@ internal suspend fun adoptTagWhenProven(
             assetId = matchedAsset.id,
             digest = provenDigest,
             releasePublishedAt = matchedRelease.publishedAt,
+            boundAt = boundAt,
         )
     } else if (app.installedAssetId == null &&
         app.installedAssetDigest == null &&
@@ -47,12 +50,14 @@ internal suspend fun adoptTagWhenProven(
 }
 
 // The installed bytes match the matched asset: bind the tag and the identity together.
+@Suppress("LongParameterList")
 internal suspend fun rebindProvenIdentity(
     dao: InstalledAppDao,
     app: InstalledAppEntity,
     matchedRelease: GithubRelease,
     matchedAsset: GithubAsset,
     matchedDigest: String,
+    boundAt: Long,
 ) {
     val identityCurrent =
         app.installedAssetDigest == matchedDigest &&
@@ -60,20 +65,17 @@ internal suspend fun rebindProvenIdentity(
             app.installedReleaseId == matchedRelease.id &&
             app.installedVersion == matchedRelease.tagName
     if (identityCurrent) return
-    runCatching {
-        dao.adoptMatchedTagWithIdentity(
-            packageName = app.packageName,
-            installedVersion = matchedRelease.tagName,
-            installedVersionName = app.installedVersionName,
-            installedVersionCode = app.installedVersionCode,
-            releaseId = matchedRelease.id,
-            assetId = matchedAsset.id,
-            digest = matchedDigest,
-            releasePublishedAt = matchedRelease.publishedAt,
-        )
-    }.onFailure { error ->
-        Logger.w(error) { "Failed to rebind the proven identity for ${app.packageName}" }
-    }
+    dao.adoptMatchedTagWithIdentity(
+        packageName = app.packageName,
+        installedVersion = matchedRelease.tagName,
+        installedVersionName = app.installedVersionName,
+        installedVersionCode = app.installedVersionCode,
+        releaseId = matchedRelease.id,
+        assetId = matchedAsset.id,
+        digest = matchedDigest,
+        releasePublishedAt = matchedRelease.publishedAt,
+        boundAt = boundAt,
+    )
 }
 
 // Adoption may rewrite the tag only when the stored identity does not contradict the release.

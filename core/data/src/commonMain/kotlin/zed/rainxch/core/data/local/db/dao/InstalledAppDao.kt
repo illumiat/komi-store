@@ -215,7 +215,8 @@ interface InstalledAppDao {
                installedReleaseId = :releaseId,
                installedAssetId = :assetId,
                installedAssetDigest = :digest,
-               installedReleasePublishedAt = :releasePublishedAt
+               installedReleasePublishedAt = :releasePublishedAt,
+               boundAt = :boundAt
          WHERE packageName = :packageName
         """,
     )
@@ -229,6 +230,7 @@ interface InstalledAppDao {
         assetId: Long?,
         digest: String?,
         releasePublishedAt: String?,
+        boundAt: Long?,
     )
 
     @Query(
@@ -237,7 +239,10 @@ interface InstalledAppDao {
            SET installedReleaseId = NULL,
                installedAssetId = NULL,
                installedAssetDigest = NULL,
-               installedReleasePublishedAt = NULL
+               installedReleasePublishedAt = NULL,
+               installedAssetName = NULL,
+               installedAssetUrl = NULL,
+               boundAt = NULL
          WHERE packageName = :packageName
         """,
     )
@@ -259,18 +264,6 @@ interface InstalledAppDao {
         path: String?,
         version: String?,
         assetName: String?,
-    )
-
-    @Query(
-        """
-        UPDATE installed_apps
-           SET installedAssetDigest = :digest
-         WHERE packageName = :packageName
-        """,
-    )
-    suspend fun setInstalledAssetDigest(
-        packageName: String,
-        digest: String,
     )
 
     @Query(

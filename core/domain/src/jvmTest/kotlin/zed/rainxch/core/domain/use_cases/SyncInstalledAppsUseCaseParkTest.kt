@@ -360,6 +360,7 @@ class SyncInstalledAppsUseCaseParkTest {
 
         assertTrue(repo.clearedBindings.isEmpty(), "the binding written by the settlement must survive")
         assertEquals(2_000L, repo.updatedApps.first().lastUpdatedAt)
+        assertEquals(2_000L, repo.updatedApps.first().boundAt)
     }
 
     @Test
@@ -371,7 +372,7 @@ class SyncInstalledAppsUseCaseParkTest {
                 pendingInstallStartedAt = null,
                 installedVersionName = "1.0.0",
                 installedVersionCode = 100L,
-            )
+            ).copy(boundAt = 1_000L)
         val repo = RecordingInstalledAppsRepository(listOf(installed))
         val monitor = FakePackageMonitor(
             packageName = installed.packageName,
@@ -381,6 +382,26 @@ class SyncInstalledAppsUseCaseParkTest {
         SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
 
         assertEquals(listOf(installed.packageName), repo.clearedBindings)
+    }
+
+    @Test
+    fun aLegacyRowWithoutBoundAtKeepsItsBinding() = runBlocking {
+        val installed =
+            parked(
+                isPendingInstall = false,
+                pendingFilePath = null,
+                installedVersionName = "1.0.0",
+                installedVersionCode = 100L,
+            )
+        val repo = RecordingInstalledAppsRepository(listOf(installed))
+        val monitor = FakePackageMonitor(
+            packageName = installed.packageName,
+            systemInfo = systemInfo(installed.packageName, versionName = "1.0.0", versionCode = 100L, lastUpdateTime = 9_000L),
+        )
+
+        SyncInstalledAppsUseCase(monitor, repo, Platform.ANDROID, NoOpLogger)()
+
+        assertTrue(repo.clearedBindings.isEmpty(), "NULL boundAt means provenance was never recorded; keep the binding")
     }
 
     @Test

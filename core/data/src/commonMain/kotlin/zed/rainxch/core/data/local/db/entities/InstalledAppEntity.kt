@@ -24,6 +24,8 @@ data class InstalledAppEntity(
     val installedAssetDigest: String? = null,
     @ColumnInfo(defaultValue = "NULL")
     val installedReleasePublishedAt: String? = null,
+    @ColumnInfo(defaultValue = "NULL")
+    val boundAt: Long? = null,
     val installedAssetName: String?,
     val installedAssetUrl: String?,
     val latestVersion: String?,
