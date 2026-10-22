@@ -2,6 +2,7 @@ package zed.rainxch.core.data.services
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -86,16 +87,25 @@ class AndroidDownloadProgressNotifier(
                         ).build(),
                 )
 
+        post(packageName, paused, builder.build())
+    }
+
+    // DownloadForegroundService holds the untagged card under this id, and stopping or moving
+    // the service removes it, so a paused card lives under its own tag.
+    @SuppressLint("MissingPermission")
+    private fun post(
+        packageName: String,
+        paused: Boolean,
+        notification: Notification,
+    ) {
         val id = DownloadNotificationFactory.notificationIdFor(packageName)
         val manager = NotificationManagerCompat.from(context)
-        // DownloadForegroundService holds the untagged card under this id, and stopping or moving
-        // the service removes it, so a paused card lives under its own tag.
         if (paused) {
             manager.cancel(id)
-            manager.notify(PAUSED_TAG, id, builder.build())
+            manager.notify(PAUSED_TAG, id, notification)
         } else {
             manager.cancel(PAUSED_TAG, id)
-            manager.notify(id, builder.build())
+            manager.notify(id, notification)
         }
     }
 
