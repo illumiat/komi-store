@@ -106,6 +106,7 @@ class TweaksViewModel(
                     loadHideSeenEnabled()
                     loadScrollbarEnabled()
                     loadContentWidth()
+                    loadDisplayModeId()
                     loadTranslationSettings()
                     loadAppLanguage()
                     loadAutoTranslate()
@@ -471,6 +472,14 @@ class TweaksViewModel(
         }
     }
 
+    private fun loadDisplayModeId() {
+        viewModelScope.launch {
+            tweaksRepository.getDisplayModeId().collect { modeId ->
+                _state.update { it.copy(displayModeId = modeId) }
+            }
+        }
+    }
+
     private fun loadTranslationSettings() {
         viewModelScope.launch {
             tweaksRepository.getTranslationProvider().collect { provider ->
@@ -640,6 +649,12 @@ class TweaksViewModel(
             is TweaksAction.OnContentWidthSelected -> {
                 viewModelScope.launch {
                     tweaksRepository.setContentWidth(action.width)
+                }
+            }
+
+            is TweaksAction.OnDisplayModeSelected -> {
+                viewModelScope.launch {
+                    tweaksRepository.setDisplayModeId(action.modeId)
                 }
             }
 
