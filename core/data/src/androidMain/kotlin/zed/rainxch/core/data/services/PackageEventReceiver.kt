@@ -162,6 +162,12 @@ class PackageEventReceiver() :
             handleExternalInstall(packageName, app, repo, monitor)
             return
         }
+        if (app.pendingInstallStartedAt == null) {
+            // A park that was never handed to an installer cannot be settled by an
+            // unrelated install event: treat that event as an external install instead.
+            handleExternalInstall(packageName, app, repo, monitor)
+            return
+        }
         val systemInfo = monitor.getInstalledPackageInfo(packageName)
         val resolution = app.pendingInstallResolution(systemInfo)
         val tag =
