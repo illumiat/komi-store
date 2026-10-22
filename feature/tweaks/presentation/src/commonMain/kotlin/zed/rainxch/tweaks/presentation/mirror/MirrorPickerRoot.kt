@@ -127,7 +127,7 @@ fun MirrorPickerRoot(
         },
     ) { padding ->
         val colors = LocalPersonality.current.colors
-        val official = state.mirrors.filter { it.type == MirrorType.OFFICIAL }
+        val official = state.mirrors.filter { it.type == MirrorType.OFFICIAL && it.id != "direct" }
         val community = state.mirrors.filter { it.type == MirrorType.COMMUNITY }
         val fastestMirrorId = fastestReleaseMirror(state.mirrors, state.measuredLatencies)?.first?.id
         Column(
@@ -206,10 +206,17 @@ fun MirrorPickerRoot(
                         measuredMs = state.measuredLatencies[mirror.id],
                         isFastest = fastestMirrorId == mirror.id,
                         selected = isMirrorSelected(mirror, state.preference),
-                        last = false,
+                        last = index == community.lastIndex,
                         onClick = { viewModel.onAction(MirrorPickerAction.OnSelectMirror(mirror)) },
                     )
                 }
+            }
+
+            SettingsSectionHead(
+                stringResource(Res.string.mirror_custom_label),
+                TweaksDecorSlot.MirrorCommunity,
+            )
+            SettingsGroup {
                 SettingsRow(
                     title = stringResource(Res.string.mirror_custom_label),
                     last = true,
