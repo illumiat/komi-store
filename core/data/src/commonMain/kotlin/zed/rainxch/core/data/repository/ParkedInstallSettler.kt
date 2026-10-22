@@ -69,22 +69,19 @@ internal class ParkedInstallSettler(
     ): Boolean {
         val installedHash = system.apkPath?.let { hashOrNull(it) }
         val parkedDigest = app.pendingInstallAssetDigest
-        val cloudDigest = app.latestAssetDigest
-        return when {
-            installedHash == null -> false
-            parkedDigest != null -> normalizeDigest(parkedDigest) == normalizeDigest(installedHash)
-            hashOrNull(parkedPath) == installedHash -> true
-            cloudDigest != null -> normalizeDigest(cloudDigest) == normalizeDigest(installedHash)
-            else -> false
-        }
+        val parkedFileHash = if (parkedDigest == null) hashOrNull(parkedPath) else null
+        return zed.rainxch.core.data.repository.parkedBytesMatch(
+            installedHash = installedHash,
+            parkedDigest = parkedDigest,
+            parkedFileHash = parkedFileHash,
+            releaseDigest = app.latestAssetDigest,
+        )
     }
 
     private suspend fun clearDeadPark(app: InstalledAppEntity): InstalledAppEntity {
         dao.updateApp(app.toDomain().clearPending().toEntity())
         return dao.getAppByPackage(app.packageName) ?: app
     }
-
-    private fun normalizeDigest(raw: String): String = raw.substringAfter(':', raw).trim().lowercase()
 
     // Any hashing failure means "no proof", which must not crash the update check.
     @Suppress("TooGenericExceptionCaught")
