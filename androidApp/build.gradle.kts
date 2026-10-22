@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     alias(libs.plugins.convention.android.application.compose)
 }
 
@@ -48,7 +48,7 @@ tasks.register("printRuntimeDependencies") {
 }
 
 dependencies {
-    testImplementation(libs.junit)
+    androidTestImplementation(projects.core.presentation)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
     androidTestImplementation(libs.androidx.test.ext.junit)
