@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -194,12 +195,21 @@ internal fun KomiTabCard(
                 .navigationBarsPadding()
                 .imePadding()
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        horizontalAlignment = Alignment.End,
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         // The screen's FAB rides above the card's end, like Chocola's shuffle button.
-        if (!typing) fab?.let { CompositionLocalProvider(LocalInBar provides true, content = it) }
-        CardSurface(modifier = tabSwitchModifier()) {
+        if (!typing) {
+            fab?.let {
+                Box(
+                    modifier = Modifier.fillMaxWidth().widthIn(max = 560.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    CompositionLocalProvider(LocalInBar provides true, content = it)
+                }
+            }
+        }
+        CardSurface(modifier = tabSwitchModifier().widthIn(max = 560.dp)) {
             Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
                 Row(
                     modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight).padding(horizontal = Spacing.sm),
