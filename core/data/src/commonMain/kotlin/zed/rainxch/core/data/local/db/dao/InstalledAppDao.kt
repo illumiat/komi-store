@@ -295,11 +295,11 @@ interface InstalledAppDao {
            SET pendingInstallFilePath = :path,
                pendingInstallVersion = :version,
                pendingInstallAssetName = :assetName,
-               pendingInstallReleaseId = :releaseId,
-               pendingInstallAssetId = :assetId,
-               pendingInstallAssetDigest = NULL,
-               pendingInstallReleasePublishedAt = :releasePublishedAt,
-               pendingInstallStartedAt = :startedAt,
+                pendingInstallReleaseId = :releaseId,
+                pendingInstallAssetId = :assetId,
+                pendingInstallAssetDigest = :digest,
+                pendingInstallReleasePublishedAt = :releasePublishedAt,
+                pendingInstallStartedAt = :startedAt,
                isPendingInstall = 1
          WHERE packageName = :packageName
         """,
@@ -314,6 +314,7 @@ interface InstalledAppDao {
         assetId: Long?,
         releasePublishedAt: String?,
         startedAt: Long?,
+        digest: String?,
     )
 
     @Query(

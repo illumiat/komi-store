@@ -489,6 +489,7 @@ class DefaultDownloadOrchestrator(
         }
     }
 
+    @Suppress("ThrowsCount")
     private suspend fun parkForUser(
         spec: DownloadSpec,
         filePath: String,
@@ -506,6 +507,15 @@ class DefaultDownloadOrchestrator(
                 Logger.w(e) { "Orchestrator: could not read the parked release timestamp" }
                 null
             }
+        val downloadedDigest =
+            try {
+                digestVerifier.computeSha256(filePath)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.w(e) { "Orchestrator: could not hash the parked file for ${spec.packageName}" }
+                null
+            }
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
@@ -516,6 +526,7 @@ class DefaultDownloadOrchestrator(
                 assetId = spec.asset.id.takeIf { it > 0L },
                 releasePublishedAt = releasePublishedAt,
                 startedAt = System.currentTimeMillis(),
+                assetDigest = downloadedDigest,
             )
         } catch (e: CancellationException) {
             throw e

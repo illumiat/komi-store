@@ -1502,4 +1502,8 @@
     <string name="go_to_version">Przejdź do %1$s</string>
     <string name="get_it_on_platform">Pobierz na %1$s</string>
     <string name="share_link">Udostępnij link</string>
+    <string name="display_mode_title">Częstotliwość odświeżania</string>
+    <string name="display_mode_description">Prosi ekran o określoną częstotliwość. Automatycznie pozostawia decyzję systemowi.</string>
+    <string name="display_mode_auto">Automatycznie</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

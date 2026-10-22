@@ -1490,4 +1490,8 @@
     <string name="go_to_version">%1$s(으)로 이동</string>
     <string name="get_it_on_platform">%1$s용 받기</string>
     <string name="share_link">링크 공유</string>
+    <string name="display_mode_title">주사율</string>
+    <string name="display_mode_description">디스플레이에 지정한 주사율을 요청합니다. 자동은 시스템이 결정합니다.</string>
+    <string name="display_mode_auto">자동</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

@@ -13,6 +13,7 @@ dependencies {
     implementation(projects.composeApp)
     implementation(projects.core.data)
     implementation(projects.core.domain)
+    implementation(projects.core.presentation)
 
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.activity.compose)
@@ -45,4 +46,14 @@ tasks.register("printRuntimeDependencies") {
     doLast {
         coordinatesProvider.get().forEach { println(it) }
     }
+}
+
+dependencies {
+    androidTestImplementation(projects.core.presentation)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }

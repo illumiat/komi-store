@@ -59,8 +59,14 @@ class InstalledAppsRepositoryImpl(
     private val packageMonitor: PackageMonitor,
     private val digestVerifier: DigestVerifier,
 ) : InstalledAppsRepository {
+    private val parkedInstallSettler =
+        ParkedInstallSettler(
+            dao = installedAppsDao,
+            packageMonitor = packageMonitor,
+            digestVerifier = digestVerifier,
+            discard = { packageName, path -> discardParkedInstall(packageName, path) },
+        )
     private val checkAllMutex = Mutex()
-
     private val httpClient: HttpClient get() = clientProvider.client
 
     private companion object {
@@ -226,8 +232,9 @@ class InstalledAppsRepositoryImpl(
         recordUnmatched: Boolean,
         window: suspend (InstalledAppEntity) -> List<GithubRelease>,
     ): Boolean {
-        val app = installedAppsDao.getAppByPackage(packageName) ?: return false
-        if (!app.updateCheckEnabled) return false
+        val stored = installedAppsDao.getAppByPackage(packageName) ?: return false
+        if (!stored.updateCheckEnabled) return false
+        val app = parkedInstallSettler.settleIfInstalled(stored)
         val releases =
             try {
                 window(app)
@@ -249,9 +256,6 @@ class InstalledAppsRepositoryImpl(
         val packageName = app.packageName
 
         try {
-            // An empty window is a failed fetch (backend error, rate limit, network), not
-            // proof the repo lost its releases. Keep what the last good check found and
-            // leave lastCheckedAt alone so the next check retries.
             if (releases.isEmpty()) {
                 Logger.d { "No releases for ${app.appName} this time; keeping its stored update state" }
                 return app.isUpdateAvailable
@@ -283,8 +287,6 @@ class InstalledAppsRepositoryImpl(
                 )
             val bound = resolvedBinding.bound
 
-            // A rolling tag reuses one tag string across builds. Without a binding, only the
-            // installed file can tell whether the release is the build the device runs.
             val tagNeedsSelfAttestation =
                 VersionMath.isTimestampTrackedTag(matchedRelease.tagName) ||
                     VersionMath.detectScheme(matchedRelease.tagName) == VersionMath.Scheme.Unknown
@@ -422,8 +424,6 @@ class InstalledAppsRepositoryImpl(
     }
 
     override suspend fun checkAllForUpdates() {
-        // App start, Library and the background worker can ask at once; a run already in
-        // flight answers all of them.
         if (checkAllMutex.isLocked) {
             checkAllMutex.withLock { }
             return
@@ -675,6 +675,7 @@ class InstalledAppsRepositoryImpl(
         assetId: Long?,
         releasePublishedAt: String?,
         startedAt: Long?,
+        assetDigest: String?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
@@ -685,6 +686,7 @@ class InstalledAppsRepositoryImpl(
             assetId = assetId,
             releasePublishedAt = releasePublishedAt,
             startedAt = startedAt,
+            digest = assetDigest,
         )
     }
 

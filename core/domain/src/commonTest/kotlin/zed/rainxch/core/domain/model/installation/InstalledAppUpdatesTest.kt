@@ -843,4 +843,21 @@ class InstalledAppUpdatesTest {
             ),
         )
     }
+
+    @Test
+    fun settling_a_park_the_device_already_runs_clears_the_pointer() {
+        val parked =
+            testInstalledApp(
+                isPendingInstall = true,
+                pendingInstallFilePath = "/tmp/app.apk",
+            )
+
+        val settled =
+            parked
+                .settlePendingFromSystem(versionName = "1.0.0", versionCode = 100L)
+                .clearPending()
+
+        assertFalse(settled.isPendingInstall)
+        assertEquals(null, settled.pendingInstallFilePath)
+    }
 }

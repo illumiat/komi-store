@@ -1504,4 +1504,8 @@
     <string name="go_to_version">%1$s पर जाएँ</string>
     <string name="get_it_on_platform">%1$s के लिए पाएँ</string>
     <string name="share_link">लिंक साझा करें</string>
+    <string name="display_mode_title">रिफ़्रेश दर</string>
+    <string name="display_mode_description">डिस्प्ले से एक विशेष रिफ़्रेश दर माँगता है। स्वचालित में निर्णय सिस्टम का होता है।</string>
+    <string name="display_mode_auto">स्वचालित</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

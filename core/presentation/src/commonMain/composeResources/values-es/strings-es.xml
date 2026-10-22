@@ -1468,4 +1468,8 @@
     <string name="go_to_version">Ir a %1$s</string>
     <string name="get_it_on_platform">Obtenlo para %1$s</string>
     <string name="share_link">Compartir enlace</string>
+    <string name="display_mode_title">Frecuencia de actualización</string>
+    <string name="display_mode_description">Solicita al panel una frecuencia concreta. Automático deja decidir al sistema.</string>
+    <string name="display_mode_auto">Automático</string>
+    <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
 </resources>

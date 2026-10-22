@@ -4,7 +4,7 @@ import zed.rainxch.core.data.local.db.entities.InstalledAppEntity
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.utils.VersionMath
 
-// Small DAO write helpers used by the repository, kept here so the repository file stays
+// Small DAO write helpers that the repository uses, kept here so the repository file stays
 // within the architecture line limit.
 internal suspend fun InstalledAppDao.recordUnmatchedRelease(packageName: String) {
     clearUpdateFlagKeepBaseline(packageName, System.currentTimeMillis())
