@@ -566,6 +566,10 @@ class DefaultDownloadOrchestrator(
                 releasePublishedAt = releasePublishedAt,
                 assetDigest = downloadedDigest,
             )
+            installedAppsRepository.setPendingInstallVersionCode(
+                spec.packageName,
+                parkedVersionCode(filePath, spec.packageName),
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -586,6 +590,19 @@ class DefaultDownloadOrchestrator(
         }
         updateEntry(spec.packageName) { it.copy(stage = DownloadStage.AwaitingInstall) }
     }
+
+    private suspend fun parkedVersionCode(
+        filePath: String,
+        packageName: String,
+    ): Long? =
+        try {
+            installer.getApkInfoExtractor().extractPackageInfo(filePath)?.versionCode
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Orchestrator: could not read the parked versionCode for $packageName" }
+            null
+        }
 
     private suspend fun parkedReleasePublishedAt(spec: DownloadSpec): String? =
         try {
