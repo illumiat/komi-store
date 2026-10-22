@@ -19,13 +19,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import zed.rainxch.githubstore.MainActivity
 
-/**
- * Details is reached through the real deep-link entry point, so the activity is started with the
- * view intent. The assertions deliberately avoid Compose idling: the details screen shows an
- * indeterminate progress indicator while loading, which keeps a Compose test rule busy.
- */
+// Starts through the real deep-link entry point and avoids Compose idling: Details shows an indeterminate
+// progress indicator while loading, which would keep a Compose test rule busy.
 @RunWith(AndroidJUnit4::class)
-@Suppress("DEPRECATION")
 class DetailsBackTest : TargetSdk37TestBase() {
     @get:Rule
     val scenarioRule =

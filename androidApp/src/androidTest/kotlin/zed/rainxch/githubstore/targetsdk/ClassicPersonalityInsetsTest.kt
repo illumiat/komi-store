@@ -22,7 +22,6 @@ import zed.rainxch.core.presentation.testing.KomiTestTags
 import zed.rainxch.githubstore.MainActivity
 
 @RunWith(AndroidJUnit4::class)
-@Suppress("DEPRECATION")
 class ClassicPersonalityInsetsTest : TargetSdk37TestBase() {
     @get:Rule
     val rule = createAndroidComposeRule<MainActivity>()
