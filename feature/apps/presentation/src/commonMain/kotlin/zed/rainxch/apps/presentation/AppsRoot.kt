@@ -12,13 +12,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.filled.Search
@@ -301,6 +302,16 @@ fun AppsScreen(
                     }
 
                     val listState = rememberLazyStaggeredGridState()
+                    KeepAtTopWhenSectionsChange(
+                        gridState = listState,
+                        sections = listOf(
+                            state.showImportProposalBanner,
+                            state.pendingApps.isNotEmpty(),
+                            state.updateApps.isNotEmpty() || state.isUpdatingAll,
+                            state.inProgressDownloads.isNotEmpty(),
+                        ),
+                    )
+
                     when {
                         state.isLoading -> {
                             Box(
@@ -570,6 +581,19 @@ private fun AppsSearchField(
         placeholder = stringResource(Res.string.search_your_apps),
         modifier = modifier,
     )
+}
+
+@Composable
+private fun KeepAtTopWhenSectionsChange(
+    gridState: LazyStaggeredGridState,
+    sections: List<Boolean>,
+) {
+    val previous = remember { arrayOf(sections) }
+    SideEffect {
+        val atTop = gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
+        if (previous[0] != sections && atTop) gridState.requestScrollToItem(0)
+        previous[0] = sections
+    }
 }
 
 // An app on its own card, or several apps from one repo on one card.
