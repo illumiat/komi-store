@@ -46,3 +46,13 @@ tasks.register("printRuntimeDependencies") {
         coordinatesProvider.get().forEach { println(it) }
     }
 }
+
+dependencies {
+    androidTestImplementation(projects.core.presentation)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+}
