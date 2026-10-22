@@ -41,12 +41,20 @@ internal class ParkedInstallSettler(
         }
     }
 
+    // A parked file that cannot be removed must not keep an installed build parked.
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun settleFinishedPark(
         app: InstalledAppEntity,
         parkedPath: String,
         system: SystemPackageInfo,
     ): InstalledAppEntity {
-        runCatching { discard(app.packageName, parkedPath) }
+        try {
+            discard(app.packageName, parkedPath)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Updates: could not discard the parked file for ${app.packageName}" }
+        }
         dao.updateApp(
             app
                 .toDomain()
