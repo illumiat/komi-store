@@ -100,6 +100,7 @@ class InstallationManagerImpl(
                     installedReleaseId = params.releaseId,
                     installedAssetId = params.assetId,
                     installedAssetDigest = params.assetDigest,
+                    installedReleasePublishedAt = params.releasePublishedAt,
                     latestVersion = null,
                     latestAssetName = null,
                     latestAssetUrl = null,
@@ -137,6 +138,8 @@ class InstallationManagerImpl(
                         params.assetId.takeIf { params.pendingInstallFilePath != null },
                     pendingInstallAssetDigest =
                         params.assetDigest.takeIf { params.pendingInstallFilePath != null },
+                    pendingInstallReleasePublishedAt =
+                        params.releasePublishedAt.takeIf { params.pendingInstallFilePath != null },
                     pendingInstallStartedAt =
                         System
                             .now()
@@ -174,6 +177,7 @@ class InstallationManagerImpl(
             newReleaseId = params.releaseId,
             newAssetId = params.assetId,
             newAssetDigest = params.assetDigest,
+            newReleasePublishedAt = params.releasePublishedAt,
             newAssetName = params.assetName,
             newAssetUrl = params.assetUrl,
             newVersionName = params.apkInfo.versionName,

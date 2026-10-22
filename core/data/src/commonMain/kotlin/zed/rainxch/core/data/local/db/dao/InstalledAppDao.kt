@@ -214,7 +214,8 @@ interface InstalledAppDao {
                installedVersionCode = :installedVersionCode,
                installedReleaseId = :releaseId,
                installedAssetId = :assetId,
-               installedAssetDigest = :digest
+               installedAssetDigest = :digest,
+               installedReleasePublishedAt = :releasePublishedAt
          WHERE packageName = :packageName
         """,
     )
@@ -227,6 +228,7 @@ interface InstalledAppDao {
         releaseId: Long?,
         assetId: Long?,
         digest: String?,
+        releasePublishedAt: String?,
     )
 
     @Query(
@@ -234,7 +236,8 @@ interface InstalledAppDao {
         UPDATE installed_apps
            SET installedReleaseId = NULL,
                installedAssetId = NULL,
-               installedAssetDigest = NULL
+               installedAssetDigest = NULL,
+               installedReleasePublishedAt = NULL
          WHERE packageName = :packageName
         """,
     )
@@ -258,6 +261,30 @@ interface InstalledAppDao {
         assetName: String?,
     )
 
+    @Query(
+        """
+        UPDATE installed_apps
+           SET installedAssetDigest = :digest
+         WHERE packageName = :packageName
+        """,
+    )
+    suspend fun setInstalledAssetDigest(
+        packageName: String,
+        digest: String,
+    )
+
+    @Query(
+        """
+        UPDATE installed_apps
+           SET installedReleasePublishedAt = :publishedAt
+         WHERE packageName = :packageName
+        """,
+    )
+    suspend fun setInstalledReleasePublishedAt(
+        packageName: String,
+        publishedAt: String?,
+    )
+
     // Discarding a park drops every trace of the target: a leftover identity or start time
     // would be adopted by the next unrelated install.
     @Query(
@@ -269,6 +296,7 @@ interface InstalledAppDao {
                pendingInstallReleaseId = NULL,
                pendingInstallAssetId = NULL,
                pendingInstallAssetDigest = NULL,
+               pendingInstallReleasePublishedAt = NULL,
                pendingInstallStartedAt = NULL,
                isPendingInstall = 0
          WHERE packageName = :packageName
@@ -291,6 +319,7 @@ interface InstalledAppDao {
                pendingInstallReleaseId = :releaseId,
                pendingInstallAssetId = :assetId,
                pendingInstallAssetDigest = :digest,
+               pendingInstallReleasePublishedAt = :releasePublishedAt,
                pendingInstallStartedAt = NULL,
                isPendingInstall = 1
          WHERE packageName = :packageName
@@ -302,9 +331,10 @@ interface InstalledAppDao {
         path: String,
         version: String?,
         assetName: String?,
-        digest: String?,
         releaseId: Long?,
         assetId: Long?,
+        releasePublishedAt: String?,
+        digest: String?,
     )
 
     @Query(

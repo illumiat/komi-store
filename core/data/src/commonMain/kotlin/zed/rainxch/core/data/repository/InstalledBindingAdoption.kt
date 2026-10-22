@@ -29,6 +29,7 @@ internal suspend fun adoptTagWhenProven(
             releaseId = matchedRelease.id,
             assetId = matchedAsset.id,
             digest = provenDigest,
+            releasePublishedAt = matchedRelease.publishedAt,
         )
     } else {
         dao.adoptMatchedTag(
@@ -62,6 +63,7 @@ internal suspend fun rebindProvenIdentity(
             releaseId = matchedRelease.id,
             assetId = matchedAsset.id,
             digest = matchedDigest,
+            releasePublishedAt = matchedRelease.publishedAt,
         )
     }.onFailure { error ->
         Logger.w(error) { "Failed to rebind the proven identity for ${app.packageName}" }

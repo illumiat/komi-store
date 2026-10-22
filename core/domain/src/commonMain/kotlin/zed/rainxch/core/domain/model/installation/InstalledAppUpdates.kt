@@ -4,11 +4,13 @@ import zed.rainxch.core.domain.utils.VersionMath
 import zed.rainxch.core.domain.utils.VersionVerdict
 import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
 
+@Suppress("LongParameterList", "CyclomaticComplexMethod")
 fun InstalledApp.confirmInstall(
     tag: String,
     releaseId: Long? = null,
     assetId: Long? = null,
     assetDigest: String? = null,
+    releasePublishedAt: String? = null,
     // Unknown must be null, never "": "" never equals a real asset name.
     assetName: String?,
     assetUrl: String?,
@@ -46,6 +48,7 @@ fun InstalledApp.confirmInstall(
         installedReleaseId = releaseId,
         installedAssetId = assetId,
         installedAssetDigest = assetDigest,
+        installedReleasePublishedAt = releasePublishedAt,
         isUpdateAvailable =
             when {
                 latestIsSkipped -> false
@@ -65,6 +68,7 @@ fun InstalledApp.confirmInstall(
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
         pendingInstallStartedAt = null,
     )
 }
@@ -132,9 +136,16 @@ fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
                 recordedBuildStands -> installedAssetDigest
                 else -> null
             },
+        installedReleasePublishedAt =
+            when {
+                parkedBuildLanded -> pendingInstallReleasePublishedAt
+                recordedBuildStands -> installedReleasePublishedAt
+                else -> null
+            },
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
         pendingInstallStartedAt = null,
     )
 }
@@ -183,11 +194,14 @@ fun InstalledApp.resolvePendingFromProvenEvent(
         installedReleaseId = if (parkedIdentity) pendingInstallReleaseId else installedReleaseId,
         installedAssetId = if (parkedIdentity) pendingInstallAssetId else installedAssetId,
         installedAssetDigest = if (parkedIdentity) pendingInstallAssetDigest else installedAssetDigest,
+        installedReleasePublishedAt =
+            if (parkedIdentity) pendingInstallReleasePublishedAt else installedReleasePublishedAt,
         isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName),
         lastUpdatedAt = at,
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
         pendingInstallStartedAt = null,
     )
 }
@@ -395,6 +409,7 @@ fun InstalledApp.observeExternalInstall(
         installedReleaseId = null,
         installedAssetId = null,
         installedAssetDigest = null,
+        installedReleasePublishedAt = null,
         isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
     )
 }
@@ -403,6 +418,7 @@ fun InstalledApp.markPending(
     releaseId: Long?,
     assetId: Long?,
     assetDigest: String?,
+    releasePublishedAt: String? = null,
     // Set at the moment the APK is handed to the installer; null while the park only waits
     // for the user, so a deferred download never expires.
     startedAt: Long? = null,
@@ -412,6 +428,7 @@ fun InstalledApp.markPending(
         pendingInstallReleaseId = releaseId,
         pendingInstallAssetId = assetId,
         pendingInstallAssetDigest = assetDigest,
+        pendingInstallReleasePublishedAt = releasePublishedAt,
         pendingInstallStartedAt = startedAt,
     )
 
@@ -421,6 +438,7 @@ fun InstalledApp.clearPending(): InstalledApp =
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallReleasePublishedAt = null,
         pendingInstallStartedAt = null,
     )
 

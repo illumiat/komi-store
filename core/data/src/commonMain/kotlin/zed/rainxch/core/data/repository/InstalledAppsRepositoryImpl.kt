@@ -242,18 +242,15 @@ class InstalledAppsRepositoryImpl(
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
             val bound =
-                if (app.installedAssetId != null || app.installedAssetDigest != null) {
-                    UpdateVerdict.Bound(
-                        assetId = app.installedAssetId,
-                        assetDigest = app.installedAssetDigest,
-                        releasePublishedAt =
-                            app.installedReleaseId?.let { id ->
-                                releases.firstOrNull { it.id == id }?.publishedAt
-                            },
-                    )
-                } else {
-                    null
-                }
+                resolveInstalledBinding(
+                    app = app,
+                    releases = releases,
+                    matchedRelease = matchedRelease,
+                    matchedAsset = primaryAsset,
+                    dao = installedAppsDao,
+                    packageMonitor = packageMonitor,
+                    verifier = digestVerifier,
+                )
 
             // A rolling tag reuses one tag string across builds. Without a binding, only the
             // installed file can tell whether the release is the build the device runs.
@@ -420,6 +417,7 @@ class InstalledAppsRepositoryImpl(
         newReleaseId: Long?,
         newAssetId: Long?,
         newAssetDigest: String?,
+        newReleasePublishedAt: String?,
         newAssetName: String?,
         newAssetUrl: String?,
         newVersionName: String,
@@ -455,6 +453,7 @@ class InstalledAppsRepositoryImpl(
                     releaseId = newReleaseId,
                     assetId = newAssetId,
                     assetDigest = newAssetDigest,
+                    releasePublishedAt = newReleasePublishedAt,
                     assetName = newAssetName,
                     assetUrl = newAssetUrl,
                     versionName = newVersionName,
@@ -504,6 +503,7 @@ class InstalledAppsRepositoryImpl(
                             releaseId = app.latestReleaseId,
                             assetId = app.latestAssetId,
                             assetDigest = app.latestAssetDigest,
+                            releasePublishedAt = app.latestReleasePublishedAt,
                             // The caller marks a download it is about to hand to the
                             // installer, so this is the moment the 24h window starts.
                             startedAt = System.currentTimeMillis(),
@@ -640,18 +640,20 @@ class InstalledAppsRepositoryImpl(
         path: String,
         version: String?,
         assetName: String?,
-        assetDigest: String?,
         releaseId: Long?,
         assetId: Long?,
+        releasePublishedAt: String?,
+        assetDigest: String?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
             path = path,
             version = version,
             assetName = assetName,
-            digest = assetDigest,
             releaseId = releaseId,
             assetId = assetId,
+            releasePublishedAt = releasePublishedAt,
+            digest = assetDigest,
         )
     }
 

@@ -10,7 +10,10 @@ val MIGRATION_20_21 =
     object : Migration(20, 21) {
         override fun migrate(connection: SQLiteConnection) {
             connection.execSQL(
-                "ALTER TABLE installed_apps ADD COLUMN pendingInstallStartedAt INTEGER DEFAULT NULL",
+                "ALTER TABLE installed_apps ADD COLUMN installedReleasePublishedAt TEXT DEFAULT NULL",
+            )
+            connection.execSQL(
+                "ALTER TABLE installed_apps ADD COLUMN pendingInstallReleasePublishedAt TEXT DEFAULT NULL",
             )
         }
     }

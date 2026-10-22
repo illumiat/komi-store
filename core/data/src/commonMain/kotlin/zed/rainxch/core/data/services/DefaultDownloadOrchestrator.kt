@@ -518,6 +518,8 @@ class DefaultDownloadOrchestrator(
                         releaseId = releaseId,
                         assetId = spec.asset.id,
                         assetDigest = spec.asset.digest,
+                        releasePublishedAt =
+                            app.latestReleasePublishedAt.takeIf { app.latestReleaseId == spec.releaseId },
                         // The APK is about to be handed to the installer: the 24h settle
                         // window starts here.
                         startedAt = System.currentTimeMillis(),
@@ -552,15 +554,17 @@ class DefaultDownloadOrchestrator(
                 Logger.w(e) { "Orchestrator: could not hash the parked file for ${spec.packageName}" }
                 null
             }
+        val releasePublishedAt = parkedReleasePublishedAt(spec)
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
                 path = filePath,
                 version = spec.releaseTag,
                 assetName = spec.asset.name,
-                assetDigest = downloadedDigest,
                 releaseId = spec.releaseId,
                 assetId = spec.asset.id.takeIf { it > 0L },
+                releasePublishedAt = releasePublishedAt,
+                assetDigest = downloadedDigest,
             )
         } catch (e: CancellationException) {
             throw e
@@ -578,6 +582,19 @@ class DefaultDownloadOrchestrator(
         }
         updateEntry(spec.packageName) { it.copy(stage = DownloadStage.AwaitingInstall) }
     }
+
+    private suspend fun parkedReleasePublishedAt(spec: DownloadSpec): String? =
+        try {
+            installedAppsRepository
+                .getAppByPackage(spec.packageName)
+                ?.takeIf { spec.releaseId != null && it.latestReleaseId == spec.releaseId }
+                ?.latestReleasePublishedAt
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Orchestrator: could not read the parked release timestamp" }
+            null
+        }
 
     override suspend fun downgradeToDeferred(packageName: String) {
         val shouldNotify: Boolean
@@ -880,6 +897,7 @@ class DefaultDownloadOrchestrator(
                     releaseId = app.pendingInstallReleaseId,
                     assetId = app.pendingInstallAssetId,
                     assetDigest = app.pendingInstallAssetDigest,
+                    releasePublishedAt = app.pendingInstallReleasePublishedAt,
                     startedAt = System.currentTimeMillis(),
                 ),
             )
