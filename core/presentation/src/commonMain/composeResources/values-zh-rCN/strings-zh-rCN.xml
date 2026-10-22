@@ -1465,4 +1465,13 @@
     <string name="display_mode_description">向屏幕请求指定的刷新率。自动由系统决定。</string>
     <string name="display_mode_auto">自动</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">显示标签页</string>
+    <string name="repo_layout_title">仓库布局</string>
+    <string name="repo_layout_list">列表</string>
+    <string name="repo_layout_grid">网格</string>
+    <string name="apps_tag_updates_ignored">已忽略更新</string>
+    <string name="apps_tag_skipped">已跳过 %1$s</string>
+    <string name="apps_tag_asset_filter">资源筛选</string>
+    <string name="apps_variant_stale_pick">变体已更改，请重新选择。</string>
+    <string name="apps_no_release_found">找不到可安装的发布版本。</string>
 </resources>

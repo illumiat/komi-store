@@ -1475,4 +1475,13 @@
     <string name="display_mode_description">Demande une fréquence d\'affichage précise. Automatique laisse le système décider.</string>
     <string name="display_mode_auto">Automatique</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Afficher les onglets</string>
+    <string name="repo_layout_title">Disposition du dépôt</string>
+    <string name="repo_layout_list">Liste</string>
+    <string name="repo_layout_grid">Grille</string>
+    <string name="apps_tag_updates_ignored">Mises à jour ignorées</string>
+    <string name="apps_tag_skipped">%1$s ignoré</string>
+    <string name="apps_tag_asset_filter">Filtre de ressources</string>
+    <string name="apps_variant_stale_pick">La variante a changé. Sélectionnez-la à nouveau.</string>
+    <string name="apps_no_release_found">Aucune version à installer n’a été trouvée.</string>
 </resources>

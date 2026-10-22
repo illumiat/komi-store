@@ -1474,4 +1474,13 @@
     <string name="display_mode_description">Solicita al panel una frecuencia concreta. Automático deja decidir al sistema.</string>
     <string name="display_mode_auto">Automático</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Mostrar pestañas</string>
+    <string name="repo_layout_title">Diseño del repositorio</string>
+    <string name="repo_layout_list">Lista</string>
+    <string name="repo_layout_grid">Cuadrícula</string>
+    <string name="apps_tag_updates_ignored">Actualizaciones ignoradas</string>
+    <string name="apps_tag_skipped">Omitido %1$s</string>
+    <string name="apps_tag_asset_filter">Filtro de recursos</string>
+    <string name="apps_variant_stale_pick">La variante cambió. Vuelve a elegirla.</string>
+    <string name="apps_no_release_found">No se encontró una versión para instalar.</string>
 </resources>
