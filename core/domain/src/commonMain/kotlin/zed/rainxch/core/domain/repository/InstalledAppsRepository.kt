@@ -71,6 +71,18 @@ interface InstalledAppsRepository {
         isUpdateAvailable: Boolean,
     )
 
+    // Refresh the signature baseline after an external install. Default no-op keeps test
+    // doubles source-compatible.
+    suspend fun updateSigningFingerprint(
+        packageName: String,
+        signingFingerprint: String?,
+    ) = Unit
+
+    suspend fun setPendingInstallVersionCode(
+        packageName: String,
+        versionCode: Long?,
+    ) = Unit
+
     suspend fun updatePendingStatus(
         packageName: String,
         isPending: Boolean,
