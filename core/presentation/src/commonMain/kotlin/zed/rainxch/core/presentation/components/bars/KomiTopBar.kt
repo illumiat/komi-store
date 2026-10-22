@@ -278,7 +278,7 @@ private fun ClassicTopBar(
     val colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent)
     val titleRole = if (size == KomiTopBarSize.Masthead) KomiTextRole.Display else KomiTextRole.ScreenTitle
     val titleContent: @Composable () -> Unit = {
-        Column(modifier = Modifier.testTag(KomiTestTags.TOP_BAR_CONTENT)) {
+        Column {
             KomiText(
                 text = title,
                 role = titleRole,
@@ -319,7 +319,7 @@ private fun ClassicTopBar(
             colors = colors,
             windowInsets = windowInsets,
             scrollBehavior = chrome?.behavior,
-            modifier = modifier.testTag(KomiTestTags.CLASSIC_TOP_BAR),
+            modifier = modifier,
         )
     } else {
         TopAppBar(
@@ -329,7 +329,7 @@ private fun ClassicTopBar(
             colors = colors,
             windowInsets = windowInsets,
             scrollBehavior = chrome?.behavior,
-            modifier = modifier.testTag(KomiTestTags.CLASSIC_TOP_BAR),
+            modifier = modifier,
         )
     }
 }

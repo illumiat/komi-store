@@ -41,7 +41,9 @@ class ClassicPersonalityInsetsTest : TargetSdk37TestBase() {
         runBlocking {
             GlobalContext.get().get<TweaksRepository>().setPersonality(AppPersonality.CLASSIC)
         }
-        rule.waitForTag(KomiTestTags.CLASSIC_TOP_BAR, 20_000)
+        // A Classic tab screen has no top bar: Explore starts with its chip row, and the tab card holds the search
+        // field and the tabs at the bottom.
+        rule.waitForTag(KomiTestTags.CLASSIC_TAB_CARD, 20_000)
         rule.waitForIdle()
 
         val decor = rule.activity.window.decorView
@@ -59,25 +61,25 @@ class ClassicPersonalityInsetsTest : TargetSdk37TestBase() {
         val navBottom = bars.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
         assumeTrue("device must report a status bar inset", statusTop > 0)
 
-        val topBar =
+        val chips =
             rule
-                .onNodeWithTag(KomiTestTags.TOP_BAR_CONTENT, useUnmergedTree = true)
+                .onNodeWithTag(KomiTestTags.DISCOVERY_CHIPS, useUnmergedTree = true)
                 .fetchSemanticsNode()
                 .boundsInWindow
         assertTrue(
-            "classic top bar is under the status bar: top=${topBar.top}, inset=$statusTop",
-            topBar.top >= statusTop,
+            "classic chip row is under the status bar: top=${chips.top}, inset=$statusTop",
+            chips.top >= statusTop,
         )
 
-        val label =
+        val card =
             rule
-                .onNodeWithTag(KomiTestTags.navLabel("ExploreScreen"), useUnmergedTree = true)
+                .onNodeWithTag(KomiTestTags.CLASSIC_TAB_CARD, useUnmergedTree = true)
                 .fetchSemanticsNode()
                 .boundsInWindow
         val limit = decor.height - navBottom
         assertTrue(
-            "classic bottom bar is under the navigation bar: bottom=${label.bottom}, limit=$limit",
-            label.bottom <= limit,
+            "classic tab card is above the navigation bar: bottom=${card.bottom}, limit=$limit",
+            card.bottom <= limit,
         )
     }
 }

@@ -52,6 +52,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.ImmutableList
@@ -66,6 +67,7 @@ import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalSharedTransitionScope
 import zed.rainxch.core.presentation.personality.ClassicPersonality
 import zed.rainxch.core.presentation.spacing.Spacing
+import zed.rainxch.core.presentation.testing.KomiTestTags
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.search_repositories_hint
 import zed.rainxch.githubstore.core.presentation.res.show_tabs
@@ -199,7 +201,7 @@ internal fun KomiTabCard(
     ) {
         // The screen's FAB rides above the card's end, like Chocola's shuffle button.
         if (!typing) fab?.let { CompositionLocalProvider(LocalInBar provides true, content = it) }
-        CardSurface(modifier = tabSwitchModifier()) {
+        CardSurface(modifier = tabSwitchModifier().testTag(KomiTestTags.CLASSIC_TAB_CARD)) {
             Column(modifier = Modifier.animateContentSize(motion.bouncySpatial())) {
                 Row(
                     modifier = Modifier.fillMaxWidth().heightIn(min = SearchRowHeight).padding(horizontal = Spacing.sm),
