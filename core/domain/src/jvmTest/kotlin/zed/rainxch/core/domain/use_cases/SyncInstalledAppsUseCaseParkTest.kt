@@ -350,7 +350,7 @@ class SyncInstalledAppsUseCaseParkTest {
                 pendingInstallReleaseId = 900L,
                 pendingInstallAssetId = 800L,
                 pendingInstallAssetDigest = "sha256:new",
-            )
+            ).copy(pendingInstallVersionCode = 100L)
         val repo = RecordingInstalledAppsRepository(listOf(parked))
         val info = systemInfo(parked.packageName, versionName = "1.0.0", versionCode = 100L, lastUpdateTime = 2_000L)
         val monitor = FakePackageMonitor(packageName = parked.packageName, systemInfo = info)

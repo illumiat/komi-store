@@ -144,6 +144,8 @@ class InstallationManagerImpl(
                         params.releasePublishedAt.takeIf { params.pendingInstallFilePath != null },
                     pendingInstallStartedAt =
                         now.takeIf { params.pendingInstallFilePath != null },
+                    pendingInstallVersionCode =
+                        apkInfo.versionCode.takeIf { params.pendingInstallFilePath != null },
                     sourceHost = params.sourceHost,
                 )
 

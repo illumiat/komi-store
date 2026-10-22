@@ -296,8 +296,15 @@ class SyncInstalledAppsUseCase(
         // Version fields did not prove the target, but PackageManager's install time did:
         // the park was handed to the installer after the version was recorded and the system
         // installed something after that hand-off.
+        // The parked build's own versionCode is the minimum proof. A legacy park without it
+        // stays parked; it must not inherit an unrelated install.
+        val parkedCode = app.pendingInstallVersionCode
         val provedBySystemInstall =
-            app.hasPendingIdentity && systemInfo != null && app.installedAfterPark(systemInfo)
+            app.hasPendingIdentity &&
+                systemInfo != null &&
+                parkedCode != null &&
+                systemInfo.versionCode == parkedCode &&
+                app.installedAfterPark(systemInfo)
         val startedAt = app.pendingInstallStartedAt
         val abandoned =
             startedAt != null && System.currentTimeMillis() - startedAt > PENDING_INSTALL_TIMEOUT_MS

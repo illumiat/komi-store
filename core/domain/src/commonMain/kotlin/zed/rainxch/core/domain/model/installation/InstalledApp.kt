@@ -38,6 +38,7 @@ data class InstalledApp(
     val installedAssetDigest: String? = null,
     val installedReleasePublishedAt: String? = null,
     val boundAt: Long? = null,
+    val pendingInstallVersionCode: Long? = null,
     val latestVersionName: String? = null,
     val latestVersionCode: Long? = null,
     val latestReleasePublishedAt: String? = null,

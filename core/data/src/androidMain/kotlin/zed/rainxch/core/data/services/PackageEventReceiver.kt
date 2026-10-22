@@ -33,6 +33,7 @@ import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.system.SystemInstallSerializer
 import zed.rainxch.core.domain.utils.VersionVerdict
 import zed.rainxch.core.domain.utils.resolveExternalInstallVerdict
+import java.util.concurrent.ConcurrentHashMap
 
 class PackageEventReceiver() :
     BroadcastReceiver(),
@@ -52,7 +53,9 @@ class PackageEventReceiver() :
     private var explicitSystemInstallSerializer: SystemInstallSerializer? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val eventMutex = Mutex()
+    private val eventLocks = ConcurrentHashMap<String, Mutex>()
+
+    private fun lockFor(packageName: String): Mutex = eventLocks.getOrPut(packageName) { Mutex() }
 
     constructor(
         installedAppsRepository: InstalledAppsRepository,
@@ -102,7 +105,7 @@ class PackageEventReceiver() :
         val pendingResult = goAsync()
         scope.launch {
             try {
-                eventMutex.withLock {
+                lockFor(packageName).withLock {
                     when (intent?.action) {
                         Intent.ACTION_PACKAGE_ADDED,
                         Intent.ACTION_PACKAGE_REPLACED,

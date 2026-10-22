@@ -977,6 +977,7 @@ class DefaultDownloadOrchestrator(
                     pendingInstallAssetId = entry.assetId.takeIf { isPending && it > 0L },
                     pendingInstallAssetDigest = entry.assetDigest.takeIf { isPending },
                     pendingInstallStartedAt = now.takeIf { isPending },
+                    pendingInstallVersionCode = apkInfo.versionCode.takeIf { isPending },
                     sourceHost = entry.sourceHost,
                 ),
             )
