@@ -1,3 +1,5 @@
+@file:Suppress("TooGenericExceptionCaught")
+
 package zed.rainxch.core.data.repository
 
 import co.touchlab.kermit.Logger
