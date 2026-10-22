@@ -5,9 +5,9 @@ CI (`.github/workflows/pr-checks.yml`) runs on every pull request and every push
 ```bash
 ./gradlew spotlessApply                                   # format files changed vs origin/main (ktlint 1.8.0 + Compose rules + .editorconfig)
 ./gradlew detekt                                          # static analysis; baseline: <module>/detekt-baseline.xml
-./gradlew lintDebug                                       # Android Lint; baseline: <module>/lint-baseline.xml
+./gradlew lintDebug lintAndroidMain                       # Android Lint; baseline: <module>/lint-baseline.xml
 ./gradlew jvmTest koverXmlReport                          # tests and merged coverage (build/reports/kover)
-./gradlew compileDebugKotlinAndroid; ./gradlew debugStabilityCheck   # Compose stability vs <module>/stability/*.stability
+./gradlew compileKotlinJvm compileAndroidMain; ./gradlew stabilityCheck   # Compose stability vs <module>/stability/<project>.stability
 ./gradlew :konsist-test:test                              # architecture rules
 ./gradlew spotlessInstallGitPrePushHook                   # opt-in pre-push format check
 ```
@@ -30,7 +30,7 @@ rm -rf build/spotless-clean build/spotless-lints .gradle/configuration-cache
 
 ktlint findings the formatter can't fix (mostly Compose rules) are listed per file and rule in `config/ktlint/baseline.txt`, and Spotless suppresses exactly those. When you fix one, delete its line.
 
-Refresh a baseline only for an intentional change: `detektBaseline`, `updateLintBaseline` or `debugStabilityDump`. The stability analyzer (0.7.0) shares one output file across a module's compilations, so run its tasks in their own Gradle invocation right after `compileDebugKotlinAndroid` (fixed upstream only in releases built for Kotlin 2.4). Kotlin must match the stability analyzer's Kotlin version (see its version map) when bumping either.
+Refresh a baseline only for an intentional change: `detektBaseline`, `updateLintBaseline` (`updateLintBaselineAndroidMain` in KMP modules) or `stabilityDump`. The stability analyzer (0.15.0) merges what every compilation that ran wrote under `build/stability/`, so compile the JVM and Android main targets first and run its tasks in their own Gradle invocation. Kotlin must match the stability analyzer's Kotlin version (see its version map) when bumping either.
 
 ## Warnings as errors
 
@@ -41,6 +41,8 @@ Kotlin warnings are errors (`allWarningsAsErrors`). A module can opt out with `k
 The rules and their allowlists live in `konsist-test/src/test/kotlin/zed/rainxch/konsist/`. An allowlist can only shrink: the file-size test fails when an allowlisted file drops under the limit, so remove the entry in the same PR.
 
 `DocsRulesTest` reads `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/agents/*.md` and `feature/*/CLAUDE.md`. A backticked route such as `GithubStoreGraph.DetailsScreen` must exist in the graph, and any backticked name ending in Screen or Graph must still exist in production code. When you rename a route or screen, update the docs in the same PR.
+
+`DesignTokenRulesTest` keeps design values in the personality package (`core/presentation/.../personality/`). Outside it, it bans raw `.sp` sizes, `FontWeight.`, hand-built `TextStyle(`, literal `tween` durations, literal `.copy(alpha = ...)` tints and `Color(0x...)`. Outside `core/presentation` it also bans Material's `Text`, `MaterialTheme.typography`, `Popup` and `TooltipBox`. Today's matches are counted per file in `konsist-test/src/test/resources/design-tokens/`: a file may not go over its count, and when it drops, lower or delete its line in the same PR.
 
 ## Agent config
 
