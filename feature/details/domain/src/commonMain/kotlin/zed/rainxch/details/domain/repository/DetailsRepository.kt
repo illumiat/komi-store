@@ -39,7 +39,7 @@ interface DetailsRepository {
         sourceHost: String? = null,
         bypassCache: Boolean = false,
         allowStale: Boolean = true,
-        preferDirectSource: Boolean = false,
+        preferDirectSource: Boolean = true,
     ): List<GithubRelease>
 
     suspend fun getCachedReleases(
