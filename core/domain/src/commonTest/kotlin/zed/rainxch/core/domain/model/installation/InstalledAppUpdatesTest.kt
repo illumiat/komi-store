@@ -89,6 +89,16 @@ class InstalledAppUpdatesTest {
     }
 
     @Test
+    fun pendingResolutionStaysKeepWhenTheDeviceIsBelowTheParkedTarget() {
+        val parked = app(latestVersionCode = 200L).markPending(releaseId = 1L, assetId = 2L, assetDigest = "sha256:x")
+        val resolution =
+            parked.pendingInstallResolution(
+                packageInfo(versionName = "1.0.0", versionCode = 100L, lastUpdateTime = 2_000L),
+            )
+        assertEquals(PendingInstallResolution.Keep, resolution)
+    }
+
+    @Test
     fun settling_a_proven_event_records_the_settlement_time() {
         val parked =
             testInstalledApp(
