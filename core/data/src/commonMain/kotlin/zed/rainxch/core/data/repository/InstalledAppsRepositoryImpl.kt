@@ -135,48 +135,7 @@ class InstalledAppsRepositoryImpl(
             return backendReleases.toReleaseWindow(includePreReleases)
         }
 
-        return fetchGithubReleaseWindow(owner, repo, includePreReleases)
-    }
-
-    private suspend fun fetchGithubReleaseWindow(
-        owner: String,
-        repo: String,
-        includePreReleases: Boolean,
-    ): List<GithubRelease> {
-        return try {
-            val releases =
-                httpClient
-                    .executeRequest<List<ReleaseNetwork>> {
-                        get("/repos/$owner/$repo/releases") {
-                            header(HttpHeaders.Accept, "application/vnd.github+json")
-                            parameter("per_page", RELEASE_WINDOW)
-                        }
-                    }.getOrNull() ?: return emptyList()
-
-            releases
-                .asSequence()
-                .filter { it.draft != true }
-                .sortedByDescending { it.publishedAt ?: it.createdAt ?: "" }
-                .map { it.toDomain() }
-                .onEach { release ->
-                    val flagSays = release.isPrerelease
-                    val tagSays = VersionMath.isPreReleaseTag(release.tagName)
-                    if (flagSays != tagSays) {
-                        Logger.w {
-                            "Pre-release flag/tag mismatch for $owner/$repo " +
-                                "release '${release.tagName}' (name='${release.name}'): " +
-                                "apiFlag=$flagSays, tagMarker=$tagSays — " +
-                                "treating as pre-release=$flagSays"
-                        }
-                    }
-                }.filter { includePreReleases || !it.isEffectivelyPreRelease() }
-                .toList()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Logger.e { "Failed to fetch releases for $owner/$repo: ${e.message}" }
-            emptyList()
-        }
+        return fetchGithubReleaseWindow(httpClient, owner, repo, includePreReleases, RELEASE_WINDOW)
     }
 
     private suspend fun resolveTrackedReleaseFor(
@@ -437,7 +396,7 @@ class InstalledAppsRepositoryImpl(
             if (app.sourceHost != null) {
                 fetchForgejoReleaseWindow(app.sourceHost, app.repoOwner, app.repoName, app.includePreReleases)
             } else {
-                fetchGithubReleaseWindow(app.repoOwner, app.repoName, app.includePreReleases)
+                fetchGithubReleaseWindow(httpClient, app.repoOwner, app.repoName, app.includePreReleases, RELEASE_WINDOW)
             }
 
         if (releases.isEmpty()) return null
