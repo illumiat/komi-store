@@ -84,6 +84,7 @@ class InstallationManagerImpl(
                 runCatching { tweaksRepository.getIncludePreReleases().first() }
                     .getOrDefault(false)
 
+            val now = System.now().toEpochMilliseconds()
             val installedApp =
                 InstalledApp(
                     packageName = apkInfo.packageName,
@@ -107,9 +108,10 @@ class InstallationManagerImpl(
                     latestAssetSize = null,
                     appName = apkInfo.appName,
                     installSource = InstallSource.THIS_APP,
-                    installedAt = System.now().toEpochMilliseconds(),
-                    lastCheckedAt = System.now().toEpochMilliseconds(),
-                    lastUpdatedAt = System.now().toEpochMilliseconds(),
+                    installedAt = now,
+                    lastCheckedAt = now,
+                    lastUpdatedAt = now,
+                    boundAt = now.takeUnless { params.isPendingInstall },
                     isUpdateAvailable = false,
                     updateCheckEnabled = true,
                     releaseNotes = "",
@@ -141,10 +143,7 @@ class InstallationManagerImpl(
                     pendingInstallReleasePublishedAt =
                         params.releasePublishedAt.takeIf { params.pendingInstallFilePath != null },
                     pendingInstallStartedAt =
-                        System
-                            .now()
-                            .toEpochMilliseconds()
-                            .takeIf { params.pendingInstallFilePath != null },
+                        now.takeIf { params.pendingInstallFilePath != null },
                     sourceHost = params.sourceHost,
                 )
 

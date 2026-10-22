@@ -10,6 +10,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import zed.rainxch.core.data.local.db.dao.ExternalLinkDao
@@ -50,6 +52,7 @@ class PackageEventReceiver() :
     private var explicitSystemInstallSerializer: SystemInstallSerializer? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val eventMutex = Mutex()
 
     constructor(
         installedAppsRepository: InstalledAppsRepository,
@@ -94,21 +97,28 @@ class PackageEventReceiver() :
 
         Logger.d { "PackageEventReceiver: ${intent?.action} for $packageName" }
 
-        try {
-            when (intent?.action) {
-                Intent.ACTION_PACKAGE_ADDED,
-                Intent.ACTION_PACKAGE_REPLACED,
-                Intent.ACTION_MY_PACKAGE_REPLACED,
-                -> {
-                    scope.launch { onPackageInstalled(packageName) }
-                }
+        // Keep the process alive until the DB settlement finishes. Doing the work in a
+        // fire-and-forget launch lets Android kill the process as soon as onReceive returns.
+        val pendingResult = goAsync()
+        scope.launch {
+            try {
+                eventMutex.withLock {
+                    when (intent?.action) {
+                        Intent.ACTION_PACKAGE_ADDED,
+                        Intent.ACTION_PACKAGE_REPLACED,
+                        Intent.ACTION_MY_PACKAGE_REPLACED,
+                        -> onPackageInstalled(packageName)
 
-                Intent.ACTION_PACKAGE_FULLY_REMOVED -> {
-                    scope.launch { onPackageRemoved(packageName) }
+                        Intent.ACTION_PACKAGE_FULLY_REMOVED -> onPackageRemoved(packageName)
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.e { "PackageEventReceiver: Failed to handle ${intent?.action}: ${e.message}" }
+            } finally {
+                pendingResult.finish()
             }
-        } catch (e: Exception) {
-            Logger.e { "PackageEventReceiver: Failed to handle ${intent?.action}: ${e.message}" }
         }
     }
 
@@ -176,14 +186,10 @@ class PackageEventReceiver() :
                     resolution.resolvedTag
                 }
 
-                // The broadcast itself proves the package was replaced after our park, so a
-                // recorded identity settles even when the version did not move.
+                // Keep means the parked target is not proven on the device. Never settle a
+                // park from an unrelated install; leave it for a real proof.
                 PendingInstallResolution.Keep -> {
-                    if (app.hasPendingIdentity && systemInfo != null) {
-                        app.pendingInstallVersion ?: app.latestVersion ?: systemInfo.versionName
-                    } else {
-                        null
-                    }
+                    null
                 }
             }
         if (tag == null || systemInfo == null) {

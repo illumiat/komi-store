@@ -422,6 +422,9 @@ fun InstalledApp.observeExternalInstall(
         installedAssetId = null,
         installedAssetDigest = null,
         installedReleasePublishedAt = null,
+        installedAssetName = null,
+        installedAssetUrl = null,
+        boundAt = null,
         isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName ?: adoptedTag),
     )
 }

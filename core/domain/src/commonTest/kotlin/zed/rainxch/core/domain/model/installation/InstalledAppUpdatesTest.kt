@@ -4,6 +4,7 @@ import zed.rainxch.core.domain.utils.UpdateVerdict
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class InstalledAppUpdatesTest {
@@ -603,6 +604,26 @@ class InstalledAppUpdatesTest {
                 versionCode = 100L,
             )
         assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun observeExternalInstallClearsTheWholeBinding() {
+        val result =
+            app()
+                .copy(
+                    boundAt = 1_000L,
+                    installedAssetName = "old.apk",
+                    installedAssetUrl = "https://example.test/old.apk",
+                ).observeExternalInstall(
+                    versionName = "2.0.0",
+                    versionCode = 200L,
+                )
+        assertNull(result.boundAt)
+        assertNull(result.installedAssetName)
+        assertNull(result.installedAssetUrl)
+        assertNull(result.installedReleaseId)
+        assertNull(result.installedAssetId)
+        assertNull(result.installedAssetDigest)
     }
 
     @Test
