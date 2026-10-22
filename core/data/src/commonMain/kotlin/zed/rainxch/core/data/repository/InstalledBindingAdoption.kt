@@ -31,7 +31,13 @@ internal suspend fun adoptTagWhenProven(
             digest = provenDigest,
             releasePublishedAt = matchedRelease.publishedAt,
         )
-    } else {
+    } else if (app.installedAssetId == null &&
+        app.installedAssetDigest == null &&
+        app.installedReleaseId == null
+    ) {
+        // Legacy row without any identity: there is nothing to contradict, so the tag can
+        // still be adopted. A row that already names bytes must not be relabelled without
+        // proof; otherwise the tag and the identity describe different releases.
         dao.adoptMatchedTag(
             app = app,
             matchedTag = matchedRelease.tagName,
