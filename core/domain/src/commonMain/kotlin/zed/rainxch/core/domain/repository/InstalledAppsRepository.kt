@@ -78,6 +78,11 @@ interface InstalledAppsRepository {
         signingFingerprint: String?,
     ) = Unit
 
+    suspend fun setPendingInstallVersionCode(
+        packageName: String,
+        versionCode: Long?,
+    ) = Unit
+
     suspend fun updatePendingStatus(
         packageName: String,
         isPending: Boolean,

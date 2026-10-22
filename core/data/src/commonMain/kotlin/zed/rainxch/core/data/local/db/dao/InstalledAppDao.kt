@@ -260,6 +260,18 @@ interface InstalledAppDao {
     )
     suspend fun clearInstallBinding(packageName: String)
 
+    @Query(
+        """
+        UPDATE installed_apps
+           SET pendingInstallVersionCode = :versionCode
+         WHERE packageName = :packageName
+        """,
+    )
+    suspend fun setPendingInstallVersionCode(
+        packageName: String,
+        versionCode: Long?,
+    )
+
     // Must not touch the pending identity: callers clear the path before the system confirms the install.
     @Query(
         """

@@ -502,6 +502,13 @@ class InstalledAppsRepositoryImpl(
         installedAppsDao.updateSigningFingerprint(packageName, signingFingerprint)
     }
 
+    override suspend fun setPendingInstallVersionCode(
+        packageName: String,
+        versionCode: Long?,
+    ) {
+        installedAppsDao.setPendingInstallVersionCode(packageName, versionCode)
+    }
+
     override suspend fun updatePendingStatus(
         packageName: String,
         isPending: Boolean,
