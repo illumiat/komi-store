@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -95,6 +96,9 @@ import zed.rainxch.details.presentation.model.LogResult.Error
 import zed.rainxch.details.presentation.model.SigningKeyWarning
 import zed.rainxch.details.presentation.model.SupportedLanguages
 import zed.rainxch.details.presentation.model.TranslationState
+import zed.rainxch.details.presentation.utils.autoTranslateTargetLanguage
+import zed.rainxch.details.presentation.utils.isTranslationProviderConfigured
+import zed.rainxch.details.presentation.utils.shouldAutoTranslate
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.added_to_favourites
 import zed.rainxch.githubstore.core.presentation.res.details_unlink_external_app_failure
@@ -202,6 +206,35 @@ class DetailsViewModel(
 
     init {
         observeOrchestratorForDisplay()
+        observeAutoTranslateSetting()
+    }
+
+    // Toggling the setting off drops the automatic translations a page already shows; toggling it
+    // on fills them in without reopening the repository.
+    private fun observeAutoTranslateSetting() {
+        viewModelScope.launch {
+            tweaksRepository
+                .getAutoTranslateEnabled()
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { enabled ->
+                    aboutTranslationJob?.cancel()
+                    whatsNewTranslationJob?.cancel()
+                    if (enabled) {
+                        maybeAutoTranslate(
+                            readmeBody = _state.value.readmeMarkdown,
+                            releaseDescription = _state.value.selectedRelease?.description,
+                        )
+                    } else {
+                        _state.update {
+                            it.copy(
+                                aboutTranslation = TranslationState(),
+                                whatsNewTranslation = TranslationState(),
+                            )
+                        }
+                    }
+                }
+        }
     }
 
     fun confirmUninstall() {
@@ -441,6 +474,8 @@ class DetailsViewModel(
                         whatsNewMeasuredHeightPx = null,
                     )
                 }
+
+                maybeAutoTranslate(readmeBody = null, releaseDescription = release.description)
             }
 
             DetailsAction.ToggleVersionPicker -> {
@@ -3061,7 +3096,15 @@ class DetailsViewModel(
                     )
                 if (freshReleases.isEmpty()) return@launch
 
+                val previousSelectedId = _state.value.selectedRelease?.id
                 _state.update { it.withFreshReleases(freshReleases) }
+                if (_state.value.selectedRelease?.id != previousSelectedId) {
+                    whatsNewTranslationJob?.cancel()
+                    maybeAutoTranslate(
+                        readmeBody = null,
+                        releaseDescription = _state.value.selectedRelease?.description,
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
@@ -3090,6 +3133,7 @@ class DetailsViewModel(
             }
         val (installable, primary) = recomputeAssetsForRelease(newSelected, installedApp)
         val insights = computeReleaseInsights(freshReleases, installedApp)
+        val releaseChanged = newSelected?.id != selectedRelease?.id
         return copy(
             allReleases = freshReleases,
             releasePlatforms = platformsByRelease(freshReleases),
@@ -3103,6 +3147,7 @@ class DetailsViewModel(
             mergedChangelog = insights.mergedChangelog,
             mergedChangelogBaseTag = insights.mergedChangelogBaseTag,
             latestStableHasInstallableAsset = insights.latestStableHasInstallableAsset,
+            whatsNewTranslation = if (releaseChanged) TranslationState() else whatsNewTranslation,
         )
     }
 
@@ -3196,12 +3241,20 @@ class DetailsViewModel(
                     _events.send(DetailsEvent.OnRefreshError(kind = RefreshError.UPSTREAM))
                 }
 
+                val previousSelectedId = _state.value.selectedRelease?.id
                 _state.update { current ->
                     (freshReleases?.let { current.withFreshReleases(it) } ?: current).copy(
                         isRefreshing = false,
                         repository = refreshed,
                         releasesLoadFailed = freshReleases == null && current.releasesLoadFailed,
                         stats = freshStats ?: current.stats,
+                    )
+                }
+                if (_state.value.selectedRelease?.id != previousSelectedId) {
+                    whatsNewTranslationJob?.cancel()
+                    maybeAutoTranslate(
+                        readmeBody = null,
+                        releaseDescription = _state.value.selectedRelease?.description,
                     )
                 }
 
@@ -3270,60 +3323,97 @@ class DetailsViewModel(
         readmeBody: String?,
         releaseDescription: String?,
     ) {
+        if (readmeBody.isNullOrBlank() && releaseDescription.isNullOrBlank()) return
         viewModelScope.launch {
-            val enabled =
-                runCatching {
-                    tweaksRepository.getAutoTranslateEnabled().first()
-                }.getOrDefault(false)
-            if (!enabled) return@launch
+            val target = autoTranslateTarget() ?: return@launch
+            val sourceLanguage = _state.value.readmeLanguage
 
-            val explicit =
-                runCatching {
-                    tweaksRepository.getAutoTranslateTargetLang().first()
-                }.getOrNull()?.takeIf { it.isNotBlank() }
-            val app =
-                runCatching {
-                    tweaksRepository.getAppLanguage().first()
-                }.getOrNull()?.takeIf { it.isNotBlank() }
-            val target = explicit ?: app ?: translationRepository.getDeviceLanguageCode()
-            if (target.isBlank()) return@launch
-
-            val currentReadmeLang = _state.value.readmeLanguage
-            if (!readmeBody.isNullOrBlank() &&
-                _state.value.aboutTranslation.translatedText == null &&
-                currentReadmeLang?.equals(target, ignoreCase = true) != true
-            ) {
+            val readme =
+                readmeBody?.takeIf { body ->
+                    shouldAutoTranslate(
+                        text = body,
+                        targetLanguage = target,
+                        sourceLanguage = sourceLanguage,
+                        alreadyTranslated = _state.value.aboutTranslation.translatedText != null,
+                    )
+                }
+            if (readme != null) {
                 aboutTranslationJob?.cancel()
                 aboutTranslationJob =
                     translateContent(
-                        text = readmeBody,
+                        text = readme,
                         targetLanguageCode = target,
                         updateState = { ts -> _state.update { it.copy(aboutTranslation = ts) } },
                         getCurrentState = { _state.value.aboutTranslation },
+                        notifyFailure = false,
                     )
             }
 
-            if (!releaseDescription.isNullOrBlank() &&
-                _state.value.whatsNewTranslation.translatedText == null &&
-                currentReadmeLang?.equals(target, ignoreCase = true) != true
-            ) {
+            val releaseNotes =
+                releaseDescription?.takeIf { notes ->
+                    shouldAutoTranslate(
+                        text = notes,
+                        targetLanguage = target,
+                        sourceLanguage = sourceLanguage,
+                        alreadyTranslated = _state.value.whatsNewTranslation.translatedText != null,
+                    )
+                }
+            if (releaseNotes != null) {
                 whatsNewTranslationJob?.cancel()
                 whatsNewTranslationJob =
                     translateContent(
-                        text = releaseDescription,
+                        text = releaseNotes,
                         targetLanguageCode = target,
                         updateState = { ts -> _state.update { it.copy(whatsNewTranslation = ts) } },
                         getCurrentState = { _state.value.whatsNewTranslation },
+                        notifyFailure = false,
                     )
             }
         }
     }
+
+    // Read once per trigger: an off setting, an empty target and a provider without credentials
+    // all mean "translate nothing" rather than a failed request.
+    private suspend fun autoTranslateTarget(): String? =
+        try {
+            if (!tweaksRepository.getAutoTranslateEnabled().first()) {
+                null
+            } else {
+                val target =
+                    autoTranslateTargetLanguage(
+                        explicitTarget = tweaksRepository.getAutoTranslateTargetLang().first(),
+                        appLanguage = tweaksRepository.getAppLanguage().first(),
+                        deviceLanguage = translationRepository.getDeviceLanguageCode(),
+                    )
+                val provider = tweaksRepository.getTranslationProvider().first()
+                val configured =
+                    isTranslationProviderConfigured(
+                        provider = provider,
+                        youdaoAppKey = tweaksRepository.getYoudaoAppKey().first(),
+                        youdaoAppSecret = tweaksRepository.getYoudaoAppSecret().first(),
+                        deeplAuthKey = tweaksRepository.getDeeplAuthKey().first(),
+                        microsoftTranslatorKey = tweaksRepository.getMicrosoftTranslatorKey().first(),
+                    )
+                if (configured) {
+                    target
+                } else {
+                    logger.debug("Auto-translate skipped: ${provider.name} has no credentials")
+                    null
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            logger.debug("Auto-translate skipped: could not read the settings (${t.message})")
+            null
+        }
 
     private fun translateContent(
         text: String,
         targetLanguageCode: String,
         updateState: (TranslationState) -> Unit,
         getCurrentState: () -> TranslationState,
+        notifyFailure: Boolean = true,
     ): Job =
         viewModelScope.launch {
             try {
@@ -3364,12 +3454,14 @@ class DetailsViewModel(
                 updateState(
                     getCurrentState().copy(
                         isTranslating = false,
-                        error = e.message,
+                        error = if (notifyFailure) getString(Res.string.translation_failed) else null,
                     ),
                 )
-                _events.send(
-                    DetailsEvent.OnMessage(getString(Res.string.translation_failed)),
-                )
+                if (notifyFailure) {
+                    _events.send(
+                        DetailsEvent.OnMessage(getString(Res.string.translation_failed)),
+                    )
+                }
             }
         }
 

@@ -22,6 +22,7 @@ feature/details/
 ## Notes
 
 - README language detected via `ReadmeLocalizationHelper.detectReadmeLanguage`; markdown via `multiplatform-markdown-renderer` + `MarkdownImageTransformer` (core/presentation). Translation via `TranslationRepository` + `LanguagePicker`.
+- **Auto-translate:** the Tweaks setting fills `aboutTranslation` / `whatsNewTranslation` on open and on a release pick; `RawDetailsStateMapper` renders those texts in the About and What's New sections while the translation is shown and leaves the raw fields untouched. A blank target, a key-based provider without credentials or a failed request leaves the original text with no error surface. Turning the setting off clears the automatic translations.
 - `SmartInstallButton` adapts to install state. Installing an older version first shows the downgrade dialog (`DowngradeWarning`, declared in `model/ShowDowngradeWarning.kt`).
 - Android installer paths: Default / Shizuku / Dhizuku / Root. Root via libsu `Shell` (`RootServiceManager`). Dhizuku installs without installer attribution below Android 14 (`setInstallerPackageName` is 14+); on 14+ a `PENDING_USER_ACTION` answer retries without it.
 - **Multi-OS picker (E15):** `ReleaseAssetsItemsPicker` toggle flips `TweaksRepository.showAllPlatforms`. ON -> assets group by `assetPlatformOf` into `PlatformSectionCard`s with "Your device"/"For transfer" chips. Non-current asset -> `OnDownloadForTransfer` -> `BrowserHelper.openUrl`.
