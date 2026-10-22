@@ -1,6 +1,6 @@
 # Tweaks Feature
 
-Single home for app-level settings: appearance, language, proxy, GitHub mirror, custom forges, translation, installer choice (Default / Shizuku / Dhizuku / Root), update checks, seen / hidden / skipped lists, access tokens, feedback, plus the About and Licenses screens. Presentation-only module.
+Single home for app-level settings: appearance, language, proxy, GitHub mirror, custom forges, translation, installer choice (Default / Shizuku / Dhizuku / Root / Third-party), update checks, seen / hidden / skipped lists, access tokens, feedback, plus the About and Licenses screens. Presentation-only module.
 
 ## Structure
 
@@ -45,4 +45,5 @@ Android: one scrolling column of Look & feel, Connectivity, Installs & updates, 
 - **Custom forges (Connectivity):** `CustomForgesDialog` adds / removes hosts in `TweaksRepository`; the host rows under the entry can also remove. Hosts become `SearchSourceUi.CustomForge` chips in Search and are passed to `RepositoryUrlParser.parse` by the Apps link sheet and external import.
 - **Access Tokens (`HostTokensScreen`):** lists / adds / edits / deletes / validates per-host PATs in `HostTokenRepository`. Saved tokens are sent to their host by `HostTokenInterceptor` (`docs/agents/forges.md`).
 - **Translation provider:** Google and LibreTranslate switch immediately. Youdao, DeepL and Microsoft with a required credential field blank only set `draftTranslationProvider` (form shown, persisted provider unchanged); the switch happens on that provider's credentials save.
+- **Third-party installer:** the picked package is stored as `external_installer_package` in `TweaksRepository`. `ExternalInstallerDiscovery` lists apps with an APK `ACTION_VIEW` / `INSTALL_PACKAGE` filter, minus Komi and system apps. `SilentInstallerDispatcher` hands the APK over with `setPackage`, skipping Komi's own "Install unknown apps" check while an app is picked, and falls back to the Default install when nothing is picked or the app cannot be opened.
 - **Language:** `OnAppLanguageSelected` persists the tag. Android applies it from `MainActivity` (collects `getAppLanguage()`, then `recreate()`). Desktop gets `OnAppLanguageChangeRequiresRestart`; the toast action calls `restartAppAfterLanguageChange()` (relaunch + `exitProcess`). The Android actual is empty and never called.

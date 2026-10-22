@@ -2,6 +2,7 @@ package zed.rainxch.core.data.services.installer
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -36,6 +37,9 @@ class ExternalInstallerDiscovery(
                         info.activityInfo?.packageName?.takeIf { it.isNotBlank() }
                             ?: return@mapNotNull null
                     if (packageName == context.packageName) return@mapNotNull null
+                    // The system package installer is what Default already uses.
+                    val flags = info.activityInfo?.applicationInfo?.flags ?: 0
+                    if (flags and ApplicationInfo.FLAG_SYSTEM != 0) return@mapNotNull null
                     val label =
                         runCatching { info.loadLabel(packageManager).toString() }
                             .getOrDefault(packageName)

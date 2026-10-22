@@ -23,6 +23,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.getString
 import zed.rainxch.core.domain.isDesktop
 import zed.rainxch.core.domain.logging.KomiStoreLogger
+import zed.rainxch.core.domain.model.installation.InstallerType
 import zed.rainxch.core.domain.model.settings.ProxyConfig
 import zed.rainxch.core.domain.model.settings.ProxyScope
 import zed.rainxch.core.domain.model.settings.TranslationProvider
@@ -816,6 +817,9 @@ class TweaksViewModel(
             is TweaksAction.OnInstallerTypeSelected -> {
                 viewModelScope.launch {
                     tweaksRepository.setInstallerType(action.type)
+                }
+                if (action.type == InstallerType.THIRD_PARTY && _state.value.externalInstallerPackage.isBlank()) {
+                    onAction(TweaksAction.OnExternalInstallerPickerOpenChanged(true))
                 }
             }
 

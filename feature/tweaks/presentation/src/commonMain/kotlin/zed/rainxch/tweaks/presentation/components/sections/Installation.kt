@@ -93,7 +93,6 @@ fun installSectionContent(
                 selected = state.installerType == InstallerType.ROOT,
                 onClick = { onAction(TweaksAction.OnInstallerTypeSelected(InstallerType.ROOT)) },
                 badge = { RootStatusBadge(state.rootAvailability) },
-                last = true,
             )
             if (state.installerType == InstallerType.ROOT) {
                 RootActions(state.rootAvailability) { onAction(TweaksAction.OnRequestRootPermission) }
@@ -139,7 +138,7 @@ private fun ThirdPartyInstallerRows(
         description = stringResource(Res.string.installer_type_third_party_description),
         selected = state.installerType == InstallerType.THIRD_PARTY,
         onClick = { onAction(TweaksAction.OnInstallerTypeSelected(InstallerType.THIRD_PARTY)) },
-        last = true,
+        last = state.installerType != InstallerType.THIRD_PARTY,
     )
     if (state.installerType != InstallerType.THIRD_PARTY) return
 

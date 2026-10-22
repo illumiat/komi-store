@@ -104,6 +104,11 @@ class SilentInstallerDispatcher(
             Logger.d(TAG) { "Silent backend active — skipping unknown sources permission check" }
             return
         }
+        // The picked app installs; runStandardInstall still checks if handing off fails.
+        if (cachedInstallerType == InstallerType.THIRD_PARTY && cachedExternalInstallerPackage.isNotBlank()) {
+            Logger.d(TAG) { "Third-party installer picked - skipping unknown sources permission check" }
+            return
+        }
         androidInstaller.ensurePermissionsOrThrow(extOrMime)
     }
 
@@ -119,13 +124,11 @@ class SilentInstallerDispatcher(
 
     private fun tryThirdPartyInstall(filePath: String): InstallOutcome? {
         if (cachedInstallerType != InstallerType.THIRD_PARTY) return null
-        val launched =
-            ExternalInstallerLauncher(androidContext).launch(
-                filePath = filePath,
-                packageName = cachedExternalInstallerPackage.ifBlank { null },
-            )
+        val packageName = cachedExternalInstallerPackage
+        if (packageName.isBlank()) return null
+        val launched = ExternalInstallerLauncher(androidContext).launch(filePath, packageName)
         if (!launched) {
-            Logger.d(TAG) { "Third-party installer launch failed, falling back" }
+            Logger.d(TAG) { "Third-party installer $packageName could not be opened, falling back" }
         }
         return if (launched) InstallOutcome.DELEGATED_TO_SYSTEM else null
     }
