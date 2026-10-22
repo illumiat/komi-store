@@ -1496,4 +1496,13 @@
     <string name="display_mode_description">디스플레이에 지정한 주사율을 요청합니다. 자동은 시스템이 결정합니다.</string>
     <string name="display_mode_auto">자동</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">탭 표시</string>
+    <string name="repo_layout_title">저장소 레이아웃</string>
+    <string name="repo_layout_list">목록</string>
+    <string name="repo_layout_grid">그리드</string>
+    <string name="apps_tag_updates_ignored">업데이트 무시됨</string>
+    <string name="apps_tag_skipped">%1$s 건너뜀</string>
+    <string name="apps_tag_asset_filter">에셋 필터</string>
+    <string name="apps_variant_stale_pick">변형이 변경되었습니다. 다시 선택하세요.</string>
+    <string name="apps_no_release_found">설치할 릴리스를 찾을 수 없습니다.</string>
 </resources>

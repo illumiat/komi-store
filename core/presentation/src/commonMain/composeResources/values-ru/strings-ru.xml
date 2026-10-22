@@ -1508,4 +1508,13 @@
     <string name="display_mode_description">Запрашивает у экрана указанную частоту. В режиме «Авто» решает система.</string>
     <string name="display_mode_auto">Авто</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Показать вкладки</string>
+    <string name="repo_layout_title">Макет репозитория</string>
+    <string name="repo_layout_list">Список</string>
+    <string name="repo_layout_grid">Сетка</string>
+    <string name="apps_tag_updates_ignored">Обновления проигнорированы</string>
+    <string name="apps_tag_skipped">Пропущено %1$s</string>
+    <string name="apps_tag_asset_filter">Фильтр ресурсов</string>
+    <string name="apps_variant_stale_pick">Вариант изменился. Выберите его снова.</string>
+    <string name="apps_no_release_found">Не удалось найти выпуск для установки.</string>
 </resources>

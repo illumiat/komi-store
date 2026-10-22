@@ -1495,4 +1495,13 @@
     <string name="display_mode_description">ডিসপ্লে থেকে নির্দিষ্ট রিফ্রেশ রেট চায়। স্বয়ংক্রিয় হলে সিস্টেমই সিদ্ধান্ত নেয়।</string>
     <string name="display_mode_auto">স্বয়ংক্রিয়</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">ট্যাব দেখান</string>
+    <string name="repo_layout_title">রিপোজিটরি লেআউট</string>
+    <string name="repo_layout_list">তালিকা</string>
+    <string name="repo_layout_grid">গ্রিড</string>
+    <string name="apps_tag_updates_ignored">আপডেট উপেক্ষা করা হয়েছে</string>
+    <string name="apps_tag_skipped">%1$s এড়িয়ে যাওয়া হয়েছে</string>
+    <string name="apps_tag_asset_filter">অ্যাসেট ফিল্টার</string>
+    <string name="apps_variant_stale_pick">ভ্যারিয়েন্ট পরিবর্তিত হয়েছে। আবার নির্বাচন করুন।</string>
+    <string name="apps_no_release_found">ইনস্টল করার জন্য কোনো রিলিজ পাওয়া যায়নি।</string>
 </resources>

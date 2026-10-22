@@ -1540,4 +1540,13 @@
     <string name="display_mode_description">يطلب من الشاشة معدل تحديث محددًا. خيار «تلقائي» يترك القرار للنظام.</string>
     <string name="display_mode_auto">تلقائي</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">إظهار علامات التبويب</string>
+    <string name="repo_layout_title">تخطيط المستودع</string>
+    <string name="repo_layout_list">قائمة</string>
+    <string name="repo_layout_grid">شبكة</string>
+    <string name="apps_tag_updates_ignored">تم تجاهل التحديثات</string>
+    <string name="apps_tag_skipped">تم تخطي %1$s</string>
+    <string name="apps_tag_asset_filter">عامل تصفية الأصول</string>
+    <string name="apps_variant_stale_pick">تغيّر المتغير. اختره مرة أخرى.</string>
+    <string name="apps_no_release_found">تعذّر العثور على إصدار للتثبيت.</string>
 </resources>

@@ -1464,4 +1464,13 @@
     <string name="display_mode_description">画面に指定したリフレッシュレートを要求します。自動ではシステムに任せます。</string>
     <string name="display_mode_auto">自動</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">タブを表示</string>
+    <string name="repo_layout_title">リポジトリのレイアウト</string>
+    <string name="repo_layout_list">リスト</string>
+    <string name="repo_layout_grid">グリッド</string>
+    <string name="apps_tag_updates_ignored">更新を無視</string>
+    <string name="apps_tag_skipped">%1$s をスキップ</string>
+    <string name="apps_tag_asset_filter">アセットフィルター</string>
+    <string name="apps_variant_stale_pick">バリアントが変更されました。もう一度選択してください。</string>
+    <string name="apps_no_release_found">インストールできるリリースが見つかりませんでした。</string>
 </resources>
