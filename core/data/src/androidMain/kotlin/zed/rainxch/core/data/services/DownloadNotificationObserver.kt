@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import zed.rainxch.core.data.download.DownloadNotificationAction
+import zed.rainxch.core.data.download.ForegroundPrimary
 import zed.rainxch.core.data.download.notificationActionsFor
 import zed.rainxch.core.domain.system.DownloadOrchestrator
 import zed.rainxch.core.domain.system.DownloadProgressNotifier
@@ -15,12 +16,14 @@ import zed.rainxch.core.domain.system.OrchestratedDownload
 class DownloadNotificationObserver(
     private val orchestrator: DownloadOrchestrator,
     private val notifier: DownloadProgressNotifier,
+    private val foregroundController: DownloadForegroundController? = null,
 ) {
     @Volatile
     private var job: Job? = null
 
     private val lastStages = mutableMapOf<String, DownloadStage>()
     private val lastNotifiedAt = mutableMapOf<String, Long>()
+    private val activeSince = mutableMapOf<String, Long>()
 
     fun start(scope: CoroutineScope) {
         if (job?.isActive == true) return
@@ -40,6 +43,7 @@ class DownloadNotificationObserver(
             }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun reconcile(snapshot: Map<String, OrchestratedDownload>) {
         val removed = lastStages.keys - snapshot.keys
         for (pkg in removed) {
@@ -82,6 +86,22 @@ class DownloadNotificationObserver(
             }
             lastStages[pkg] = entry.stage
         }
+
+        val active =
+            snapshot.values.filter {
+                it.stage == DownloadStage.Queued || it.stage == DownloadStage.Downloading
+            }
+        val activePackages = active.map { it.packageName }
+        activePackages.forEach { pkg ->
+            if (activeSince[pkg] == null) activeSince[pkg] = SystemClock.uptimeMillis()
+        }
+        activeSince.keys.retainAll(activePackages.toSet())
+        if (active.isEmpty()) {
+            foregroundController?.stop()
+            return
+        }
+        val primaryPackage = ForegroundPrimary.choose(activePackages, activeSince)
+        foregroundController?.ensureRunning(active.firstOrNull { it.packageName == primaryPackage })
     }
 
     private fun postProgress(
