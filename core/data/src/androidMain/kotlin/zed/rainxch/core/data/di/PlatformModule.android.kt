@@ -133,6 +133,7 @@ actual val corePlatformModule =
             DownloadNotificationObserver(
                 orchestrator = get<DownloadOrchestrator>(),
                 notifier = get<DownloadProgressNotifier>(),
+                foregroundController = DownloadForegroundController(androidContext()),
             )
         }
 

@@ -209,12 +209,12 @@
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
-            <service
+
+        <service
             android:name="zed.rainxch.core.data.services.DownloadForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
-
-</application>
+    </application>
 
 </manifest>

@@ -56,12 +56,13 @@ class AndroidDownloadProgressNotifier(
                 packageName = packageName,
             )
 
-        val progressText = formatProgressText(versionTag, bytesDownloaded, totalBytes)
+        val progressText =
+            DownloadNotificationFactory.formatProgressText(versionTag, bytesDownloaded, totalBytes)
         val indeterminate = percent == null
 
         val builder =
             NotificationCompat
-                .Builder(context, DOWNLOADS_CHANNEL_ID)
+                .Builder(context, DownloadNotificationFactory.DOWNLOADS_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setContentTitle(appName)
                 .setContentText(progressText)
@@ -85,9 +86,17 @@ class AndroidDownloadProgressNotifier(
                         ).build(),
                 )
 
-        NotificationManagerCompat
-            .from(context)
-            .notify(notificationIdFor(packageName), builder.build())
+        val id = DownloadNotificationFactory.notificationIdFor(packageName)
+        val manager = NotificationManagerCompat.from(context)
+        // DownloadForegroundService holds the untagged card under this id, and stopping or moving
+        // the service removes it, so a paused card lives under its own tag.
+        if (paused) {
+            manager.cancel(id)
+            manager.notify(PAUSED_TAG, id, builder.build())
+        } else {
+            manager.cancel(PAUSED_TAG, id)
+            manager.notify(id, builder.build())
+        }
     }
 
     private fun broadcastIntent(
@@ -111,9 +120,10 @@ class AndroidDownloadProgressNotifier(
     }
 
     override fun clearProgress(packageName: String) {
-        NotificationManagerCompat
-            .from(context)
-            .cancel(notificationIdFor(packageName))
+        val id = DownloadNotificationFactory.notificationIdFor(packageName)
+        val manager = NotificationManagerCompat.from(context)
+        manager.cancel(id)
+        manager.cancel(PAUSED_TAG, id)
     }
 
     private fun hasNotificationPermission(): Boolean {
@@ -124,35 +134,7 @@ class AndroidDownloadProgressNotifier(
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun notificationIdFor(packageName: String): Int = NOTIFICATION_ID_BASE + (packageName.hashCode() and 0x00FFFFFF)
-
-    private fun formatProgressText(
-        versionTag: String,
-        bytesDownloaded: Long,
-        totalBytes: Long?,
-    ): String {
-        val downloaded = formatBytes(bytesDownloaded)
-        val total = totalBytes?.let { formatBytes(it) }
-        return if (total != null) {
-            "$versionTag · $downloaded / $total"
-        } else {
-            "$versionTag · $downloaded"
-        }
-    }
-
-    private fun formatBytes(bytes: Long): String {
-        if (bytes < 1024) return "$bytes B"
-        val kb = bytes / 1024.0
-        if (kb < 1024) return "%.1f KB".format(kb)
-        val mb = kb / 1024.0
-        if (mb < 1024) return "%.1f MB".format(mb)
-        val gb = mb / 1024.0
-        return "%.2f GB".format(gb)
-    }
-
     private companion object {
-        const val DOWNLOADS_CHANNEL_ID = "app_downloads"
-
-        const val NOTIFICATION_ID_BASE = 3000
+        const val PAUSED_TAG = "paused"
     }
 }

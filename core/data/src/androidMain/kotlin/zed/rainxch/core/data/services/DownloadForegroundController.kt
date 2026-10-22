@@ -21,14 +21,14 @@ class DownloadForegroundController(
     @Volatile
     private var foregroundPackage: String? = null
 
-    fun ensureRunning(primary: OrchestratedDownload?) {
-        if (primary == null) return
+    fun ensureRunning(active: List<OrchestratedDownload>) {
         if (degraded) return
         if (!DownloadNotificationFactory.hasNotificationPermission(context)) return
+        // Moving the service to another download's id makes the platform cancel the card it
+        // held, so it stays on the current download until that one ends.
+        if (running && active.any { it.packageName == foregroundPackage }) return
 
-        val needsStart = !running || primary.packageName != foregroundPackage
-        if (!needsStart) return
-
+        val primary = active.first()
         val intent =
             DownloadForegroundService.startIntent(
                 context = context,

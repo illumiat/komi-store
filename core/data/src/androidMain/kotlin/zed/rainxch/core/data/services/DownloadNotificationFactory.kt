@@ -21,7 +21,7 @@ object DownloadNotificationFactory {
 
     private const val NOTIFICATION_ID_BASE = 3000
     private const val PAUSE_LABEL = "Pause"
-    private const val DELETE_LABEL = "Delete"
+    private const val DELETE_LABEL = "Delete task"
     private const val PROGRESS_MAX = 100
 
     fun hasNotificationPermission(context: Context): Boolean {
@@ -125,10 +125,10 @@ object DownloadNotificationFactory {
     private fun formatBytes(bytes: Long): String {
         if (bytes < 1024) return "$bytes B"
         val kb = bytes / 1024.0
-        if (kb < 1024) return "%.1f KB".format(Locale.ROOT, kb)
+        if (kb < 1024) return "%.1f KB".format(Locale.getDefault(), kb)
         val mb = kb / 1024.0
-        if (mb < 1024) return "%.1f MB".format(Locale.ROOT, mb)
+        if (mb < 1024) return "%.1f MB".format(Locale.getDefault(), mb)
         val gb = mb / 1024.0
-        return "%.2f GB".format(Locale.ROOT, gb)
+        return "%.2f GB".format(Locale.getDefault(), gb)
     }
 }

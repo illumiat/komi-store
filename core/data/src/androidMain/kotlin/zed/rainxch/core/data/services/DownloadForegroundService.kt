@@ -1,8 +1,7 @@
-@file:Suppress("TooGenericExceptionCaught", "LongParameterList")
+@file:Suppress("LongParameterList")
 
 package zed.rainxch.core.data.services
 
-import android.app.Notification
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -56,15 +55,7 @@ class DownloadForegroundService : Service() {
                         percent = percent,
                         cancelPackageName = cancelPackageName,
                     )
-                try {
-                    promote(notificationId, notification)
-                } catch (refused: RuntimeException) {
-                    // Retry with the type declared on the <service> element instead.
-                    Logger.w(refused) {
-                        "DownloadForegroundService: retrying with the manifest's service type"
-                    }
-                    promote(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST)
-                }
+                ServiceCompat.startForeground(this, notificationId, notification, FOREGROUND_SERVICE_TYPE)
             }
         if (started.isFailure) {
             Logger.w(started.exceptionOrNull()) {
@@ -75,19 +66,6 @@ class DownloadForegroundService : Service() {
         }
 
         return START_NOT_STICKY
-    }
-
-    private fun promote(
-        notificationId: Int,
-        notification: Notification,
-        type: Int = FOREGROUND_SERVICE_TYPE,
-    ) {
-        ServiceCompat.startForeground(
-            this,
-            notificationId,
-            notification,
-            type,
-        )
     }
 
     override fun onDestroy() {
