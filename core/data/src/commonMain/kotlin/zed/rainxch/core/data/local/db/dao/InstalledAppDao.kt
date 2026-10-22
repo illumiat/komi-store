@@ -204,6 +204,18 @@ interface InstalledAppDao {
         isUpdateAvailable: Boolean,
     )
 
+    @Query(
+        """
+        UPDATE installed_apps
+           SET signingFingerprint = :signingFingerprint
+         WHERE packageName = :packageName
+        """,
+    )
+    suspend fun updateSigningFingerprint(
+        packageName: String,
+        signingFingerprint: String?,
+    )
+
     // A proven binding is written in one statement: the tag and the identity fields must
     // never diverge, otherwise the next check reads an installed version it cannot explain.
     @Query(
