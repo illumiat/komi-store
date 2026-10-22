@@ -11,6 +11,7 @@ fun testInstalledApp(
     latestVersionName: String? = latestVersion,
     latestVersionCode: Long? = 200L,
     latestReleasePublishedAt: String? = null,
+    installedReleasePublishedAt: String? = null,
     pendingInstallFilePath: String? = "/data/parked.apk",
     pendingInstallVersion: String? = if (pendingInstallFilePath != null) "2.0.0" else null,
     pendingInstallReleaseId: Long? = null,
@@ -26,7 +27,6 @@ fun testInstalledApp(
     lastUpdatedAt: Long = 1_500L,
     skippedReleaseTag: String? = null,
     installedReleaseId: Long? = null,
-    pendingInstallReleaseId: Long? = null,
 ): InstalledApp =
     InstalledApp(
         packageName = packageName,
@@ -59,6 +59,7 @@ fun testInstalledApp(
         latestVersionName = latestVersionName,
         latestVersionCode = latestVersionCode,
         latestReleasePublishedAt = latestReleasePublishedAt,
+        installedReleasePublishedAt = installedReleasePublishedAt,
         pendingInstallFilePath = pendingInstallFilePath,
         pendingInstallVersion = pendingInstallVersion,
         pendingInstallReleaseId = pendingInstallReleaseId,
@@ -71,5 +72,4 @@ fun testInstalledApp(
         pendingInstallAssetName = pendingInstallAssetName,
         skippedReleaseTag = skippedReleaseTag,
         installedReleaseId = installedReleaseId,
-        pendingInstallReleaseId = pendingInstallReleaseId,
     )
