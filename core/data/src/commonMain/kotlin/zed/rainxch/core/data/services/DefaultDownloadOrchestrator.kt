@@ -551,18 +551,7 @@ class DefaultDownloadOrchestrator(
                 Logger.w(e) { "Orchestrator: could not hash the parked file for ${spec.packageName}" }
                 null
             }
-        val releasePublishedAt =
-            try {
-                installedAppsRepository
-                    .getAppByPackage(spec.packageName)
-                    ?.takeIf { spec.releaseId != null && it.latestReleaseId == spec.releaseId }
-                    ?.latestReleasePublishedAt
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Logger.w(e) { "Orchestrator: could not read the parked release timestamp" }
-                null
-            }
+        val releasePublishedAt = parkedReleasePublishedAt(spec)
         try {
             installedAppsRepository.markAwaitingInstall(
                 packageName = spec.packageName,
@@ -590,6 +579,19 @@ class DefaultDownloadOrchestrator(
         }
         updateEntry(spec.packageName) { it.copy(stage = DownloadStage.AwaitingInstall) }
     }
+
+    private suspend fun parkedReleasePublishedAt(spec: DownloadSpec): String? =
+        try {
+            installedAppsRepository
+                .getAppByPackage(spec.packageName)
+                ?.takeIf { spec.releaseId != null && it.latestReleaseId == spec.releaseId }
+                ?.latestReleasePublishedAt
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Orchestrator: could not read the parked release timestamp" }
+            null
+        }
 
     override suspend fun downgradeToDeferred(packageName: String) {
         val shouldNotify: Boolean

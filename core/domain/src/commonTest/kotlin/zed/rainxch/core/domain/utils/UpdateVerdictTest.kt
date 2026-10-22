@@ -112,6 +112,51 @@ class UpdateVerdictTest {
         assertFalse(result.isUpdateAvailable)
     }
 
+    // The device runs a pre-release built after the stable it is being compared with. While the
+    // app was tracked as a rolling build that timestamp won; once the channel is stable the tag
+    // comparison decides, otherwise a newer stable release stays hidden forever.
+    @Test
+    fun a_newer_stable_tag_wins_over_a_bound_prerelease_timestamp() {
+        val result =
+            decide(
+                installedTag = "2.0.4",
+                installedVersionCode = 204L,
+                storedLatestTag = "2.0.5",
+                storedPublishedAt = "2026-09-01T00:00:00Z",
+                matchedTag = "2.0.5",
+                matchedPublishedAt = "2026-09-01T00:00:00Z",
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 11L,
+                        assetDigest = "pre-release-digest",
+                        releasePublishedAt = "2026-10-01T00:00:00Z",
+                    ),
+            )
+
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    // A nightly install cannot be ordered against a versioned tag, so its binding still decides:
+    // a stable release published after the installed build is an update.
+    @Test
+    fun a_bound_nightly_still_sees_a_later_stable_release() {
+        val result =
+            decide(
+                installedTag = "nightly",
+                matchedTag = "v2.0.5",
+                matchedPublishedAt = "2026-09-20T00:00:00Z",
+                matchedAssetId = 22L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 11L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-09-08T00:00:00Z",
+                    ),
+            )
+
+        assertTrue(result.isUpdateAvailable)
+    }
+
     private fun decide(
         installedTag: String = "1.0.0",
         installedVersionCode: Long = 100L,

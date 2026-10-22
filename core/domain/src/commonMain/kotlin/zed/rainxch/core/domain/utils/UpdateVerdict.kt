@@ -191,6 +191,10 @@ object UpdateVerdict {
                     !selfAttestedSameFile
                 }
 
+                sameTagRebuild -> {
+                    true
+                }
+
                 deviceRunsMatchedRelease -> {
                     false
                 }
@@ -204,10 +208,6 @@ object UpdateVerdict {
                 // (a nightly install offered a stable release). Otherwise the version comparison
                 // is authoritative: a stable release can legitimately be published before the
                 // pre-release the device installed.
-                sameTagRebuild -> {
-                    true
-                }
-
                 bound == null || (reconcilable && !boundUsesTimestamp) -> {
                     tagVerdict
                 }

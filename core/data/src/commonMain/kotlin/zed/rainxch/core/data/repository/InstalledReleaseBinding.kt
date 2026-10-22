@@ -32,13 +32,13 @@ internal suspend fun resolveInstalledBinding(
             matchedPublishedAt = matchedRelease.publishedAt,
             installedPublishedAt = installedPublishedAt,
             matchedDigest = matchedAsset.digest,
-            installedApkPath = packageMonitor.getInstalledPackageInfo(app.packageName)?.apkPath,
+            packageMonitor = packageMonitor,
             verifier = verifier,
         )
     if (confirmedDigest != null && confirmedDigest == matchedAsset.digest) {
         // The installed bytes are the release's bytes: bind them once so later checks compare
         // digests instead of hashing the APK again.
-        runCatching { dao.setInstalledAssetDigest(app.packageName, confirmedDigest) }
+        dao.setInstalledAssetDigest(app.packageName, confirmedDigest)
     }
     return UpdateVerdict.Bound(
         assetId = app.installedAssetId,
@@ -76,7 +76,7 @@ private suspend fun confirmInstalledDigest(
     matchedPublishedAt: String?,
     installedPublishedAt: String?,
     matchedDigest: String?,
-    installedApkPath: String?,
+    packageMonitor: PackageMonitor,
     verifier: DigestVerifier,
 ): String? {
     val confirmation =
@@ -89,9 +89,9 @@ private suspend fun confirmInstalledDigest(
             matchedPublishedAt = matchedPublishedAt,
             installedPublishedAt = installedPublishedAt,
         )
-    return when {
-        !shouldConfirmDigest(confirmation) -> null
-        installedApkPath == null -> null
-        else -> verifier.computeSha256(installedApkPath)
-    }
+    if (!shouldConfirmDigest(confirmation)) return null
+    // The platform lookup is only safe to run once the trigger rules asked for it: on Android it
+    // rethrows anything but not-found, which would fail the whole update check.
+    val installedApkPath = packageMonitor.getInstalledPackageInfo(app.packageName)?.apkPath
+    return installedApkPath?.let { verifier.computeSha256(it) }
 }
