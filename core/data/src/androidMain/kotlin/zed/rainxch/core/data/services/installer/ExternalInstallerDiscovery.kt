@@ -41,7 +41,7 @@ class ExternalInstallerDiscovery(
                     val flags = info.activityInfo?.applicationInfo?.flags ?: 0
                     if (flags and ApplicationInfo.FLAG_SYSTEM != 0) return@mapNotNull null
                     val label =
-                        runCatching { info.loadLabel(packageManager).toString() }
+                        runCatching { info.activityInfo.applicationInfo.loadLabel(packageManager).toString() }
                             .getOrDefault(packageName)
                             .ifBlank { packageName }
                     ExternalInstallerApp(packageName = packageName, label = label)
