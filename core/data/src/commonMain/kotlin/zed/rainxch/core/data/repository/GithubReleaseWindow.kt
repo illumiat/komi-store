@@ -46,7 +46,7 @@ internal suspend fun fetchGithubReleaseWindow(
                         "Pre-release flag/tag mismatch for $owner/$repo " +
                             "release '${release.tagName}' (name='${release.name}'): " +
                             "apiFlag=$flagSays, tagMarker=$tagSays — " +
-                            "treating as pre-release=$flagSays"
+                            "treating as pre-release=${true}"
                     }
                 }
             }.filter { includePreReleases || !it.isEffectivelyPreRelease() }

@@ -47,6 +47,8 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
             "https://github.com/illumiat/komi-store/releases/download/$OLD_TAG/composeApp-debug.apk"
         const val NEW_URL =
             "https://github.com/illumiat/komi-store/releases/download/$NEW_TAG/composeApp-debug.apk"
+        const val RENAMED_URL =
+            "https://github.com/illumiat/komi-store/releases/download/$OLD_TAG/komi-store-latest.apk"
         const val OLD_DIGEST =
             "sha256:1111111111111111111111111111111111111111111111111111111111111111"
         const val NEW_DIGEST =
@@ -200,11 +202,11 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
                 newAsset().copy(
                     id = 44L,
                     name = "komi-store-latest.apk",
-                    downloadUrl = NEW_URL,
+                    downloadUrl = RENAMED_URL,
                 )
             val resolved =
                 zed.rainxch.core.domain.utils.ResolvedRelease(
-                    release = release(tag = NEW_TAG, assets = listOf(renamed)),
+                    release = release(tag = OLD_TAG, assets = listOf(renamed)),
                     primaryAsset = renamed,
                     variantWasLost = false,
                 )
@@ -220,7 +222,7 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
                 }[PKG]!!
 
             assertEquals(
-                listOf(OLD_URL, NEW_URL),
+                listOf(OLD_URL, RENAMED_URL),
                 multi.calls,
                 "the renamed asset is retried at its new URL",
             )
@@ -230,8 +232,37 @@ class DefaultDownloadOrchestratorAssetRefetchTest {
                 verifier.expectedDigests,
                 "the renamed asset's digest is the one verified",
             )
-            assertEquals(NEW_TAG, entry.releaseTag)
+            assertEquals(OLD_TAG, entry.releaseTag)
             assertEquals(44L, entry.assetId)
+        }
+
+    @Test
+    fun aTrackedReleaseWithAnotherTagIsNotSwappedIn() =
+        runBlocking {
+            val downloader = TrackingDownloader()
+            val multi = ThrowingOnceMultiSource()
+            val verifier = RecordingVerifier()
+            val latest = newAsset().copy(id = 44L, name = "komi-store-latest.apk")
+            val resolved =
+                zed.rainxch.core.domain.utils.ResolvedRelease(
+                    release = release(tag = NEW_TAG, assets = listOf(latest)),
+                    primaryAsset = latest,
+                    variantWasLost = false,
+                )
+            val repo = RecordingInstalledAppsRepository(tracked = resolved)
+            val notifier = RecordingNotifier()
+            val refetcher = RecordingRefetcher(null)
+            val orchestrator = orchestrator(downloader, multi, verifier, repo, notifier, refetcher, scope = this)
+
+            orchestrator.enqueue(spec())
+            val entry =
+                withTimeout(AWAIT_MS) {
+                    orchestrator.downloads.first { it[PKG]?.stage == DownloadStage.Failed }
+                }[PKG]!!
+
+            assertEquals(listOf(OLD_URL), multi.calls, "a version nobody picked is never downloaded")
+            assertEquals(listOf(PKG), repo.resolvedPackages)
+            assertEquals("Unexpected code 404", entry.errorMessage)
         }
 
     @Test
