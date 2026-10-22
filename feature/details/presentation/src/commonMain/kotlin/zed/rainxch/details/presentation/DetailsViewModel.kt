@@ -2925,15 +2925,21 @@ class DetailsViewModel(
                         ReleaseCategory.STABLE
                     }
                 val deviceBuildIds = deviceBuildReleaseIds(allReleases)
+                val updateTargetRelease =
+                    installedApp
+                        ?.takeIf { it.isUpdateAvailable }
+                        ?.latestVersion
+                        ?.let { latest -> allReleases.firstOrNull { VersionMath.isExactSameVersion(it.tagName, latest) } }
                 val selectedRelease =
-                    installedApp?.let { app ->
-                        allReleases.firstOwnedBy(
-                            app = app,
-                            category = installedChannel,
-                            repoApps = allInstalledApps,
-                            anchorAssetName = installedAssetName,
-                        )
-                    }
+                    updateTargetRelease
+                        ?: installedApp?.let { app ->
+                            allReleases.firstOwnedBy(
+                                app = app,
+                                category = installedChannel,
+                                repoApps = allInstalledApps,
+                                anchorAssetName = installedAssetName,
+                            )
+                        }
                         ?: allReleases.filter { it.id in deviceBuildIds }.firstInCategory(installedChannel)
                         ?: allReleases.firstInCategory(installedChannel)
                         ?: allReleases.firstInCategory(ReleaseCategory.ALL)
@@ -3263,6 +3269,17 @@ class DetailsViewModel(
             // the screen is recreated.
             val refreshed = installedAppsRepository.getAppByPackage(installed.packageName)
             if (refreshed != null && refreshed != installed) {
+                val updateTarget =
+                    refreshed
+                        .takeIf { it.isUpdateAvailable }
+                        ?.latestVersion
+                        ?.let { latest -> _state.value.allReleases.firstOrNull { VersionMath.isExactSameVersion(it.tagName, latest) } }
+                val (assets, primary) =
+                    if (updateTarget != null) {
+                        recomputeAssetsForRelease(updateTarget, refreshed, refreshed.installedAssetName)
+                    } else {
+                        null to null
+                    }
                 _state.update { state ->
                     state.copy(
                         installedApp = refreshed,
@@ -3270,6 +3287,9 @@ class DetailsViewModel(
                             state.installedApps.map { app ->
                                 if (app.packageName == refreshed.packageName) refreshed else app
                             },
+                        selectedRelease = updateTarget ?: state.selectedRelease,
+                        installableAssets = assets ?: state.installableAssets,
+                        primaryAsset = primary ?: state.primaryAsset,
                     )
                 }
             }
