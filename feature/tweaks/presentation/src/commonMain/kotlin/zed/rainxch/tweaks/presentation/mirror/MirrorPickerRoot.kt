@@ -151,6 +151,16 @@ fun MirrorPickerRoot(
             )
             SettingsGroup {
                 SettingsRow(
+                    title = stringResource(Res.string.mirror_section_official),
+                    onClick = { viewModel.onAction(MirrorPickerAction.OnSelectDirect) },
+                    trailing = {
+                        KomiRadioButton(
+                            selected = state.preference is MirrorPreference.Direct,
+                            onClick = null,
+                        )
+                    },
+                )
+                SettingsRow(
                     title = stringResource(Res.string.mirror_pick_fastest),
                     subtitle =
                         stringResource(

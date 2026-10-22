@@ -63,6 +63,10 @@ class MirrorPickerViewModel(
         when (action) {
             MirrorPickerAction.OnNavigateBack -> {}
 
+            MirrorPickerAction.OnSelectDirect -> {
+                viewModelScope.launch { mirrorRepository.setPreference(MirrorPreference.Direct) }
+            }
+
             is MirrorPickerAction.OnSelectMirror -> {
                 selectMirror(action.mirror)
             }
