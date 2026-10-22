@@ -12,14 +12,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.filled.Search
@@ -64,7 +63,7 @@ import zed.rainxch.core.presentation.components.scaffold.KomiScaffold
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.layout.CardGridSpec
-import zed.rainxch.core.presentation.layout.rememberWidthCappedGridCells
+import zed.rainxch.core.presentation.layout.rememberWidthCappedStaggeredCells
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
@@ -301,17 +300,7 @@ fun AppsScreen(
                         )
                     }
 
-                    val listState = rememberLazyGridState()
-                    KeepAtTopWhenSectionsChange(
-                        gridState = listState,
-                        sections = listOf(
-                            state.showImportProposalBanner,
-                            state.pendingApps.isNotEmpty(),
-                            state.updateApps.isNotEmpty() || state.isUpdatingAll,
-                            state.inProgressDownloads.isNotEmpty(),
-                        ),
-                    )
-
+                    val listState = rememberLazyStaggeredGridState()
                     when {
                         state.isLoading -> {
                             Box(
@@ -364,7 +353,7 @@ fun AppsScreen(
                                         bottom = 88.dp + innerPadding.calculateBottomPadding(),
                                     )
                                 val appGridCells =
-                                    rememberWidthCappedGridCells(contentPadding = appGridPadding)
+                                    rememberWidthCappedStaggeredCells(contentPadding = appGridPadding)
 
                                 val installedVersions =
                                     remember(state.apps) {
@@ -373,19 +362,18 @@ fun AppsScreen(
                                         }
                                     }
 
-                                LazyVerticalGrid(
+                                LazyVerticalStaggeredGrid(
                                     columns = appGridCells,
                                     state = listState,
                                     modifier = Modifier.fillMaxSize().arrowKeyScroll(listState),
-
                                     contentPadding = appGridPadding,
-                                    verticalArrangement = Arrangement.spacedBy(CardGridSpec.GridItemSpacing),
+                                    verticalItemSpacing = CardGridSpec.GridItemSpacing,
                                     horizontalArrangement = CardGridSpec.GridArrangement,
                                 ) {
                                     if (state.inProgressDownloads.isNotEmpty()) {
                                         item(
                                             key = "header-in-progress",
-                                            span = { GridItemSpan(maxLineSpan) },
+                                            span = StaggeredGridItemSpan.FullLine,
                                         ) {
                                             AppsSectionHeader(
                                                 title = stringResource(Res.string.apps_section_in_progress),
@@ -466,7 +454,7 @@ fun AppsScreen(
                                     }
 
                                     if (state.showImportProposalBanner) {
-                                        item(key = "external-import-banner", span = { GridItemSpan(maxLineSpan) }) {
+                                        item(key = "external-import-banner", span = StaggeredGridItemSpan.FullLine) {
                                             ImportProposalBanner(
                                                 pendingCount = state.pendingExternalImportCount,
                                                 onReview = { onAction(AppsAction.OnImportProposalReview) },
@@ -476,7 +464,7 @@ fun AppsScreen(
                                     }
 
                                     if (state.pendingApps.isNotEmpty()) {
-                                        item(key = "header-pending-installs", span = { GridItemSpan(maxLineSpan) }) {
+                                        item(key = "header-pending-installs", span = StaggeredGridItemSpan.FullLine) {
                                             AppsSectionHeader(
                                                 title = stringResource(Res.string.apps_section_pending_installs),
                                                 count = state.pendingApps.size,
@@ -499,7 +487,7 @@ fun AppsScreen(
                                     }
 
                                     if (state.updateApps.isNotEmpty() || state.isUpdatingAll) {
-                                        item(key = "updates-banner", span = { GridItemSpan(maxLineSpan) }) {
+                                        item(key = "updates-banner", span = StaggeredGridItemSpan.FullLine) {
                                             UpdatesBanner(
                                                 count = state.updateApps.size,
                                                 isExpanded = state.isUpdatesSectionExpanded,
@@ -527,7 +515,7 @@ fun AppsScreen(
                                     }
 
                                     if (state.idleApps.isNotEmpty()) {
-                                        item(key = "header-up-to-date", span = { GridItemSpan(maxLineSpan) }) {
+                                        item(key = "header-up-to-date", span = StaggeredGridItemSpan.FullLine) {
                                             AppsSectionHeader(
                                                 title = stringResource(Res.string.apps_section_up_to_date),
                                                 count = state.idleApps.size,
@@ -553,7 +541,7 @@ fun AppsScreen(
                                         }
                                     }
 
-                                    item(key = "trailing-spacer", span = { GridItemSpan(maxLineSpan) }) {
+                                    item(key = "trailing-spacer", span = StaggeredGridItemSpan.FullLine) {
                                         Spacer(Modifier.height(32.dp))
                                     }
                                 }
@@ -582,19 +570,6 @@ private fun AppsSearchField(
         placeholder = stringResource(Res.string.search_your_apps),
         modifier = modifier,
     )
-}
-
-@Composable
-private fun KeepAtTopWhenSectionsChange(
-    gridState: LazyGridState,
-    sections: List<Boolean>,
-) {
-    val previous = remember { arrayOf(sections) }
-    SideEffect {
-        val atTop = gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
-        if (previous[0] != sections && atTop) gridState.requestScrollToItem(0)
-        previous[0] = sections
-    }
 }
 
 // An app on its own card, or several apps from one repo on one card.
