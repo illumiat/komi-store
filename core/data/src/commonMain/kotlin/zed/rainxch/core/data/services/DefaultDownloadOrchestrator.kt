@@ -570,6 +570,10 @@ class DefaultDownloadOrchestrator(
             throw e
         } catch (e: Exception) {
             Logger.e(e) { "Orchestrator: failed to persist pending install path" }
+            // Do not announce a park that the DB does not know about: without the path the
+            // row can never be settled and the user sees a pending install that cannot finish.
+            markFailed(spec.packageName, e.message)
+            return
         }
         if (notify) {
             pendingInstallNotifier.notifyPending(
