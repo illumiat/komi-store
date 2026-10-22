@@ -65,16 +65,24 @@ fun InstalledApp.confirmInstall(
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallStartedAt = null,
     )
 }
 
-fun InstalledApp.resolvePendingFromSystem(reached: PendingInstallResolution.Reached): InstalledApp =
+fun InstalledApp.resolvePendingFromSystem(
+    reached: PendingInstallResolution.Reached,
+    // The install happened at (or before) the system's lastUpdateTime. Recording it as the
+    // settlement keeps the next sync from reading the same install as a foreign one and
+    // dropping the binding we just wrote.
+    at: Long = reached.installedAt ?: System.currentTimeMillis(),
+): InstalledApp =
     withSettledInstallIdentity(reached.versionCode).copy(
         isPendingInstall = false,
         installedVersion = reached.resolvedTag,
         installedVersionName = reached.versionName,
         installedVersionCode = reached.versionCode,
         isUpdateAvailable = updateFlagAgainstSnapshot(reached.versionCode, reached.versionName),
+        lastUpdatedAt = at,
     )
 
 // The device runs the parked build byte for byte even when the version number did not
@@ -82,12 +90,16 @@ fun InstalledApp.resolvePendingFromSystem(reached: PendingInstallResolution.Reac
 fun InstalledApp.settlePendingFromSystem(
     versionName: String,
     versionCode: Long,
+    // The system's install timestamp when the caller has it, so the settlement records the
+    // same moment the next sync will compare against.
+    at: Long? = null,
 ): InstalledApp =
     resolvePendingFromSystem(
         PendingInstallResolution.Reached(
             resolvedTag = pendingInstallVersion ?: latestVersion ?: versionName,
             versionName = versionName,
             versionCode = versionCode,
+            installedAt = at,
         ),
     ).copy(
         pendingInstallFilePath = null,
@@ -123,6 +135,60 @@ fun InstalledApp.withSettledInstallIdentity(versionCode: Long): InstalledApp {
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallStartedAt = null,
+    )
+}
+
+// The system's install timestamp is the cheap proof that an install happened after the park,
+// even when versionCode/versionName did not move.
+fun InstalledApp.installedAfterPark(info: SystemPackageInfo?): Boolean {
+    val startedAt = pendingInstallStartedAt
+    val updatedAt = info?.lastUpdateTime
+    return startedAt != null && updatedAt != null && updatedAt >= startedAt
+}
+
+// A park that still carries its release identity is waiting for the install event.
+val InstalledApp.hasPendingIdentity: Boolean
+    get() =
+        pendingInstallReleaseId != null ||
+            pendingInstallAssetId != null ||
+            pendingInstallAssetDigest != null
+
+// PackageManager's install timestamp moved past our last recorded settlement: some install
+// happened after we wrote the identity, whatever installer performed it.
+fun InstalledApp.installedAfter(info: SystemPackageInfo?): Boolean {
+    val updatedAt = info?.lastUpdateTime ?: return false
+    return updatedAt > lastUpdatedAt
+}
+
+// Used only when an install event (broadcast, or lastUpdateTime past the park) proves the
+// parked file landed. The version fields may not have moved, so the parked identity wins.
+fun InstalledApp.resolvePendingFromProvenEvent(
+    tag: String,
+    versionName: String,
+    versionCode: Long,
+    // The broadcast itself is the proof, so the settlement may be later than the install
+    // timestamp; recording it keeps the next sync from dropping the adopted binding.
+    at: Long = System.currentTimeMillis(),
+): InstalledApp {
+    val parkedIdentity =
+        pendingInstallReleaseId != null ||
+            pendingInstallAssetId != null ||
+            pendingInstallAssetDigest != null
+    return copy(
+        isPendingInstall = false,
+        installedVersion = tag,
+        installedVersionName = versionName,
+        installedVersionCode = versionCode,
+        installedReleaseId = if (parkedIdentity) pendingInstallReleaseId else installedReleaseId,
+        installedAssetId = if (parkedIdentity) pendingInstallAssetId else installedAssetId,
+        installedAssetDigest = if (parkedIdentity) pendingInstallAssetDigest else installedAssetDigest,
+        isUpdateAvailable = updateFlagAgainstSnapshot(versionCode, versionName),
+        lastUpdatedAt = at,
+        pendingInstallReleaseId = null,
+        pendingInstallAssetId = null,
+        pendingInstallAssetDigest = null,
+        pendingInstallStartedAt = null,
     )
 }
 
@@ -133,6 +199,8 @@ sealed interface PendingInstallResolution {
         val resolvedTag: String,
         val versionName: String,
         val versionCode: Long,
+        // When the system installed the package. Null on platforms without a package manager.
+        val installedAt: Long? = null,
     ) : PendingInstallResolution
 }
 
@@ -145,6 +213,7 @@ fun InstalledApp.pendingInstallResolution(systemInfo: SystemPackageInfo?): Pendi
         resolvedTag = pendingInstallVersion ?: latestVersion ?: systemInfo.versionName,
         versionName = systemInfo.versionName,
         versionCode = systemInfo.versionCode,
+        installedAt = systemInfo.lastUpdateTime,
     )
 }
 
@@ -334,12 +403,16 @@ fun InstalledApp.markPending(
     releaseId: Long?,
     assetId: Long?,
     assetDigest: String?,
+    // Set at the moment the APK is handed to the installer; null while the park only waits
+    // for the user, so a deferred download never expires.
+    startedAt: Long? = null,
 ): InstalledApp =
     copy(
         isPendingInstall = true,
         pendingInstallReleaseId = releaseId,
         pendingInstallAssetId = assetId,
         pendingInstallAssetDigest = assetDigest,
+        pendingInstallStartedAt = startedAt,
     )
 
 fun InstalledApp.clearPending(): InstalledApp =
@@ -348,6 +421,7 @@ fun InstalledApp.clearPending(): InstalledApp =
         pendingInstallReleaseId = null,
         pendingInstallAssetId = null,
         pendingInstallAssetDigest = null,
+        pendingInstallStartedAt = null,
     )
 
 fun InstalledApp.withLatestSnapshot(

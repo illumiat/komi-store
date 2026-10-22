@@ -54,6 +54,11 @@ data class InstalledApp(
     val pendingInstallReleaseId: Long? = null,
     val pendingInstallAssetId: Long? = null,
     val pendingInstallAssetDigest: String? = null,
+    // When the parked APK was handed to the installer. PackageManager.lastUpdateTime after
+    // this moment proves the install happened, even when the version fields did not move.
+    // Null while the download is only waiting for the user to tap Install: a deferred park
+    // must not expire.
+    val pendingInstallStartedAt: Long? = null,
     val skippedReleaseTag: String? = null,
     val sourceHost: String? = null,
 )

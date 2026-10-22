@@ -1371,6 +1371,8 @@ class AppsViewModel(
                                 download = downloaded.download,
                                 versionName = apkInfo?.versionName,
                                 versionCode = apkInfo?.versionCode,
+                                // The APK is about to be handed to the installer.
+                                startedAt = System.currentTimeMillis(),
                             ),
                         )
                     } else {

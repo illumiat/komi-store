@@ -518,6 +518,9 @@ class DefaultDownloadOrchestrator(
                         releaseId = releaseId,
                         assetId = spec.asset.id,
                         assetDigest = spec.asset.digest,
+                        // The APK is about to be handed to the installer: the 24h settle
+                        // window starts here.
+                        startedAt = System.currentTimeMillis(),
                     ).withLatestSnapshot(
                         version = spec.releaseTag,
                         assetName = spec.asset.name,
@@ -556,6 +559,8 @@ class DefaultDownloadOrchestrator(
                 version = spec.releaseTag,
                 assetName = spec.asset.name,
                 assetDigest = downloadedDigest,
+                releaseId = spec.releaseId,
+                assetId = spec.asset.id.takeIf { it > 0L },
             )
         } catch (e: CancellationException) {
             throw e
@@ -665,6 +670,15 @@ class DefaultDownloadOrchestrator(
             }
 
             if (entry.stage == DownloadStage.AwaitingInstall) {
+                // Cancelling the park must drop the parked identity and its start time too:
+                // a leftover would be adopted by the next unrelated install.
+                try {
+                    installedAppsRepository.updatePendingStatus(packageName, false)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Logger.w(e) { "Orchestrator: failed to clear pending identity on cancel" }
+                }
                 try {
                     installedAppsRepository.setPendingInstallFilePath(packageName, null)
                 } catch (e: CancellationException) {
@@ -767,6 +781,15 @@ class DefaultDownloadOrchestrator(
                         Logger.w(e) { "Orchestrator: could not delete finished file $path" }
                     }
                 }
+                // Discarding the park drops the identity and start time with it; a leftover
+                // would be adopted by the next unrelated install.
+                try {
+                    installedAppsRepository.updatePendingStatus(packageName, false)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Logger.w(e) { "Orchestrator: failed to clear pending identity on discard" }
+                }
             }
         }
     }
@@ -806,6 +829,7 @@ class DefaultDownloadOrchestrator(
         return try {
             installer.ensurePermissionsOrThrow(ext)
             systemInstallSerializer.awaitFreeAndMarkPending(packageName, timeoutMs = 0L)
+            markInstallHandoff(packageName)
             val outcome = installer.install(filePath, ext)
             delegated = outcome == InstallOutcome.DELEGATED_TO_SYSTEM
             adoptUntrackedDownload(entry, filePath, outcome)
@@ -842,6 +866,27 @@ class DefaultDownloadOrchestrator(
             Logger.e(t) { "Orchestrator: standalone install failed for $packageName" }
             if (entryId != null) markFailed(packageName, t.message, onlyId = entryId)
             null
+        }
+    }
+
+    // The APK is about to be handed to the installer: start the settle window from here,
+    // not from the download that may have been deferred for days.
+    private suspend fun markInstallHandoff(packageName: String) {
+        try {
+            val app = installedAppsRepository.getAppByPackage(packageName) ?: return
+            if (!app.isPendingInstall) return
+            installedAppsRepository.updateApp(
+                app.markPending(
+                    releaseId = app.pendingInstallReleaseId,
+                    assetId = app.pendingInstallAssetId,
+                    assetDigest = app.pendingInstallAssetDigest,
+                    startedAt = System.currentTimeMillis(),
+                ),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(e) { "Orchestrator: failed to record the install hand-off for $packageName" }
         }
     }
 

@@ -21,6 +21,7 @@ import zed.rainxch.core.data.mappers.toEntity
 import zed.rainxch.core.data.mappers.toReleaseWindow
 import zed.rainxch.core.data.mappers.toUpdateCheckWindow
 import zed.rainxch.core.data.network.GitHubClientProvider
+import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
@@ -272,6 +273,9 @@ class InstalledAppsRepositoryImpl(
                 } else {
                     null
                 }
+            if (selfAttestedDigest != null && selfAttestedDigest == primaryAsset.digest) {
+                rebindProvenIdentity(installedAppsDao, app, matchedRelease, primaryAsset, selfAttestedDigest)
+            }
 
             val verdict =
                 UpdateVerdict.decide(
@@ -349,13 +353,10 @@ class InstalledAppsRepositoryImpl(
                     installedTag = app.installedVersion,
                     matchedTag = matchedRelease.tagName,
                     deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
+                    identityContradicts = identityContradicts(app, primaryAsset),
                 )
             if (shouldRewriteTag) {
-                installedAppsDao.adoptMatchedTag(
-                    app = app,
-                    matchedTag = matchedRelease.tagName,
-                    isUpdateAvailable = isUpdateAvailable,
-                )
+                adoptTagWhenProven(installedAppsDao, app, matchedRelease, primaryAsset, isUpdateAvailable)
             }
 
             if (variantWasLost != app.preferredVariantStale) {
@@ -503,6 +504,9 @@ class InstalledAppsRepositoryImpl(
                             releaseId = app.latestReleaseId,
                             assetId = app.latestAssetId,
                             assetDigest = app.latestAssetDigest,
+                            // The caller marks a download it is about to hand to the
+                            // installer, so this is the moment the 24h window starts.
+                            startedAt = System.currentTimeMillis(),
                         )
                     } else {
                         it.clearPending()
@@ -637,6 +641,8 @@ class InstalledAppsRepositoryImpl(
         version: String?,
         assetName: String?,
         assetDigest: String?,
+        releaseId: Long?,
+        assetId: Long?,
     ) {
         installedAppsDao.markAwaitingInstall(
             packageName = packageName,
@@ -644,6 +650,8 @@ class InstalledAppsRepositoryImpl(
             version = version,
             assetName = assetName,
             digest = assetDigest,
+            releaseId = releaseId,
+            assetId = assetId,
         )
     }
 

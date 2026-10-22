@@ -204,6 +204,31 @@ interface InstalledAppDao {
         isUpdateAvailable: Boolean,
     )
 
+    // A proven binding is written in one statement: the tag and the identity fields must
+    // never diverge, otherwise the next check reads an installed version it cannot explain.
+    @Query(
+        """
+        UPDATE installed_apps
+           SET installedVersion = :installedVersion,
+               installedVersionName = :installedVersionName,
+               installedVersionCode = :installedVersionCode,
+               installedReleaseId = :releaseId,
+               installedAssetId = :assetId,
+               installedAssetDigest = :digest
+         WHERE packageName = :packageName
+        """,
+    )
+    @Suppress("LongParameterList")
+    suspend fun adoptMatchedTagWithIdentity(
+        packageName: String,
+        installedVersion: String,
+        installedVersionName: String?,
+        installedVersionCode: Long,
+        releaseId: Long?,
+        assetId: Long?,
+        digest: String?,
+    )
+
     @Query(
         """
         UPDATE installed_apps
@@ -233,12 +258,18 @@ interface InstalledAppDao {
         assetName: String?,
     )
 
+    // Discarding a park drops every trace of the target: a leftover identity or start time
+    // would be adopted by the next unrelated install.
     @Query(
         """
         UPDATE installed_apps
            SET pendingInstallFilePath = NULL,
                pendingInstallVersion = NULL,
                pendingInstallAssetName = NULL,
+               pendingInstallReleaseId = NULL,
+               pendingInstallAssetId = NULL,
+               pendingInstallAssetDigest = NULL,
+               pendingInstallStartedAt = NULL,
                isPendingInstall = 0
          WHERE packageName = :packageName
            AND pendingInstallFilePath IS :path
@@ -249,23 +280,31 @@ interface InstalledAppDao {
         path: String?,
     )
 
+    // Parking a finished download for the user must not start the expiry clock: the 24h
+    // window starts only when the APK is handed to the installer.
     @Query(
         """
         UPDATE installed_apps
            SET pendingInstallFilePath = :path,
                pendingInstallVersion = :version,
                pendingInstallAssetName = :assetName,
+               pendingInstallReleaseId = :releaseId,
+               pendingInstallAssetId = :assetId,
                pendingInstallAssetDigest = :digest,
+               pendingInstallStartedAt = NULL,
                isPendingInstall = 1
          WHERE packageName = :packageName
         """,
     )
+    @Suppress("LongParameterList")
     suspend fun markAwaitingInstall(
         packageName: String,
         path: String,
         version: String?,
         assetName: String?,
         digest: String?,
+        releaseId: Long?,
+        assetId: Long?,
     )
 
     @Query(

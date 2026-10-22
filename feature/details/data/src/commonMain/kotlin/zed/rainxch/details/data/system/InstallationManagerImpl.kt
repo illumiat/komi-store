@@ -131,6 +131,17 @@ class InstallationManagerImpl(
                         params.releaseTag.takeIf { params.pendingInstallFilePath != null },
                     pendingInstallAssetName =
                         params.assetName.takeIf { params.pendingInstallFilePath != null },
+                    pendingInstallReleaseId =
+                        params.releaseId.takeIf { params.pendingInstallFilePath != null },
+                    pendingInstallAssetId =
+                        params.assetId.takeIf { params.pendingInstallFilePath != null },
+                    pendingInstallAssetDigest =
+                        params.assetDigest.takeIf { params.pendingInstallFilePath != null },
+                    pendingInstallStartedAt =
+                        System
+                            .now()
+                            .toEpochMilliseconds()
+                            .takeIf { params.pendingInstallFilePath != null },
                     sourceHost = params.sourceHost,
                 )
 
