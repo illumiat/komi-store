@@ -66,15 +66,7 @@ class CategoryListViewModel(
                 }
             }
 
-            CategoryListAction.OnNavigateBack -> {
-                Unit
-            }
-
-            CategoryListAction.OnToggleGridLayout -> {
-                val grid = !_state.value.isGridLayout
-                _state.update { it.copy(isGridLayout = grid) }
-                viewModelScope.launch { tweaksRepository.setRepoGridLayout(grid) }
-            }
+            CategoryListAction.OnNavigateBack -> {}
         }
     }
 
