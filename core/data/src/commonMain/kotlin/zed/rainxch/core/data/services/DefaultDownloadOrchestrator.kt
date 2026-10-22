@@ -864,6 +864,7 @@ class DefaultDownloadOrchestrator(
         }
     }
 
+    @Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
     private suspend fun adoptUntrackedDownload(
         entry: OrchestratedDownload?,
         filePath: String,
@@ -923,6 +924,9 @@ class DefaultDownloadOrchestrator(
                     pendingInstallFilePath = filePath.takeIf { isPending },
                     pendingInstallVersion = entry.releaseTag.takeIf { isPending },
                     pendingInstallAssetName = entry.assetName.takeIf { isPending },
+                    pendingInstallReleaseId = entry.releaseId.takeIf { isPending },
+                    pendingInstallAssetId = entry.assetId.takeIf { isPending && it > 0L },
+                    pendingInstallAssetDigest = entry.assetDigest.takeIf { isPending },
                     sourceHost = entry.sourceHost,
                 ),
             )
