@@ -107,6 +107,8 @@ data class TweaksState(
     val useMasterByScope: ImmutableMap<ProxyScope, Boolean> =
         ProxyScope.entries.associateWith { false }.toImmutableMap(),
     val isClearSeenHistoryDialogVisible: Boolean = false,
+    val isDiagnosticCaptureEnabled: Boolean = false,
+    val hasDiagnosticSessionLog: Boolean = false,
 ) {
     fun useMain(scope: ProxyScope): Boolean = useMasterByScope[scope] ?: false
 

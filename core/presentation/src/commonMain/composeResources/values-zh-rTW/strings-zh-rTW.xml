@@ -1474,4 +1474,15 @@
     <string name="apps_tag_asset_filter">資產篩選</string>
     <string name="apps_variant_stale_pick">變體已變更，請重新選擇。</string>
     <string name="apps_no_release_found">找不到可安裝的發行版本。</string>
+
+    <!-- Tweaks: developer diagnostics -->
+    <string name="tweaks_diagnostics_section_title">開發者與診斷</string>
+    <string name="tweaks_diagnostics_capture_title">擷取診斷記錄</string>
+    <string name="tweaks_diagnostics_capture_body">僅在本次工作階段中將應用程式記錄寫入本機檔案。應用程式重新啟動後開關會自動關閉。</string>
+    <string name="tweaks_diagnostics_share_title">分享診斷記錄</string>
+    <string name="tweaks_diagnostics_share_body">將工作階段記錄、最近的當機報告和裝置資訊合併為一個文字檔。</string>
+    <string name="tweaks_diagnostics_share_unavailable">還沒有工作階段記錄。請先開啟擷取並重現問題。</string>
+    <string name="tweaks_diagnostics_share_action">分享</string>
+    <string name="tweaks_diagnostics_warning">記錄只保留在這部裝置上，可能包含應用程式資料。不會自動上傳任何內容。</string>
+    <string name="tweaks_diagnostics_share_error">無法準備診斷記錄</string>
 </resources>

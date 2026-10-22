@@ -1517,4 +1517,15 @@
     <string name="apps_tag_asset_filter">Filtr zasobów</string>
     <string name="apps_variant_stale_pick">Wariant uległ zmianie. Wybierz go ponownie.</string>
     <string name="apps_no_release_found">Nie znaleziono wydania do zainstalowania.</string>
+
+    <!-- Tweaks: developer diagnostics -->
+    <string name="tweaks_diagnostics_section_title">Deweloper i diagnostyka</string>
+    <string name="tweaks_diagnostics_capture_title">Przechwytuj logi diagnostyczne</string>
+    <string name="tweaks_diagnostics_capture_body">Zapisuje logi aplikacji w lokalnym pliku tylko na czas tej sesji. Po ponownym uruchomieniu aplikacji przełącznik się wyłącza.</string>
+    <string name="tweaks_diagnostics_share_title">Udostępnij logi diagnostyczne</string>
+    <string name="tweaks_diagnostics_share_body">Łączy log sesji, najnowszy raport awarii i informacje o urządzeniu w jeden plik tekstowy.</string>
+    <string name="tweaks_diagnostics_share_unavailable">Nie ma jeszcze logu sesji. Najpierw włącz przechwytywanie i odtwórz problem.</string>
+    <string name="tweaks_diagnostics_share_action">Udostępnij</string>
+    <string name="tweaks_diagnostics_warning">Logi pozostają na tym urządzeniu i mogą zawierać dane aplikacji. Nic nie jest wysyłane automatycznie.</string>
+    <string name="tweaks_diagnostics_share_error">Nie udało się przygotować logów diagnostycznych</string>
 </resources>

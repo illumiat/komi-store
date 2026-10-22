@@ -27,6 +27,8 @@ import zed.rainxch.core.data.utils.DesktopAppLauncher
 import zed.rainxch.core.data.utils.DesktopBrowserHelper
 import zed.rainxch.core.data.utils.DesktopClipboardHelper
 import zed.rainxch.core.data.utils.DesktopShareManager
+import zed.rainxch.core.domain.diagnostics.DiagnosticSessionController
+import zed.rainxch.core.domain.diagnostics.NoOpDiagnosticSessionController
 import zed.rainxch.core.domain.helpers.AppLauncher
 import zed.rainxch.core.domain.helpers.BrowserHelper
 import zed.rainxch.core.domain.helpers.ClipboardHelper
@@ -166,6 +168,10 @@ actual val corePlatformModule =
 
         single<ShareManager> {
             DesktopShareManager()
+        }
+
+        single<DiagnosticSessionController> {
+            NoOpDiagnosticSessionController
         }
 
         single<InstallerStatusProvider> {
