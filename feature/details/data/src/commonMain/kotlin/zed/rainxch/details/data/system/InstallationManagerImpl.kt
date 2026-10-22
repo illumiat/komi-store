@@ -111,7 +111,7 @@ class InstallationManagerImpl(
                     installedAt = now,
                     lastCheckedAt = now,
                     lastUpdatedAt = now,
-                    boundAt = now.takeUnless { params.isPendingInstall },
+                    boundAt = now.takeIf { !params.isPendingInstall && params.pendingInstallFilePath == null },
                     isUpdateAvailable = false,
                     updateCheckEnabled = true,
                     releaseNotes = "",
