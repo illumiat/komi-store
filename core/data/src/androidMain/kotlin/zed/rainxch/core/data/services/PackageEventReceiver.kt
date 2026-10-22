@@ -259,6 +259,7 @@ class PackageEventReceiver() :
                         installedVersionCode = systemInfo.versionCode,
                         isUpdateAvailable = false,
                     )
+                    repo.updateSigningFingerprint(packageName, systemInfo.signingFingerprint)
                     repo.clearInstallBinding(packageName)
                 }
                 Logger.i {
@@ -304,6 +305,7 @@ class PackageEventReceiver() :
                 installedVersionCode = systemInfo.versionCode,
                 isUpdateAvailable = newIsUpdateAvailable,
             )
+            repo.updateSigningFingerprint(packageName, systemInfo.signingFingerprint)
             repo.clearInstallBinding(packageName)
         }
 
