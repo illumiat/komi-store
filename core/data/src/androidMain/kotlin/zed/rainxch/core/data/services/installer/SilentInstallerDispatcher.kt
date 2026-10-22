@@ -123,9 +123,8 @@ class SilentInstallerDispatcher(
     }
 
     private fun tryThirdPartyInstall(filePath: String): InstallOutcome? {
-        if (cachedInstallerType != InstallerType.THIRD_PARTY) return null
         val packageName = cachedExternalInstallerPackage
-        if (packageName.isBlank()) return null
+        if (cachedInstallerType != InstallerType.THIRD_PARTY || packageName.isBlank()) return null
         val launched = ExternalInstallerLauncher(androidContext).launch(filePath, packageName)
         if (!launched) {
             Logger.d(TAG) { "Third-party installer $packageName could not be opened, falling back" }
