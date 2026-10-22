@@ -341,6 +341,7 @@ class InstalledAppsRepositoryImpl(
                 latestVersionName = matchedRelease.tagName,
                 latestVersionCode = resolvedLatestVersionCode,
                 latestReleasePublishedAt = matchedRelease.publishedAt,
+                previousLastCheckedAt = app.lastCheckedAt,
             )
 
             val shouldRewriteTag =

@@ -67,8 +67,10 @@ interface InstalledAppDao {
         latestVersionCode = :latestVersionCode,
         latestReleasePublishedAt = :latestReleasePublishedAt
     WHERE packageName = :packageName
+      AND lastCheckedAt <= :previousLastCheckedAt
 """,
     )
+    @Suppress("LongParameterList")
     suspend fun updateVersionInfo(
         packageName: String,
         available: Boolean,
@@ -84,6 +86,7 @@ interface InstalledAppDao {
         latestVersionName: String?,
         latestVersionCode: Long?,
         latestReleasePublishedAt: String?,
+        previousLastCheckedAt: Long,
     )
 
     @Query("UPDATE installed_apps SET includePreReleases = :enabled WHERE packageName = :packageName")
