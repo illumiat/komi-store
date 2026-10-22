@@ -1509,4 +1509,13 @@
     <string name="display_mode_description">Chiede al display una frequenza specifica. Automatico lascia decidere al sistema.</string>
     <string name="display_mode_auto">Automatico</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Mostra schede</string>
+    <string name="repo_layout_title">Layout del repository</string>
+    <string name="repo_layout_list">Elenco</string>
+    <string name="repo_layout_grid">Griglia</string>
+    <string name="apps_tag_updates_ignored">Aggiornamenti ignorati</string>
+    <string name="apps_tag_skipped">Saltato %1$s</string>
+    <string name="apps_tag_asset_filter">Filtro asset</string>
+    <string name="apps_variant_stale_pick">La variante è cambiata. Selezionala di nuovo.</string>
+    <string name="apps_no_release_found">Impossibile trovare una release da installare.</string>
 </resources>

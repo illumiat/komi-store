@@ -1506,4 +1506,13 @@
     <string name="display_mode_description">Ekrandan belirli bir yenileme hızı ister. Otomatik, kararı sisteme bırakır.</string>
     <string name="display_mode_auto">Otomatik</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Sekmeleri göster</string>
+    <string name="repo_layout_title">Depo düzeni</string>
+    <string name="repo_layout_list">Liste</string>
+    <string name="repo_layout_grid">Izgara</string>
+    <string name="apps_tag_updates_ignored">Güncellemeler yok sayıldı</string>
+    <string name="apps_tag_skipped">%1$s atlandı</string>
+    <string name="apps_tag_asset_filter">Varlık filtresi</string>
+    <string name="apps_variant_stale_pick">Varyant değişti. Yeniden seçin.</string>
+    <string name="apps_no_release_found">Yüklenecek bir sürüm bulunamadı.</string>
 </resources>

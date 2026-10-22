@@ -1508,4 +1508,13 @@
     <string name="display_mode_description">Prosi ekran o określoną częstotliwość. Automatycznie pozostawia decyzję systemowi.</string>
     <string name="display_mode_auto">Automatycznie</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">Pokaż karty</string>
+    <string name="repo_layout_title">Układ repozytorium</string>
+    <string name="repo_layout_list">Lista</string>
+    <string name="repo_layout_grid">Siatka</string>
+    <string name="apps_tag_updates_ignored">Aktualizacje zignorowane</string>
+    <string name="apps_tag_skipped">Pominięto %1$s</string>
+    <string name="apps_tag_asset_filter">Filtr zasobów</string>
+    <string name="apps_variant_stale_pick">Wariant uległ zmianie. Wybierz go ponownie.</string>
+    <string name="apps_no_release_found">Nie znaleziono wydania do zainstalowania.</string>
 </resources>
