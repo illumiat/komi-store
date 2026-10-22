@@ -302,7 +302,7 @@ private fun zed.rainxch.tweaks.presentation.components.sections.DhizukuStatusBad
 
 @Composable
 private fun zed.rainxch.tweaks.presentation.components.sections.ExternalInstallerPickerSheet(state: zed.rainxch.tweaks.presentation.TweaksState, onAction: kotlin.Function1<zed.rainxch.tweaks.presentation.TweaksAction, kotlin.Unit>): kotlin.Unit
-  skippable: false
+  skippable: true
   restartable: true
   params:
     - state: UNSTABLE (has mutable properties or unstable members)
@@ -422,7 +422,7 @@ private fun zed.rainxch.tweaks.presentation.components.sections.StatusDot(color:
 
 @Composable
 private fun zed.rainxch.tweaks.presentation.components.sections.ThirdPartyInstallerRows(state: zed.rainxch.tweaks.presentation.TweaksState, onAction: kotlin.Function1<zed.rainxch.tweaks.presentation.TweaksAction, kotlin.Unit>): kotlin.Unit
-  skippable: false
+  skippable: true
   restartable: true
   params:
     - state: UNSTABLE (has mutable properties or unstable members)
