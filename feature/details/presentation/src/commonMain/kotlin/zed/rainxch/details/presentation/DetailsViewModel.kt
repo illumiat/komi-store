@@ -3258,6 +3258,21 @@ class DetailsViewModel(
                         releases = freshReleases,
                     )
                 }
+            // The check writes the new isUpdateAvailable flag to the DB. The UI is holding the
+            // object read before the check, so refresh it here or the CTA stays on Install until
+            // the screen is recreated.
+            val refreshed = installedAppsRepository.getAppByPackage(installed.packageName)
+            if (refreshed != null && refreshed != installed) {
+                _state.update { state ->
+                    state.copy(
+                        installedApp = refreshed,
+                        installedApps =
+                            state.installedApps.map { app ->
+                                if (app.packageName == refreshed.packageName) refreshed else app
+                            },
+                    )
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
