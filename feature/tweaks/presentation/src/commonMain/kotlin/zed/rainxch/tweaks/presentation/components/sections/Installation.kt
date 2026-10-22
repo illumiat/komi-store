@@ -95,7 +95,7 @@ fun installSectionContent(
                 badge = { RootStatusBadge(state.rootAvailability) },
             )
             if (state.installerType == InstallerType.ROOT) {
-                RootActions(state.rootAvailability) { onAction(TweaksAction.OnRequestRootPermission) }
+                RootActions(state.rootAvailability, showDivider = true) { onAction(TweaksAction.OnRequestRootPermission) }
             }
             ThirdPartyInstallerRows(state, onAction)
         }
@@ -371,17 +371,21 @@ private fun DhizukuActions(availability: DhizukuAvailability, onRequest: () -> U
 }
 
 @Composable
-private fun RootActions(availability: RootAvailability, onRequest: () -> Unit) {
+private fun RootActions(
+    availability: RootAvailability,
+    showDivider: Boolean = false,
+    onRequest: () -> Unit,
+) {
     when (availability) {
         RootAvailability.PERMISSION_NEEDED ->
-            ActionButton(stringResource(Res.string.root_grant_permission), onRequest)
-        RootAvailability.UNAVAILABLE -> HintRow(stringResource(Res.string.root_unavailable_hint))
+            ActionButton(stringResource(Res.string.root_grant_permission), onRequest, showDivider)
+        RootAvailability.UNAVAILABLE -> HintRow(stringResource(Res.string.root_unavailable_hint), showDivider)
         RootAvailability.READY -> Unit
     }
 }
 
 @Composable
-private fun ActionButton(label: String, onClick: () -> Unit) {
+private fun ActionButton(label: String, onClick: () -> Unit, showDivider: Boolean = false) {
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 8.dp)) {
         KomiButton(
             onClick = onClick,
@@ -391,15 +395,31 @@ private fun ActionButton(label: String, onClick: () -> Unit) {
             fullWidth = true,
         )
     }
+    if (showDivider) SettingsGroupDivider()
 }
 
 @Composable
-private fun HintRow(text: String) {
+private fun HintRow(text: String, showDivider: Boolean = false) {
     KomiText(
         text = text,
         role = KomiTextRole.Body,
         color = LocalPersonality.current.colors.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 15.dp, vertical = 6.dp),
+    )
+    if (showDivider) SettingsGroupDivider()
+}
+
+@Composable
+private fun SettingsGroupDivider() {
+    val personality = LocalPersonality.current
+    val isManga = personality is zed.rainxch.core.presentation.personality.MangaPersonality
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(start = if (isManga) 0.dp else 12.dp)
+                .height(if (isManga) 2.dp else 1.dp)
+                .background(if (isManga) personality.colors.outline else personality.colors.outlineVariant),
     )
 }
 
