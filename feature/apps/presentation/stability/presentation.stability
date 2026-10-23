@@ -35,7 +35,7 @@ private fun zed.rainxch.apps.presentation.AppsSearchField(query: kotlin.String, 
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
-private fun zed.rainxch.apps.presentation.KeepAtTopWhenSectionsChange(gridState: androidx.compose.foundation.lazy.grid.LazyGridState, sections: kotlin.collections.List<kotlin.Boolean>): kotlin.Unit
+private fun zed.rainxch.apps.presentation.KeepAtTopWhenSectionsChange(gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState, sections: kotlin.collections.List<kotlin.Boolean>): kotlin.Unit
   skippable: true
   restartable: true
   params:

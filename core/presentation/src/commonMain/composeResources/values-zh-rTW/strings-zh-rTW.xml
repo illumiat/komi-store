@@ -1465,4 +1465,13 @@
     <string name="display_mode_description">向螢幕要求指定的重新整理率。自動由系統決定。</string>
     <string name="display_mode_auto">自動</string>
     <string name="display_mode_option">%1$d × %2$d · %3$d Hz</string>
+    <string name="show_tabs">顯示分頁</string>
+    <string name="repo_layout_title">儲存庫版面配置</string>
+    <string name="repo_layout_list">清單</string>
+    <string name="repo_layout_grid">網格</string>
+    <string name="apps_tag_updates_ignored">已忽略更新</string>
+    <string name="apps_tag_skipped">已略過 %1$s</string>
+    <string name="apps_tag_asset_filter">資產篩選</string>
+    <string name="apps_variant_stale_pick">變體已變更，請重新選擇。</string>
+    <string name="apps_no_release_found">找不到可安裝的發行版本。</string>
 </resources>
