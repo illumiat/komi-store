@@ -208,8 +208,6 @@ class DetailsViewModel(
         observeAutoTranslateSetting()
     }
 
-    // Toggling the setting off drops the automatic translations a page already shows; toggling it
-    // on fills them in without reopening the repository.
     private fun observeAutoTranslateSetting() {
         viewModelScope.launch {
             tweaksRepository

@@ -1,7 +1,5 @@
 package zed.rainxch.details.presentation.utils
 
-// An unset target falls back from the user's explicit pick, to the app language, to the device
-// language; blank values never win.
 internal fun autoTranslateTargetLanguage(
     explicitTarget: String?,
     appLanguage: String?,
