@@ -127,7 +127,7 @@ fun MirrorPickerRoot(
         },
     ) { padding ->
         val colors = LocalPersonality.current.colors
-        val official = state.mirrors.filter { it.type == MirrorType.OFFICIAL && it.id != "direct" }
+        val official = state.mirrors.filter { it.type == MirrorType.OFFICIAL }
         val community = state.mirrors.filter { it.type == MirrorType.COMMUNITY }
         val fastestMirrorId = fastestReleaseMirror(state.mirrors, state.measuredLatencies)?.first?.id
         Column(
@@ -150,16 +150,6 @@ fun MirrorPickerRoot(
                 TweaksDecorSlot.MirrorOfficial
             )
             SettingsGroup {
-                SettingsRow(
-                    title = stringResource(Res.string.mirror_section_official),
-                    onClick = { viewModel.onAction(MirrorPickerAction.OnSelectDirect) },
-                    trailing = {
-                        KomiRadioButton(
-                            selected = state.preference is MirrorPreference.Direct,
-                            onClick = null,
-                        )
-                    },
-                )
                 SettingsRow(
                     title = stringResource(Res.string.mirror_pick_fastest),
                     subtitle =
@@ -206,17 +196,10 @@ fun MirrorPickerRoot(
                         measuredMs = state.measuredLatencies[mirror.id],
                         isFastest = fastestMirrorId == mirror.id,
                         selected = isMirrorSelected(mirror, state.preference),
-                        last = index == community.lastIndex,
+                        last = false,
                         onClick = { viewModel.onAction(MirrorPickerAction.OnSelectMirror(mirror)) },
                     )
                 }
-            }
-
-            SettingsSectionHead(
-                stringResource(Res.string.mirror_custom_label),
-                TweaksDecorSlot.MirrorCommunity,
-            )
-            SettingsGroup {
                 SettingsRow(
                     title = stringResource(Res.string.mirror_custom_label),
                     last = true,

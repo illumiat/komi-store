@@ -5,8 +5,6 @@ import zed.rainxch.core.domain.model.mirror.MirrorConfig
 sealed interface MirrorPickerAction {
     data object OnNavigateBack : MirrorPickerAction
 
-    data object OnSelectDirect : MirrorPickerAction
-
     data class OnSelectMirror(
         val mirror: MirrorConfig,
     ) : MirrorPickerAction
