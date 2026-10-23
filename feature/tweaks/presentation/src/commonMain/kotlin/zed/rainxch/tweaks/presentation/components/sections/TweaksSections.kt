@@ -118,7 +118,9 @@ fun ColumnScope.privacySection(
 
 @Composable
 fun ColumnScope.appSection(
+    hasCrashLog: Boolean,
     onOpenFeedback: () -> Unit,
+    onShareCrashLog: () -> Unit,
     showHead: Boolean = true,
 ) {
     if (showHead) SettingsSectionHead(stringResource(Res.string.section_app_block), TweaksDecorSlot.App)
@@ -127,8 +129,16 @@ fun ColumnScope.appSection(
             title = stringResource(Res.string.tweaks_entry_feedback),
             subtitle = stringResource(Res.string.feedback_hub_subtitle),
             onClick = onOpenFeedback,
-            last = true,
+            last = !hasCrashLog,
         )
+        if (hasCrashLog) {
+            SettingsDrillRow(
+                title = stringResource(Res.string.tweaks_crash_log_share),
+                subtitle = stringResource(Res.string.tweaks_crash_log_share_subtitle),
+                onClick = onShareCrashLog,
+                last = true,
+            )
+        }
     }
 }
 

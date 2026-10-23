@@ -981,6 +981,8 @@
     <string name="import_summary_imported">%1$d importati</string>
     <string name="import_summary_non_github">%1$d non GitHub</string>
     <string name="import_summary_non_github_caption">Non tracciamo ancora GitLab, F-Droid o sorgenti HTML.</string>
+    <string name="import_summary_not_installed">%1$d non presenti su questo telefono</string>
+    <string name="import_summary_not_installed_caption">Vengono importate solo le app già presenti su questo telefono. Installa le altre, poi importa di nuovo questo file.</string>
     <string name="import_summary_title">Risultati import — %1$s</string>
     <string name="import_summary_unknown_caption">Non sembra un'esportazione di Komi Store o Obtainium. Ecco l'inizio del file:</string>
     <string name="import_summary_unknown_format">Impossibile leggere questo file</string>
@@ -1107,6 +1109,8 @@
     <string name="details_whats_new_screen_title">Cosa c'è di nuovo</string>
     <string name="external_import_progress_skip">Salta e rivedi più tardi</string>
     <string name="feedback_hub_subtitle">Leggiamo ogni segnalazione.</string>
+    <string name="tweaks_crash_log_share">Condividi il log degli arresti anomali</string>
+    <string name="tweaks_crash_log_share_subtitle">Salvato su questo dispositivo dopo l'ultimo arresto anomalo</string>
     <string name="home_action_get">Ottieni</string>
     <string name="home_rank_format">#%1$d</string>
     <string name="home_section_from_your_stars">Dai tuoi preferiti</string>

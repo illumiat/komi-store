@@ -38,6 +38,7 @@ import zed.rainxch.core.domain.repository.SeenReposRepository
 import zed.rainxch.core.domain.repository.TweaksRepository
 import zed.rainxch.core.domain.system.AggressiveOemDetector
 import zed.rainxch.core.domain.system.AppVersionInfo
+import zed.rainxch.core.domain.system.CrashLogSharer
 import zed.rainxch.core.domain.system.InstallerStatusProvider
 import zed.rainxch.core.domain.system.UpdateScheduleManager
 import zed.rainxch.githubstore.core.presentation.res.Res
@@ -183,6 +184,13 @@ class TweaksViewModel(
 
     private fun loadVersionName() {
         _state.update { it.copy(versionName = appVersionInfo.versionName) }
+    }
+
+    private fun loadCrashLogAvailability() {
+        viewModelScope.launch {
+            val hasCrashLog = crashLogSharer.hasCrashLog()
+            _state.update { it.copy(hasCrashLog = hasCrashLog) }
+        }
     }
 
     private fun loadRepoLayout() {
@@ -1013,6 +1021,10 @@ class TweaksViewModel(
 
             TweaksAction.OnFeedbackDismiss -> {
                 _state.update { it.copy(isFeedbackSheetVisible = false) }
+            }
+
+            TweaksAction.OnShareCrashLogClick -> {
+                crashLogSharer.shareLatest()
             }
 
             TweaksAction.OnLanguagePickerOpen -> {

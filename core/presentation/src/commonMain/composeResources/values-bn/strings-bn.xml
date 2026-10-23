@@ -968,6 +968,8 @@
     <string name="import_summary_imported">%1$d আমদানিকৃত</string>
     <string name="import_summary_non_github">%1$d GitHub নয়</string>
     <string name="import_summary_non_github_caption">আমরা এখনো GitLab, F-Droid বা HTML উৎস ট্র্যাক করি না।</string>
+    <string name="import_summary_not_installed">%1$d টি এই ফোনে নেই</string>
+    <string name="import_summary_not_installed_caption">শুধু এই ফোনে থাকা অ্যাপগুলোই ইমপোর্ট হয়। বাকিগুলো ইনস্টল করে ফাইলটি আবার ইমপোর্ট করুন।</string>
     <string name="import_summary_title">আমদানির ফলাফল — %1$s</string>
     <string name="import_summary_unknown_caption">এটি Komi Store বা Obtainium এক্সপোর্টের মতো দেখাচ্ছে না। ফাইলের শুরুটি এখানে:</string>
     <string name="import_summary_unknown_format">এই ফাইলটি পড়া যায়নি</string>
@@ -1106,6 +1108,8 @@
     <string name="details_whats_new_screen_title">নতুন কী আছে</string>
     <string name="external_import_progress_skip">বাদ দিন এবং পরে পর্যালোচনা করুন</string>
     <string name="feedback_hub_subtitle">আমরা প্রতিটি রিপোর্ট পড়ি।</string>
+    <string name="tweaks_crash_log_share">ক্র্যাশ লগ শেয়ার করুন</string>
+    <string name="tweaks_crash_log_share_subtitle">শেষ ক্র্যাশের পর এই ডিভাইসে সংরক্ষিত</string>
     <string name="home_action_get">নিন</string>
     <string name="home_rank_format">#%1$d</string>
     <string name="home_section_from_your_stars">আপনার স্টার থেকে</string>

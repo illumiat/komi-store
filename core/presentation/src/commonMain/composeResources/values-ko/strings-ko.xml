@@ -969,6 +969,8 @@
     <string name="import_summary_imported">%1$d개 가져옴</string>
     <string name="import_summary_non_github">%1$d개는 GitHub 아님</string>
     <string name="import_summary_non_github_caption">GitLab, F-Droid 또는 HTML 소스는 아직 추적하지 않습니다.</string>
+    <string name="import_summary_not_installed">%1$d개가 이 휴대폰에 없음</string>
+    <string name="import_summary_not_installed_caption">이 휴대폰에 이미 있는 앱만 가져옵니다. 나머지를 설치한 뒤 이 파일을 다시 가져오세요.</string>
     <string name="import_summary_title">가져오기 결과 — %1$s</string>
     <string name="import_summary_unknown_caption">Komi Store 또는 Obtainium 내보내기로 보이지 않습니다. 파일 시작 부분은 다음과 같습니다:</string>
     <string name="import_summary_unknown_format">이 파일을 읽을 수 없음</string>
@@ -1094,6 +1096,8 @@
     <string name="details_whats_new_screen_title">새로운 기능</string>
     <string name="external_import_progress_skip">건너뛰고 나중에 검토</string>
     <string name="feedback_hub_subtitle">모든 신고를 확인합니다.</string>
+    <string name="tweaks_crash_log_share">크래시 로그 공유</string>
+    <string name="tweaks_crash_log_share_subtitle">마지막 크래시 후 이 기기에 저장됨</string>
     <string name="home_action_get">받기</string>
     <string name="home_rank_format">#%1$d</string>
     <string name="home_section_from_your_stars">내 별표 저장소</string>

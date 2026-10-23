@@ -942,6 +942,8 @@
     <string name="import_summary_imported">%1$d 个已导入</string>
     <string name="import_summary_non_github">%1$d 个非 GitHub</string>
     <string name="import_summary_non_github_caption">我们暂不追踪 GitLab、F-Droid 或 HTML 来源。</string>
+    <string name="import_summary_not_installed">%1$d 个不在此手机上</string>
+    <string name="import_summary_not_installed_caption">只会导入此手机上已有的应用。请先安装其余应用，再重新导入此文件。</string>
     <string name="import_summary_title">导入结果 — %1$s</string>
     <string name="import_summary_unknown_caption">这看起来不是 Komi Store 或 Obtainium 的导出文件。文件开头如下：</string>
     <string name="import_summary_unknown_format">无法读取该文件</string>
@@ -1067,6 +1069,8 @@
     <string name="details_whats_new_screen_title">更新内容</string>
     <string name="external_import_progress_skip">跳过，稍后查看</string>
     <string name="feedback_hub_subtitle">每一条反馈我们都会阅读。</string>
+    <string name="tweaks_crash_log_share">分享崩溃日志</string>
+    <string name="tweaks_crash_log_share_subtitle">上次崩溃后保存在此设备上</string>
     <string name="home_action_get">获取</string>
     <string name="home_rank_format">#%1$d</string>
     <string name="home_section_from_your_stars">来自你的星标</string>

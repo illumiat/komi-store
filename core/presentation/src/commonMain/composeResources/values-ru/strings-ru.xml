@@ -972,6 +972,8 @@
     <string name="import_summary_imported">%1$d импортировано</string>
     <string name="import_summary_non_github">%1$d не GitHub</string>
     <string name="import_summary_non_github_caption">Мы пока не отслеживаем GitLab, F-Droid и HTML-источники.</string>
+    <string name="import_summary_not_installed">%1$d нет на этом телефоне</string>
+    <string name="import_summary_not_installed_caption">Импортируются только приложения, которые уже есть на этом телефоне. Установите остальные и импортируйте файл ещё раз.</string>
     <string name="import_summary_title">Результаты импорта — %1$s</string>
     <string name="import_summary_unknown_caption">Это не похоже на экспорт Komi Store или Obtainium. Вот начало файла:</string>
     <string name="import_summary_unknown_format">Не удалось прочитать этот файл</string>
@@ -1100,6 +1102,8 @@
     <string name="details_whats_new_screen_title">Что нового</string>
     <string name="external_import_progress_skip">Пропустить и посмотреть позже</string>
     <string name="feedback_hub_subtitle">Мы читаем каждый отзыв.</string>
+    <string name="tweaks_crash_log_share">Поделиться журналом сбоев</string>
+    <string name="tweaks_crash_log_share_subtitle">Сохранён на этом устройстве после последнего сбоя</string>
     <string name="home_action_get">Получить</string>
     <string name="home_rank_format">#%1$d</string>
     <string name="home_section_from_your_stars">Из твоих избранных</string>
