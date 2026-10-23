@@ -1,4 +1,4 @@
-package zed.rainxch.githubstore.app
+package zed.rainxch.core.data.services
 
 import android.content.Context
 import android.content.Intent
