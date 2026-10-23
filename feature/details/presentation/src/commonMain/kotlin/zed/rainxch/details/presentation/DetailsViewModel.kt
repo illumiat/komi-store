@@ -3279,9 +3279,11 @@ class DetailsViewModel(
             val refreshed = installedAppsRepository.getAppByPackage(installed.packageName)
             val updateStateChanged =
                 refreshed != null &&
-                    (refreshed.isUpdateAvailable != installed.isUpdateAvailable ||
-                        refreshed.latestVersion != installed.latestVersion ||
-                        refreshed.latestReleaseId != installed.latestReleaseId)
+                    (
+                        refreshed.isUpdateAvailable != installed.isUpdateAvailable ||
+                            refreshed.latestVersion != installed.latestVersion ||
+                            refreshed.latestReleaseId != installed.latestReleaseId
+                    )
             val updateTarget =
                 _state.value.allReleases
                     .takeIf { updateStateChanged && !hasUserPickedRelease }
