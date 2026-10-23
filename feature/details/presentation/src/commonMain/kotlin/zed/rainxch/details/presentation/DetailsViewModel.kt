@@ -174,6 +174,10 @@ class DetailsViewModel(
     private var aboutTranslationJob: Job? = null
     private var whatsNewTranslationJob: Job? = null
 
+    // Set once the user picks a release, asset, channel or installed app; an update check then
+    // leaves the selection where they put it.
+    private var hasUserPickedRelease = false
+
     private val _state = MutableStateFlow(RawDetailsState(devicePlatform = platform.toDiscoveryPlatform()))
     val state: StateFlow<DetailsState> =
         _state
@@ -414,10 +418,12 @@ class DetailsViewModel(
             }
 
             is DetailsAction.SelectReleaseCategory -> {
+                hasUserPickedRelease = true
                 selectReleaseCategory(action)
             }
 
             is DetailsAction.SelectRelease -> {
+                hasUserPickedRelease = true
                 val release = action.release
                 val (installable, primary) = recomputeAssetsForRelease(release)
                 val newInstalledApp =
@@ -577,6 +583,7 @@ class DetailsViewModel(
             }
 
             is DetailsAction.SelectDownloadAsset -> {
+                hasUserPickedRelease = true
                 val newPrimary =
                     pickPrimaryInstalledApp(
                         apps = _state.value.installedApps,
@@ -596,6 +603,7 @@ class DetailsViewModel(
             }
 
             is DetailsAction.OnSelectInstalledApp -> {
+                hasUserPickedRelease = true
                 switchToInstalledApp(action.packageName)
             }
 
@@ -1196,6 +1204,12 @@ class DetailsViewModel(
                 pickPrimaryInstalledApp(repoApps, primary.name, installable, this, release.tagName)?.packageName ==
                 app.packageName
         }
+
+    private fun List<GithubRelease>.updateTargetOf(app: InstalledApp?): GithubRelease? {
+        if (app == null || !app.isUpdateAvailable) return null
+        return app.latestReleaseId?.let { id -> firstOrNull { it.id == id } }
+            ?: firstOrNull { VersionMath.isExactSameVersion(it.tagName, app.latestVersion) }
+    }
 
     private fun observeInstalledApp(repoId: Long) {
         viewModelScope.launch {
@@ -2925,13 +2939,8 @@ class DetailsViewModel(
                         ReleaseCategory.STABLE
                     }
                 val deviceBuildIds = deviceBuildReleaseIds(allReleases)
-                val updateTargetRelease =
-                    installedApp
-                        ?.takeIf { it.isUpdateAvailable }
-                        ?.latestVersion
-                        ?.let { latest -> allReleases.firstOrNull { VersionMath.isExactSameVersion(it.tagName, latest) } }
                 val selectedRelease =
-                    updateTargetRelease
+                    allReleases.updateTargetOf(installedApp)
                         ?: installedApp?.let { app ->
                             allReleases.firstOwnedBy(
                                 app = app,
@@ -3264,32 +3273,38 @@ class DetailsViewModel(
                         releases = freshReleases,
                     )
                 }
-            // The check writes the new isUpdateAvailable flag to the DB. The UI is holding the
-            // object read before the check, so refresh it here or the CTA stays on Install until
-            // the screen is recreated.
+            // observeInstalledApp already hands the UI the rewritten row. What it does not move is
+            // the selected release, so open the new update target as loadInitial would.
             val refreshed = installedAppsRepository.getAppByPackage(installed.packageName)
-            if (refreshed != null && refreshed != installed) {
-                val updateTarget =
-                    refreshed
-                        .takeIf { it.isUpdateAvailable }
-                        ?.latestVersion
-                        ?.let { latest -> _state.value.allReleases.firstOrNull { VersionMath.isExactSameVersion(it.tagName, latest) } }
-                val (assets, primary) =
-                    if (updateTarget != null) {
-                        recomputeAssetsForRelease(updateTarget, refreshed, refreshed.installedAssetName)
+            val updateStateChanged =
+                refreshed != null &&
+                    (refreshed.isUpdateAvailable != installed.isUpdateAvailable ||
+                        refreshed.latestVersion != installed.latestVersion ||
+                        refreshed.latestReleaseId != installed.latestReleaseId)
+            val updateTarget =
+                _state.value.allReleases
+                    .takeIf { updateStateChanged && !hasUserPickedRelease }
+                    ?.updateTargetOf(refreshed)
+                    ?.takeIf { it.id != _state.value.selectedRelease?.id }
+            if (refreshed != null && updateTarget != null) {
+                val anchor = refreshed.installedAssetName ?: refreshed.latestAssetName ?: refreshed.pendingInstallAssetName
+                val (assets, primary) = recomputeAssetsForRelease(updateTarget, refreshed, anchor)
+                val category =
+                    if (updateTarget.isEffectivelyPreRelease()) {
+                        ReleaseCategory.PRE_RELEASE
                     } else {
-                        null to null
+                        ReleaseCategory.STABLE
                     }
+                whatsNewTranslationJob?.cancel()
                 _state.update { state ->
                     state.copy(
                         installedApp = refreshed,
-                        installedApps =
-                            state.installedApps.map { app ->
-                                if (app.packageName == refreshed.packageName) refreshed else app
-                            },
-                        selectedRelease = updateTarget ?: state.selectedRelease,
-                        installableAssets = assets ?: state.installableAssets,
-                        primaryAsset = primary ?: state.primaryAsset,
+                        selectedRelease = updateTarget,
+                        selectedReleaseCategory = category,
+                        installableAssets = assets,
+                        primaryAsset = primary,
+                        whatsNewTranslation = TranslationState(),
+                        whatsNewMeasuredHeightPx = null,
                     )
                 }
             }
