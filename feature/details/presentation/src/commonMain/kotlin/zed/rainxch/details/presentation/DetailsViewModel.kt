@@ -178,6 +178,10 @@ class DetailsViewModel(
     private var aboutTranslationJob: Job? = null
     private var whatsNewTranslationJob: Job? = null
 
+    // Set once the user picks a release, asset, channel or installed app; an update check then
+    // leaves the selection where they put it.
+    private var hasUserPickedRelease = false
+
     private val _state = MutableStateFlow(RawDetailsState(devicePlatform = platform.toDiscoveryPlatform()))
     val state: StateFlow<DetailsState> =
         _state
@@ -445,10 +449,12 @@ class DetailsViewModel(
             }
 
             is DetailsAction.SelectReleaseCategory -> {
+                hasUserPickedRelease = true
                 selectReleaseCategory(action)
             }
 
             is DetailsAction.SelectRelease -> {
+                hasUserPickedRelease = true
                 val release = action.release
                 val (installable, primary) = recomputeAssetsForRelease(release)
                 val newInstalledApp =
@@ -610,6 +616,7 @@ class DetailsViewModel(
             }
 
             is DetailsAction.SelectDownloadAsset -> {
+                hasUserPickedRelease = true
                 val newPrimary =
                     pickPrimaryInstalledApp(
                         apps = _state.value.installedApps,
@@ -629,6 +636,7 @@ class DetailsViewModel(
             }
 
             is DetailsAction.OnSelectInstalledApp -> {
+                hasUserPickedRelease = true
                 switchToInstalledApp(action.packageName)
             }
 
@@ -1233,6 +1241,12 @@ class DetailsViewModel(
                 pickPrimaryInstalledApp(repoApps, primary.name, installable, this, release.tagName)?.packageName ==
                 app.packageName
         }
+
+    private fun List<GithubRelease>.updateTargetOf(app: InstalledApp?): GithubRelease? {
+        if (app == null || !app.isUpdateAvailable) return null
+        return app.latestReleaseId?.let { id -> firstOrNull { it.id == id } }
+            ?: firstOrNull { VersionMath.isExactSameVersion(it.tagName, app.latestVersion) }
+    }
 
     private fun observeInstalledApp(repoId: Long) {
         viewModelScope.launch {
@@ -2965,14 +2979,15 @@ class DetailsViewModel(
                     }
                 val deviceBuildIds = deviceBuildReleaseIds(allReleases)
                 val selectedRelease =
-                    installedApp?.let { app ->
-                        allReleases.firstOwnedBy(
-                            app = app,
-                            category = installedChannel,
-                            repoApps = allInstalledApps,
-                            anchorAssetName = installedAssetName,
-                        )
-                    }
+                    allReleases.updateTargetOf(installedApp)
+                        ?: installedApp?.let { app ->
+                            allReleases.firstOwnedBy(
+                                app = app,
+                                category = installedChannel,
+                                repoApps = allInstalledApps,
+                                anchorAssetName = installedAssetName,
+                            )
+                        }
                         ?: allReleases.filter { it.id in deviceBuildIds }.firstInCategory(installedChannel)
                         ?: allReleases.firstInCategory(installedChannel)
                         ?: allReleases.firstInCategory(ReleaseCategory.ALL)
@@ -3315,6 +3330,43 @@ class DetailsViewModel(
                         releases = freshReleases,
                     )
                 }
+            // observeInstalledApp already hands the UI the rewritten row. What it does not move is
+            // the selected release, so open the new update target as loadInitial would.
+            val refreshed = installedAppsRepository.getAppByPackage(installed.packageName)
+            val updateStateChanged =
+                refreshed != null &&
+                    (
+                        refreshed.isUpdateAvailable != installed.isUpdateAvailable ||
+                            refreshed.latestVersion != installed.latestVersion ||
+                            refreshed.latestReleaseId != installed.latestReleaseId
+                    )
+            val updateTarget =
+                _state.value.allReleases
+                    .takeIf { updateStateChanged && !hasUserPickedRelease }
+                    ?.updateTargetOf(refreshed)
+                    ?.takeIf { it.id != _state.value.selectedRelease?.id }
+            if (refreshed != null && updateTarget != null) {
+                val anchor = refreshed.installedAssetName ?: refreshed.latestAssetName ?: refreshed.pendingInstallAssetName
+                val (assets, primary) = recomputeAssetsForRelease(updateTarget, refreshed, anchor)
+                val category =
+                    if (updateTarget.isEffectivelyPreRelease()) {
+                        ReleaseCategory.PRE_RELEASE
+                    } else {
+                        ReleaseCategory.STABLE
+                    }
+                whatsNewTranslationJob?.cancel()
+                _state.update { state ->
+                    state.copy(
+                        installedApp = refreshed,
+                        selectedRelease = updateTarget,
+                        selectedReleaseCategory = category,
+                        installableAssets = assets,
+                        primaryAsset = primary,
+                        whatsNewTranslation = TranslationState(),
+                        whatsNewMeasuredHeightPx = null,
+                    )
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
