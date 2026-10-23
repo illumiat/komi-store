@@ -1051,6 +1051,8 @@ class DetailsViewModel(
                             insights.latestStableHasInstallableAsset,
                     )
                 }
+
+                maybeAutoTranslate(readmeBody = null, releaseDescription = selected?.description)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: RateLimitException) {
@@ -1211,6 +1213,8 @@ class DetailsViewModel(
                 latestStableHasInstallableAsset = insights.latestStableHasInstallableAsset,
             )
         }
+
+        maybeAutoTranslate(readmeBody = null, releaseDescription = release.description)
     }
 
     private fun List<GithubRelease>.firstOwnedBy(
@@ -1422,6 +1426,8 @@ class DetailsViewModel(
                 whatsNewTranslation = TranslationState(),
             )
         }
+
+        maybeAutoTranslate(readmeBody = null, releaseDescription = newSelected?.description)
     }
 
     private fun jumpToDeviceBuild() {
