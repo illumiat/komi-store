@@ -122,18 +122,35 @@ fun SmartInstallButton(
     val displaySelected = normSelected?.let { tag ->
         VersionMath.normalizeVersion(tag).takeIf { it.isNotBlank() } ?: tag
     }
-    val selectedIsLatestRelease =
+    val selectedIsTimestampTracked =
         normSelected != null &&
-            (installedApp?.latestVersion.isNullOrBlank() ||
-                VersionMath.isExactSameVersion(normSelected, installedApp.latestVersion))
+            (VersionMath.isTimestampTrackedTag(normSelected) ||
+                VersionMath.detectScheme(normSelected) == VersionMath.Scheme.Unknown)
+    val latestBuildDiffers =
+        installedApp != null &&
+            VersionMath.assetBuildChanged(
+                matchedReleaseId = null,
+                matchedAssetId = installedApp.latestAssetId,
+                matchedDigest = installedApp.latestAssetDigest,
+                matchedSize = null,
+                storedReleaseId = null,
+                storedAssetId = installedApp.installedAssetId,
+                storedDigest = installedApp.installedAssetDigest,
+                storedSize = null,
+            )
+    val selectedIsLatestRelease = VersionMath.isExactSameVersion(normSelected, installedApp?.latestVersion)
     val isSameVersionInstalled =
         isInstalled &&
             normInstalled != null &&
             normSelected != null &&
             VersionMath.isExactSameVersion(normInstalled, normSelected) &&
-            // An explicit update flag beats tag equality: a rebuilt release can keep the same
-            // tag without being timestamp-tracked.
-            !(installedApp.isUpdateAvailable && selectedIsLatestRelease)
+            // An equal tag means the phone runs this build even when a stale update flag says
+            // otherwise, unless the tag is judged by publish time or the offered file differs.
+            !(
+                (selectedIsTimestampTracked || latestBuildDiffers) &&
+                    installedApp.isUpdateAvailable &&
+                    selectedIsLatestRelease
+            )
     val showUpdateAffordance = isUpdateAvailable && selectedIsLatestRelease
 
     val enabled = remember(primaryAsset, isDownloading, isInstalling) {
