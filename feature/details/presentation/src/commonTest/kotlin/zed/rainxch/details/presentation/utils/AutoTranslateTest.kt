@@ -1,6 +1,5 @@
 package zed.rainxch.details.presentation.utils
 
-import zed.rainxch.core.domain.model.settings.TranslationProvider
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -57,17 +56,5 @@ class AutoTranslateTest {
         assertFalse(shouldAutoTranslate("hello", " ", "en", alreadyTranslated = false))
         assertFalse(shouldAutoTranslate("hello", "de", "en", alreadyTranslated = true))
         assertTrue(shouldAutoTranslate("hello", "de", null, alreadyTranslated = false))
-    }
-
-    @Test
-    fun key_based_providers_need_their_credentials() {
-        assertTrue(isTranslationProviderConfigured(TranslationProvider.GOOGLE, null, null, null, null))
-        assertTrue(isTranslationProviderConfigured(TranslationProvider.LIBRE_TRANSLATE, null, null, null, null))
-        assertFalse(isTranslationProviderConfigured(TranslationProvider.YOUDAO, "key", " ", null, null))
-        assertTrue(isTranslationProviderConfigured(TranslationProvider.YOUDAO, "key", "secret", null, null))
-        assertFalse(isTranslationProviderConfigured(TranslationProvider.DEEPL, null, null, "", null))
-        assertTrue(isTranslationProviderConfigured(TranslationProvider.DEEPL, null, null, "key", null))
-        assertFalse(isTranslationProviderConfigured(TranslationProvider.MICROSOFT, null, null, null, ""))
-        assertTrue(isTranslationProviderConfigured(TranslationProvider.MICROSOFT, null, null, null, "key"))
     }
 }

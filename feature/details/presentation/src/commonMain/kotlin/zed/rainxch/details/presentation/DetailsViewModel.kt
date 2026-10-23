@@ -97,7 +97,6 @@ import zed.rainxch.details.presentation.model.SigningKeyWarning
 import zed.rainxch.details.presentation.model.SupportedLanguages
 import zed.rainxch.details.presentation.model.TranslationState
 import zed.rainxch.details.presentation.utils.autoTranslateTargetLanguage
-import zed.rainxch.details.presentation.utils.isTranslationProviderConfigured
 import zed.rainxch.details.presentation.utils.shouldAutoTranslate
 import zed.rainxch.githubstore.core.presentation.res.Res
 import zed.rainxch.githubstore.core.presentation.res.added_to_favourites
@@ -3378,34 +3377,16 @@ class DetailsViewModel(
         }
     }
 
-    // Read once per trigger: an off setting, an empty target and a provider without credentials
-    // all mean "translate nothing" rather than a failed request.
     private suspend fun autoTranslateTarget(): String? =
         try {
             if (!tweaksRepository.getAutoTranslateEnabled().first()) {
                 null
             } else {
-                val target =
-                    autoTranslateTargetLanguage(
-                        explicitTarget = tweaksRepository.getAutoTranslateTargetLang().first(),
-                        appLanguage = tweaksRepository.getAppLanguage().first(),
-                        deviceLanguage = translationRepository.getDeviceLanguageCode(),
-                    )
-                val provider = tweaksRepository.getTranslationProvider().first()
-                val configured =
-                    isTranslationProviderConfigured(
-                        provider = provider,
-                        youdaoAppKey = tweaksRepository.getYoudaoAppKey().first(),
-                        youdaoAppSecret = tweaksRepository.getYoudaoAppSecret().first(),
-                        deeplAuthKey = tweaksRepository.getDeeplAuthKey().first(),
-                        microsoftTranslatorKey = tweaksRepository.getMicrosoftTranslatorKey().first(),
-                    )
-                if (configured) {
-                    target
-                } else {
-                    logger.debug("Auto-translate skipped: ${provider.name} has no credentials")
-                    null
-                }
+                autoTranslateTargetLanguage(
+                    explicitTarget = tweaksRepository.getAutoTranslateTargetLang().first(),
+                    appLanguage = tweaksRepository.getAppLanguage().first(),
+                    deviceLanguage = translationRepository.getDeviceLanguageCode(),
+                )
             }
         } catch (e: CancellationException) {
             throw e
