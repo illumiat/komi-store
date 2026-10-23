@@ -3354,12 +3354,13 @@ class DetailsViewModel(
 
             val releaseNotes =
                 releaseDescription?.takeIf { notes ->
-                    shouldAutoTranslate(
-                        text = notes,
-                        targetLanguage = target,
-                        sourceLanguage = sourceLanguage,
-                        alreadyTranslated = _state.value.whatsNewTranslation.translatedText != null,
-                    )
+                    notes == _state.value.selectedRelease?.description &&
+                        shouldAutoTranslate(
+                            text = notes,
+                            targetLanguage = target,
+                            sourceLanguage = sourceLanguage,
+                            alreadyTranslated = _state.value.whatsNewTranslation.translatedText != null,
+                        )
                 }
             if (releaseNotes != null) {
                 whatsNewTranslationJob?.cancel()
