@@ -6,6 +6,7 @@ import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import zed.rainxch.core.data.services.CrashLogs
 import zed.rainxch.core.domain.diagnostics.DiagnosticLogRedactor
 import java.io.File
 import java.io.IOException
@@ -56,14 +57,15 @@ object DiagnosticSession {
         }
     }
 
-    fun hasSessionLog(): Boolean {
-        val logFile = appContext?.let(::sessionLogFile)
-        return enabled || (logFile != null && logFile.isFile && logFile.length() > 0)
+    // A crash report alone is worth sharing too: it's the one thing left after an unexpected crash.
+    fun hasLogsToShare(): Boolean {
+        val context = appContext ?: return false
+        return enabled || hasSessionLog(context) || CrashLogs.latest(context) != null
     }
 
     suspend fun buildShareBundle(appVersion: String): String? {
         val context = appContext
-        if (context == null || !hasSessionLog()) return null
+        if (context == null || !hasLogsToShare()) return null
         return withContext(Dispatchers.IO) {
             try {
                 buildBundle(context, appVersion)
@@ -89,10 +91,12 @@ object DiagnosticSession {
                 appendLine("device: ${Build.MANUFACTURER} ${Build.MODEL}")
                 appendLine("os: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
                 appendLine("capture: ${if (enabled) "on" else "off"}")
-                appendLine()
-                appendLine("=== app.log ===")
-                appendLine(if (logFile.exists()) logFile.readText() else "")
-                latestCrashReport(context)?.let { crashReport ->
+                if (hasSessionLog(context)) {
+                    appendLine()
+                    appendLine("=== app.log ===")
+                    appendLine(logFile.readText())
+                }
+                CrashLogs.latest(context)?.let { crashReport ->
                     appendLine()
                     appendLine("=== ${crashReport.name} ===")
                     appendLine(crashReport.readText())
@@ -103,11 +107,7 @@ object DiagnosticSession {
 
     private fun sessionHeader(): String = "=== diagnostic session ${OffsetDateTime.now().format(timestampFormat)} ==="
 
-    private fun latestCrashReport(context: Context): File? =
-        File(context.filesDir, CRASH_DIR)
-            .listFiles()
-            ?.filter { it.isFile }
-            ?.maxByOrNull { it.lastModified() }
+    private fun hasSessionLog(context: Context): Boolean = sessionLogFile(context).let { it.isFile && it.length() > 0 }
 
     private fun sessionLogFile(context: Context): File = File(diagnosticsDir(context), SESSION_LOG_NAME)
 
@@ -115,5 +115,4 @@ object DiagnosticSession {
 
     private const val DIAGNOSTICS_DIR = "diagnostics"
     private const val SESSION_LOG_NAME = "app.log"
-    private const val CRASH_DIR = "crashes"
 }

@@ -13,7 +13,7 @@ internal class AndroidDiagnosticSessionController(
         DiagnosticSession.setEnabled(enabled)
     }
 
-    override fun hasSessionLog(): Boolean = DiagnosticSession.hasSessionLog()
+    override fun hasLogsToShare(): Boolean = DiagnosticSession.hasLogsToShare()
 
     override suspend fun buildShareBundle(): String? = DiagnosticSession.buildShareBundle(appVersionInfo.versionName)
 }

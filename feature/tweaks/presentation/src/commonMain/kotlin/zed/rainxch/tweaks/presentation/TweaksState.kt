@@ -79,7 +79,6 @@ data class TweaksState(
     val autoTranslateEnabled: Boolean = false,
     val autoTranslateTargetLang: String? = null,
     val isFeedbackSheetVisible: Boolean = false,
-    val hasCrashLog: Boolean = false,
     val isLanguageSheetVisible: Boolean = false,
     val languagePickerOptions: ImmutableList<LanguagePickerOption> =
         AppLanguages.ALL
@@ -109,7 +108,7 @@ data class TweaksState(
         ProxyScope.entries.associateWith { false }.toImmutableMap(),
     val isClearSeenHistoryDialogVisible: Boolean = false,
     val isDiagnosticCaptureEnabled: Boolean = false,
-    val hasDiagnosticSessionLog: Boolean = false,
+    val hasDiagnosticLogs: Boolean = false,
 ) {
     fun useMain(scope: ProxyScope): Boolean = useMasterByScope[scope] ?: false
 

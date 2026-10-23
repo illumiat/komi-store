@@ -5,7 +5,7 @@ object NoOpDiagnosticSessionController : DiagnosticSessionController {
 
     override fun setEnabled(enabled: Boolean) = Unit
 
-    override fun hasSessionLog(): Boolean = false
+    override fun hasLogsToShare(): Boolean = false
 
     override suspend fun buildShareBundle(): String? = null
 }

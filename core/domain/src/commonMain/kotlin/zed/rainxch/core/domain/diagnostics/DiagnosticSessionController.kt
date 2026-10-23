@@ -5,7 +5,7 @@ interface DiagnosticSessionController {
 
     fun setEnabled(enabled: Boolean)
 
-    fun hasSessionLog(): Boolean
+    fun hasLogsToShare(): Boolean
 
     suspend fun buildShareBundle(): String?
 }

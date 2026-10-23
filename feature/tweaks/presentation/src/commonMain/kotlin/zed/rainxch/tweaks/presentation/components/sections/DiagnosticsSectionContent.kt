@@ -47,7 +47,7 @@ fun DiagnosticsSectionContent(
             SettingsRow(
                 title = stringResource(Res.string.tweaks_diagnostics_share_title),
                 subtitle =
-                    if (state.hasDiagnosticSessionLog) {
+                    if (state.hasDiagnosticLogs) {
                         stringResource(Res.string.tweaks_diagnostics_share_body)
                     } else {
                         stringResource(Res.string.tweaks_diagnostics_share_unavailable)
@@ -59,7 +59,7 @@ fun DiagnosticsSectionContent(
                         label = stringResource(Res.string.tweaks_diagnostics_share_action),
                         variant = KomiButtonVariant.Tonal,
                         size = KomiButtonSize.Sm,
-                        enabled = state.hasDiagnosticSessionLog,
+                        enabled = state.hasDiagnosticLogs,
                     )
                 },
             )

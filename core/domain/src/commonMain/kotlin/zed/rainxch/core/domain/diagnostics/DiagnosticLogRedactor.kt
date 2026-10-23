@@ -16,6 +16,9 @@ object DiagnosticLogRedactor {
 
     private val credentialParameter = Regex("""(?i)\b($SECRET_PARAMETER_NAMES)=([^&\s'"\[\]()]+)""")
 
+    // GitHub tokens carry their own prefix, so they're caught even without a header or parameter name.
+    private val githubToken = Regex("""\b(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{20,})""")
+
     fun redact(text: String): String {
         if (text.isEmpty()) return text
         var result = text
@@ -32,6 +35,7 @@ object DiagnosticLogRedactor {
             credentialParameter.replace(result) { match ->
                 "${match.groupValues[1]}=$REDACTED"
             }
+        result = githubToken.replace(result, REDACTED)
         return result
     }
 }

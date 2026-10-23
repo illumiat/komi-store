@@ -41,6 +41,14 @@ class DiagnosticLogRedactorTest {
     }
 
     @Test
+    fun bare_github_tokens_are_redacted() {
+        val input =
+            "saved ghp_abcdefghijklmnopqrstuvwxyz0123456789 and " +
+                "github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz for octocat"
+        assertEquals("saved [REDACTED] and [REDACTED] for octocat", DiagnosticLogRedactor.redact(input))
+    }
+
+    @Test
     fun plain_log_lines_are_unchanged() {
         val input = "TweaksViewModel: loaded update interval of 12 hours"
         assertEquals(input, DiagnosticLogRedactor.redact(input))
