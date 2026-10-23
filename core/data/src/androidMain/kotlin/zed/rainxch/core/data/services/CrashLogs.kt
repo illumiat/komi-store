@@ -9,11 +9,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * Writes an uncaught-exception report into app-private storage before the process dies.
- * No upload and no external permission: the file is only handed out through FileProvider
- * when the user explicitly shares it.
- */
+// Reports stay in app storage and leave the device only when the user shares one.
 object CrashLogs {
     private const val DIR = "crashes"
     private const val MAX_FILES = 3
