@@ -274,6 +274,34 @@ class AppsViewModel(
         }
     }
 
+    private fun refreshInstalledAppsFromDb() {
+        viewModelScope.launch {
+            try {
+                val fresh = appsRepository.getApps().first()
+                val byPackage = fresh.associateBy { it.packageName }
+                _state.update { state ->
+                    state.copy(
+                        apps =
+                            state.apps
+                                .map { item ->
+                                    val row = byPackage[item.installedApp.packageName] ?: return@map item
+                                    item.copy(installedApp = row.toUi())
+                                }.toImmutableList(),
+                        updateAllButtonEnabled =
+                            state.apps.any { item ->
+                                byPackage[item.installedApp.packageName]?.isUpdateAvailable == true
+                            },
+                    )
+                }
+                filterApps()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn("Failed to refresh the library from the database: ${e.message}")
+            }
+        }
+    }
+
     private fun autoCheckForUpdatesIfNeeded() {
         val now = System.currentTimeMillis()
         val lastCheck = maxOf(lastAutoCheckTimestamp, oldestTrackedCheck())
@@ -435,6 +463,7 @@ class AppsViewModel(
             }
 
             AppsAction.OnLifecycleResume -> {
+                refreshInstalledAppsFromDb()
                 autoCheckForUpdatesIfNeeded()
             }
 
