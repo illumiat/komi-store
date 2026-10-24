@@ -42,6 +42,7 @@ object DeepLinkParser {
         )
 
     private val BASE64URL_RE = Regex("^[A-Za-z0-9_-]+$")
+    private val SIGNED_STATE_RE = Regex("^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*$")
 
     fun parse(uri: String): DeepLinkDestination {
         return when {
@@ -219,7 +220,7 @@ object DeepLinkParser {
 
     private fun parseAuthCallback(uri: String): DeepLinkDestination {
         val state = extractQueryParam(uri, "state")?.let { urlDecode(it) } ?: return DeepLinkDestination.None
-        if (state.isEmpty() || state.length > 256 || !BASE64URL_RE.matches(state)) {
+        if (state.isEmpty() || state.length > 256 || !SIGNED_STATE_RE.matches(state)) {
             return DeepLinkDestination.None
         }
 
