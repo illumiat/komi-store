@@ -19,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.getString
+import zed.rainxch.auth.domain.repository.AuthException
 import zed.rainxch.auth.domain.repository.AuthPath
 import zed.rainxch.auth.domain.repository.AuthenticationRepository
 import zed.rainxch.auth.domain.repository.DevicePollResult
@@ -50,6 +51,7 @@ class AuthenticationViewModel(
     private var pollingJob: Job? = null
     private var patSubmissionJob: Job? = null
     private var webAuthWatchdogJob: Job? = null
+    private var authRetryBlockedUntilMs = 0L
     private var pollingIntervalMs: Long = DEFAULT_POLL_INTERVAL_SEC * 1000L
     private var authPath: AuthPath = AuthPath.Backend
 
@@ -477,6 +479,11 @@ class AuthenticationViewModel(
     }
 
     private fun startLogin() {
+        val now = System.currentTimeMillis()
+        if (now < authRetryBlockedUntilMs) {
+            _state.update { it.copy(loginState = AuthLoginState.Error(AuthError.RateLimited)) }
+            return
+        }
         viewModelScope.launch {
             try {
                 val flowStart =
@@ -500,6 +507,7 @@ class AuthenticationViewModel(
 
                     saveToSavedState(start.deviceCode, startUi, authPath)
                     startCountdown(start.expiresInSec)
+                    startPolling(start.deviceCode)
 
                     try {
                         clipboardHelper.copy(
@@ -626,6 +634,9 @@ class AuthenticationViewModel(
 
                 is DevicePollResult.Failed -> {
                     logger.debug("Poll failed terminally: ${result.error.message}")
+                    if (result.error is AuthException.RateLimited) {
+                        authRetryBlockedUntilMs = System.currentTimeMillis() + AUTH_RATE_LIMIT_COOLDOWN_MS
+                    }
                     pollingJob?.cancel()
                     countdownJob?.cancel()
                     clearSavedState()
@@ -794,11 +805,12 @@ class AuthenticationViewModel(
         // deep-link callback as a genuine delivery failure (the Windows
         // browser-handler case from GitHub-Store#730) and surface a retry.
         private const val WEB_AUTH_TIMEOUT_MS = 660_000L
-        private const val DEFAULT_POLL_INTERVAL_SEC = 25
+        private const val DEFAULT_POLL_INTERVAL_SEC = 30
 
         private const val MIN_MANUAL_POLL_SPACING_MS = 2_000L
 
-        private const val MAX_POLL_INTERVAL_MS = 60_000L
+        private const val MAX_POLL_INTERVAL_MS = 120_000L
+        private const val AUTH_RATE_LIMIT_COOLDOWN_MS = 60_000L
 
         private const val PAT_SETTINGS_URL = "https://github.com/settings/tokens/new"
 
