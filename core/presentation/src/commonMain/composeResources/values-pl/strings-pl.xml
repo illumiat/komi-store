@@ -1531,4 +1531,10 @@
     <!-- Tweaks: detail page theme -->
     <string name="detail_follow_app_theme_title">Strony szczegółów zgodne z motywem aplikacji</string>
     <string name="detail_follow_app_theme_description">Informacje i notatki do wydania używają jasnego lub ciemnego motywu aplikacji. Wyłącz, aby korzystać z ustawień systemowych.</string>
+    <!-- Details content deferred until asked -->
+    <string name="tweaks_detail_auto_load_sections_title">README i informacje o wydaniach</string>
+    <string name="tweaks_detail_auto_load_sections_description">Wczytywane automatycznie po otwarciu strony szczegółów. Po wyłączeniu są pobierane i przetwarzane dopiero po naciśnięciu Wczytaj zawartość.</string>
+    <string name="details_sections_deferred_title">README i informacje o wydaniach</string>
+    <string name="details_sections_deferred_body">Nie wczytano ich jeszcze. Wczytaj zawartość pobiera je i pokazuje dla tego repozytorium.</string>
+    <string name="details_sections_deferred_load">Wczytaj zawartość</string>
 </resources>

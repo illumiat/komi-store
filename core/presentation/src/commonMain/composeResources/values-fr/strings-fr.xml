@@ -1498,4 +1498,10 @@
     <!-- Tweaks: detail page theme -->
     <string name="detail_follow_app_theme_title">Les pages de détails suivent le thème de l’application</string>
     <string name="detail_follow_app_theme_description">À propos et les notes de version utilisent le thème clair ou sombre de l’application. Désactivez pour suivre le réglage du système.</string>
+    <!-- Details content deferred until asked -->
+    <string name="tweaks_detail_auto_load_sections_title">README et notes de version</string>
+    <string name="tweaks_detail_auto_load_sections_description">Chargés automatiquement à l’ouverture d’une page de détails. Désactivé, ils sont récupérés et analysés seulement après Charger le contenu.</string>
+    <string name="details_sections_deferred_title">README et notes de version</string>
+    <string name="details_sections_deferred_body">Pas encore chargés. Charger le contenu les récupère et les affiche pour ce dépôt.</string>
+    <string name="details_sections_deferred_load">Charger le contenu</string>
 </resources>

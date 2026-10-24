@@ -55,6 +55,10 @@ sealed interface TweaksAction {
         val enabled: Boolean,
     ) : TweaksAction
 
+    data class OnDetailAutoLoadSectionsToggled(
+        val enabled: Boolean,
+    ) : TweaksAction
+
     data class OnContentWidthSelected(
         val width: ContentWidth,
     ) : TweaksAction

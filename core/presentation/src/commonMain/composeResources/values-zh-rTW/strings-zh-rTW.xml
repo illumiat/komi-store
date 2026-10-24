@@ -1488,4 +1488,10 @@
     <!-- Tweaks: detail page theme -->
     <string name="detail_follow_app_theme_title">詳細頁面跟隨應用程式主題</string>
     <string name="detail_follow_app_theme_description">關於與發行說明使用應用程式目前的淺色或深色主題；關閉後改為跟隨系統設定。</string>
+    <!-- Details content deferred until asked -->
+    <string name="tweaks_detail_auto_load_sections_title">README 與發行說明</string>
+    <string name="tweaks_detail_auto_load_sections_description">開啟詳情頁時自動載入。關閉後，只有點按載入內容才會取得並解析它們。</string>
+    <string name="details_sections_deferred_title">README 與發行說明</string>
+    <string name="details_sections_deferred_body">尚未載入。點按載入內容即可取得並顯示此儲存庫的內容。</string>
+    <string name="details_sections_deferred_load">載入內容</string>
 </resources>

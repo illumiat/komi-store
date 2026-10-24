@@ -1531,4 +1531,10 @@
     <!-- Tweaks: detail page theme -->
     <string name="detail_follow_app_theme_title">Страницы сведений следуют теме приложения</string>
     <string name="detail_follow_app_theme_description">Разделы «О приложении» и примечания к выпуску используют светлую или тёмную тему приложения. Выключите, чтобы следовать системной настройке.</string>
+    <!-- Details content deferred until asked -->
+    <string name="tweaks_detail_auto_load_sections_title">README и заметки о выпуске</string>
+    <string name="tweaks_detail_auto_load_sections_description">Загружаются автоматически при открытии страницы сведений. Если выключено, они получаются и разбираются только после нажатия Загрузить содержимое.</string>
+    <string name="details_sections_deferred_title">README и заметки о выпуске</string>
+    <string name="details_sections_deferred_body">Ещё не загружены. Загрузить содержимое получит и покажет их для этого репозитория.</string>
+    <string name="details_sections_deferred_load">Загрузить содержимое</string>
 </resources>

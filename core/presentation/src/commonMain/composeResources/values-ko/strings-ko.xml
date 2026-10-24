@@ -1519,4 +1519,10 @@
     <!-- Tweaks: detail page theme -->
     <string name="detail_follow_app_theme_title">상세 페이지가 앱 테마를 따름</string>
     <string name="detail_follow_app_theme_description">정보 및 릴리스 노트가 앱의 라이트 또는 다크 테마를 사용합니다. 끄면 시스템 설정을 따릅니다.</string>
+    <!-- Details content deferred until asked -->
+    <string name="tweaks_detail_auto_load_sections_title">README와 릴리스 노트</string>
+    <string name="tweaks_detail_auto_load_sections_description">세부 정보 페이지를 열면 자동으로 불러옵니다. 끄면 콘텐츠 불러오기를 누른 뒤에만 가져와 분석합니다.</string>
+    <string name="details_sections_deferred_title">README와 릴리스 노트</string>
+    <string name="details_sections_deferred_body">아직 불러오지 않았습니다. 콘텐츠 불러오기를 누르면 이 저장소의 내용을 가져와 보여 줍니다.</string>
+    <string name="details_sections_deferred_load">콘텐츠 불러오기</string>
 </resources>

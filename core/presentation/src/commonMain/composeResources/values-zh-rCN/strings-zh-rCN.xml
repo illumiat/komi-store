@@ -1488,4 +1488,10 @@
     <!-- Tweaks: detail page theme -->
     <string name="detail_follow_app_theme_title">详情页跟随应用主题</string>
     <string name="detail_follow_app_theme_description">关于和发行说明使用应用当前的浅色或深色主题；关闭后改为跟随系统设置。</string>
+    <!-- Details content deferred until asked -->
+    <string name="tweaks_detail_auto_load_sections_title">README 和发行说明</string>
+    <string name="tweaks_detail_auto_load_sections_description">打开详情页时自动加载。关闭后，只有点按加载内容才会获取并解析它们。</string>
+    <string name="details_sections_deferred_title">README 和发行说明</string>
+    <string name="details_sections_deferred_body">尚未加载。点按加载内容即可获取并显示此仓库的内容。</string>
+    <string name="details_sections_deferred_load">加载内容</string>
 </resources>
