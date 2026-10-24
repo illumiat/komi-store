@@ -85,6 +85,10 @@ kotlin {
             implementation(libs.jetbrains.lifecycle.compose)
         }
 
+        jvmTest.dependencies {
+            implementation(kotlin("test"))
+        }
+
         jvmMain {
             dependencies {
                 implementation(projects.core.presentation)
