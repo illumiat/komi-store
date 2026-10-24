@@ -301,11 +301,10 @@ private fun zed.rainxch.tweaks.presentation.components.sections.DhizukuStatusBad
     - availability: STABLE (class with no mutable properties)
 
 @Composable
-public fun zed.rainxch.tweaks.presentation.components.sections.DiagnosticsSectionContent(state: zed.rainxch.tweaks.presentation.TweaksState, onAction: kotlin.Function1<zed.rainxch.tweaks.presentation.TweaksAction, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+public fun zed.rainxch.tweaks.presentation.components.sections.DiagnosticsSectionContent(onAction: kotlin.Function1<zed.rainxch.tweaks.presentation.TweaksAction, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - state: UNSTABLE (has mutable properties or unstable members)
     - onAction: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
 
@@ -490,11 +489,10 @@ public fun zed.rainxch.tweaks.presentation.components.sections.connectivitySecti
     - showHead: STABLE (primitive type)
 
 @Composable
-public fun zed.rainxch.tweaks.presentation.components.sections.diagnosticsSection(state: zed.rainxch.tweaks.presentation.TweaksState, onAction: kotlin.Function1<zed.rainxch.tweaks.presentation.TweaksAction, kotlin.Unit>, showHead: kotlin.Boolean): kotlin.Unit
+public fun zed.rainxch.tweaks.presentation.components.sections.diagnosticsSection(onAction: kotlin.Function1<zed.rainxch.tweaks.presentation.TweaksAction, kotlin.Unit>, showHead: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - state: UNSTABLE (has mutable properties or unstable members)
     - onAction: STABLE (function type)
     - showHead: STABLE (primitive type)
 

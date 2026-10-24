@@ -13,7 +13,6 @@ import java.util.concurrent.Executors
 
 internal class KermitDiagnosticLogWriter(
     private val logFile: File,
-    private val isEnabled: () -> Boolean,
 ) : LogWriter() {
     private val executor =
         Executors.newSingleThreadExecutor { runnable ->
@@ -34,7 +33,6 @@ internal class KermitDiagnosticLogWriter(
         tag: String,
         throwable: Throwable?,
     ) {
-        if (!isEnabled()) return
         val record =
             LogRecord(
                 timestamp = OffsetDateTime.now().format(TIMESTAMP_FORMAT),
@@ -47,24 +45,21 @@ internal class KermitDiagnosticLogWriter(
         executor.execute { append(record) }
     }
 
+    // Appends, so the previous run's log (often the one that crashed) is still there to share.
     fun startSession(header: String) {
         executor.execute {
             closeStream()
             runCatching {
                 logFile.parentFile?.mkdirs()
-                logFile.writeText("$header\n")
+                logFile.appendText("$header\n")
                 bytesWritten = logFile.length()
                 stream = FileOutputStream(logFile, true)
             }.onFailure { closeStream() }
+            if (bytesWritten > MAX_BYTES) trim()
         }
     }
 
-    fun flush() {
-        executor.execute { closeStream() }
-    }
-
     private fun append(record: LogRecord) {
-        if (!isEnabled()) return
         val output = ensureStream()
         if (output != null) {
             val content = DiagnosticLogRedactor.redact(buildRecord(record))

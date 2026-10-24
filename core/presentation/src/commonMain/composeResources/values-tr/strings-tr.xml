@@ -1520,11 +1520,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">Geliştirici ve tanılama</string>
-    <string name="tweaks_diagnostics_capture_title">Tanılama günlüklerini yakala</string>
-    <string name="tweaks_diagnostics_capture_body">Uygulama günlüklerini yalnızca bu oturum için yerel bir dosyaya yazar. Uygulama yeniden başlatıldığında anahtar kapanır.</string>
     <string name="tweaks_diagnostics_share_title">Tanılama günlüklerini paylaş</string>
     <string name="tweaks_diagnostics_share_body">Oturum günlüğünü, son çökme raporunu ve cihaz bilgilerini tek bir metin dosyasında birleştirir.</string>
-    <string name="tweaks_diagnostics_share_unavailable">Henüz oturum günlüğü yok. Önce yakalamayı açıp sorunu yeniden oluşturun.</string>
     <string name="tweaks_diagnostics_share_action">Paylaş</string>
     <string name="tweaks_diagnostics_warning">Günlükler bu cihazda kalır ve uygulama verileri içerebilir. Hiçbir şey otomatik olarak yüklenmez.</string>
     <string name="tweaks_diagnostics_share_error">Tanılama günlükleri hazırlanamadı</string>

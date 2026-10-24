@@ -1556,11 +1556,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">Developer &amp; diagnostics</string>
-    <string name="tweaks_diagnostics_capture_title">Capture diagnostic logs</string>
-    <string name="tweaks_diagnostics_capture_body">Writes app logs to a local file for this session only. The switch turns off when the app restarts.</string>
     <string name="tweaks_diagnostics_share_title">Share diagnostic logs</string>
     <string name="tweaks_diagnostics_share_body">Combines the session log, the latest crash report and device details into one text file.</string>
-    <string name="tweaks_diagnostics_share_unavailable">No session log yet. Turn on capture and reproduce the issue first.</string>
     <string name="tweaks_diagnostics_share_action">Share</string>
     <string name="tweaks_diagnostics_warning">Logs stay on this device and may contain app data. Nothing is uploaded automatically.</string>
     <string name="tweaks_diagnostics_share_error">Couldn\'t prepare the diagnostic logs</string>

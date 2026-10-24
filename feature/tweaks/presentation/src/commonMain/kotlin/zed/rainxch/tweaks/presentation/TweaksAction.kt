@@ -323,11 +323,5 @@ sealed interface TweaksAction {
 
     data object OnClearSeenHistoryConfirm : TweaksAction
 
-    data class OnDiagnosticCaptureToggled(
-        val enabled: Boolean,
-    ) : TweaksAction
-
-    data object OnRefreshDiagnosticState : TweaksAction
-
     data object OnShareDiagnosticLogs : TweaksAction
 }

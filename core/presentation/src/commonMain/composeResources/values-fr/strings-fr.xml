@@ -1489,11 +1489,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">Développeur et diagnostics</string>
-    <string name="tweaks_diagnostics_capture_title">Capturer les journaux de diagnostic</string>
-    <string name="tweaks_diagnostics_capture_body">Écrit les journaux de l’application dans un fichier local pour cette session uniquement. L’interrupteur se désactive au redémarrage de l’application.</string>
     <string name="tweaks_diagnostics_share_title">Partager les journaux de diagnostic</string>
     <string name="tweaks_diagnostics_share_body">Regroupe le journal de la session, le dernier rapport de plantage et les informations de l’appareil dans un seul fichier texte.</string>
-    <string name="tweaks_diagnostics_share_unavailable">Aucun journal de session pour le moment. Activez la capture et reproduisez le problème d’abord.</string>
     <string name="tweaks_diagnostics_share_action">Partager</string>
     <string name="tweaks_diagnostics_warning">Les journaux restent sur cet appareil et peuvent contenir des données de l’application. Rien n’est envoyé automatiquement.</string>
     <string name="tweaks_diagnostics_share_error">Impossible de préparer les journaux de diagnostic</string>

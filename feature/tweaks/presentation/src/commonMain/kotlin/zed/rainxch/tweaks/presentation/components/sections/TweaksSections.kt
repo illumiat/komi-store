@@ -134,7 +134,6 @@ fun ColumnScope.appSection(
 
 @Composable
 fun ColumnScope.diagnosticsSection(
-    state: TweaksState,
     onAction: (TweaksAction) -> Unit,
     showHead: Boolean = true,
 ) {
@@ -144,5 +143,5 @@ fun ColumnScope.diagnosticsSection(
             slot = TweaksDecorSlot.Diagnostics,
         )
     }
-    DiagnosticsSectionContent(state = state, onAction = onAction)
+    DiagnosticsSectionContent(onAction = onAction)
 }

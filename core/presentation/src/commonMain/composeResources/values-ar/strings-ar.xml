@@ -1554,11 +1554,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">المطوّر والتشخيص</string>
-    <string name="tweaks_diagnostics_capture_title">تسجيل سجلات التشخيص</string>
-    <string name="tweaks_diagnostics_capture_body">يحفظ سجلات التطبيق في ملف محلي لهذه الجلسة فقط. يتوقف المفتاح عند إعادة تشغيل التطبيق.</string>
     <string name="tweaks_diagnostics_share_title">مشاركة سجلات التشخيص</string>
     <string name="tweaks_diagnostics_share_body">يجمع سجل الجلسة وآخر تقرير تعطل ومعلومات الجهاز في ملف نصي واحد.</string>
-    <string name="tweaks_diagnostics_share_unavailable">لا يوجد سجل جلسة بعد. شغّل التسجيل وأعد إنتاج المشكلة أولًا.</string>
     <string name="tweaks_diagnostics_share_action">مشاركة</string>
     <string name="tweaks_diagnostics_warning">تبقى السجلات على هذا الجهاز وقد تحتوي على بيانات التطبيق. لا يُرفع أي شيء تلقائيًا.</string>
     <string name="tweaks_diagnostics_share_error">تعذّر تجهيز سجلات التشخيص</string>

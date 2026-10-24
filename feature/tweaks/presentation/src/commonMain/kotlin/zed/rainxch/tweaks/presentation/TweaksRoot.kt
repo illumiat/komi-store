@@ -74,7 +74,6 @@ fun TweaksRoot(
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 viewModel.onAction(TweaksAction.OnRefreshCacheSize)
                 viewModel.onAction(TweaksAction.OnReevaluateBatteryOptimizationCard)
-                viewModel.onAction(TweaksAction.OnRefreshDiagnosticState)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -262,10 +261,7 @@ fun TweaksRoot(
                     )
                     appSection(onOpenFeedback = { viewModel.onAction(TweaksAction.OnFeedbackClick) })
                     if (isAndroid()) {
-                        diagnosticsSection(
-                            state = state,
-                            onAction = viewModel::onAction,
-                        )
+                        diagnosticsSection(onAction = viewModel::onAction)
                     }
 
                     tweaksKicker(TweaksDecorSlot.Footer)?.let { footer ->

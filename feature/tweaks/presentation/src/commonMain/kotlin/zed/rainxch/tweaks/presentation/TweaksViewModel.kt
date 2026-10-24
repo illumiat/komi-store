@@ -120,7 +120,6 @@ class TweaksViewModel(
                     loadTranslationSettings()
                     loadAppLanguage()
                     loadAutoTranslate()
-                    refreshDiagnosticState()
 
                     observeShizukuStatus()
                     observeDhizukuStatus()
@@ -1585,27 +1584,9 @@ class TweaksViewModel(
                 }
             }
 
-            is TweaksAction.OnDiagnosticCaptureToggled -> {
-                diagnosticSession.setEnabled(action.enabled)
-                refreshDiagnosticState()
-            }
-
-            TweaksAction.OnRefreshDiagnosticState -> {
-                refreshDiagnosticState()
-            }
-
             TweaksAction.OnShareDiagnosticLogs -> {
                 viewModelScope.launch { shareDiagnostics() }
             }
-        }
-    }
-
-    private fun refreshDiagnosticState() {
-        _state.update {
-            it.copy(
-                isDiagnosticCaptureEnabled = diagnosticSession.isEnabled,
-                hasDiagnosticLogs = diagnosticSession.hasLogsToShare(),
-            )
         }
     }
 

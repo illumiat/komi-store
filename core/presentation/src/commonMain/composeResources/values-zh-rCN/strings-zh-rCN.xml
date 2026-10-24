@@ -1479,11 +1479,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">开发者与诊断</string>
-    <string name="tweaks_diagnostics_capture_title">捕获诊断日志</string>
-    <string name="tweaks_diagnostics_capture_body">仅在本次会话中将应用日志写入本地文件。应用重启后开关会自动关闭。</string>
     <string name="tweaks_diagnostics_share_title">分享诊断日志</string>
     <string name="tweaks_diagnostics_share_body">将会话日志、最近的崩溃报告和设备信息合并为一个文本文件。</string>
-    <string name="tweaks_diagnostics_share_unavailable">还没有会话日志。请先开启捕获并重现问题。</string>
     <string name="tweaks_diagnostics_share_action">分享</string>
     <string name="tweaks_diagnostics_warning">日志只保留在本设备上，可能包含应用数据。不会自动上传任何内容。</string>
     <string name="tweaks_diagnostics_share_error">无法准备诊断日志</string>

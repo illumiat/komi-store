@@ -1509,11 +1509,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">ডেভেলপার ও ডায়াগনস্টিকস</string>
-    <string name="tweaks_diagnostics_capture_title">ডায়াগনস্টিক লগ ক্যাপচার করুন</string>
-    <string name="tweaks_diagnostics_capture_body">শুধু এই সেশনের জন্য অ্যাপের লগ একটি স্থানীয় ফাইলে লেখে। অ্যাপ পুনরায় চালু হলে সুইচ বন্ধ হয়ে যায়।</string>
     <string name="tweaks_diagnostics_share_title">ডায়াগনস্টিক লগ শেয়ার করুন</string>
     <string name="tweaks_diagnostics_share_body">সেশন লগ, সর্বশেষ ক্র্যাশ রিপোর্ট ও ডিভাইসের তথ্য একটি টেক্সট ফাইলে একসাথে করে।</string>
-    <string name="tweaks_diagnostics_share_unavailable">এখনও কোনো সেশন লগ নেই। আগে ক্যাপচার চালু করে সমস্যাটি আবার ঘটান।</string>
     <string name="tweaks_diagnostics_share_action">শেয়ার</string>
     <string name="tweaks_diagnostics_warning">লগগুলো এই ডিভাইসেই থাকে এবং অ্যাপের ডেটা থাকতে পারে। স্বয়ংক্রিয়ভাবে কিছু আপলোড হয় না।</string>
     <string name="tweaks_diagnostics_share_error">ডায়াগনস্টিক লগ প্রস্তুত করা যায়নি</string>

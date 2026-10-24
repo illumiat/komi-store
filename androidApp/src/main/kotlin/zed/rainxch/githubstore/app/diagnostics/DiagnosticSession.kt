@@ -13,11 +13,9 @@ import java.io.IOException
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
+// Every run is logged: the log never leaves the device unless shared, and the run that crashed is
+// the one worth sharing. Each start appends a session header; the writer trims the file at 2 MB.
 object DiagnosticSession {
-    @Volatile
-    var enabled: Boolean = false
-        private set
-
     private val lock = Any()
     private val timestampFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
 
@@ -29,43 +27,19 @@ object DiagnosticSession {
     fun install(context: Context) {
         val applicationContext = context.applicationContext
         synchronized(lock) {
-            enabled = false
             appContext = applicationContext
-            val diagnosticsDir = diagnosticsDir(applicationContext)
-            diagnosticsDir.mkdirs()
-            if (writer == null) {
-                writer =
-                    KermitDiagnosticLogWriter(
-                        logFile = File(diagnosticsDir, SESSION_LOG_NAME),
-                        isEnabled = { enabled },
-                    ).also { Logger.addLogWriter(it) }
-            }
+            if (writer != null) return
+            val diagnosticsDir = diagnosticsDir(applicationContext).apply { mkdirs() }
+            writer =
+                KermitDiagnosticLogWriter(logFile = File(diagnosticsDir, SESSION_LOG_NAME)).also {
+                    it.startSession(sessionHeader())
+                    Logger.addLogWriter(it)
+                }
         }
-    }
-
-    fun setEnabled(value: Boolean) {
-        synchronized(lock) {
-            if (value == enabled) return
-            val logWriter = writer ?: return
-            if (value) {
-                logWriter.startSession(sessionHeader())
-                enabled = true
-            } else {
-                enabled = false
-                logWriter.flush()
-            }
-        }
-    }
-
-    // A crash report alone is worth sharing too: it's the one thing left after an unexpected crash.
-    fun hasLogsToShare(): Boolean {
-        val context = appContext ?: return false
-        return enabled || hasSessionLog(context) || CrashLogs.latest(context) != null
     }
 
     suspend fun buildShareBundle(appVersion: String): String? {
-        val context = appContext
-        if (context == null || !hasLogsToShare()) return null
+        val context = appContext ?: return null
         return withContext(Dispatchers.IO) {
             try {
                 buildBundle(context, appVersion)
@@ -90,7 +64,6 @@ object DiagnosticSession {
                 appendLine("package: ${context.packageName}")
                 appendLine("device: ${Build.MANUFACTURER} ${Build.MODEL}")
                 appendLine("os: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-                appendLine("capture: ${if (enabled) "on" else "off"}")
                 if (hasSessionLog(context)) {
                     appendLine()
                     appendLine("=== app.log ===")

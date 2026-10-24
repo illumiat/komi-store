@@ -9,49 +9,28 @@ import org.jetbrains.compose.resources.stringResource
 import zed.rainxch.core.presentation.components.buttons.KomiButton
 import zed.rainxch.core.presentation.components.buttons.KomiButtonSize
 import zed.rainxch.core.presentation.components.buttons.KomiButtonVariant
-import zed.rainxch.core.presentation.components.inputs.KomiSwitch
 import zed.rainxch.core.presentation.components.text.KomiText
 import zed.rainxch.core.presentation.components.text.KomiTextRole
 import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.githubstore.core.presentation.res.Res
-import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_capture_body
-import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_capture_title
 import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_share_action
 import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_share_body
 import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_share_title
-import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_share_unavailable
 import zed.rainxch.githubstore.core.presentation.res.tweaks_diagnostics_warning
 import zed.rainxch.tweaks.presentation.TweaksAction
-import zed.rainxch.tweaks.presentation.TweaksState
 import zed.rainxch.tweaks.presentation.components.shell.SettingsGroup
 import zed.rainxch.tweaks.presentation.components.shell.SettingsRow
 
 @Composable
 fun DiagnosticsSectionContent(
-    state: TweaksState,
     onAction: (TweaksAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         SettingsGroup {
             SettingsRow(
-                title = stringResource(Res.string.tweaks_diagnostics_capture_title),
-                subtitle = stringResource(Res.string.tweaks_diagnostics_capture_body),
-                trailing = {
-                    KomiSwitch(
-                        checked = state.isDiagnosticCaptureEnabled,
-                        onCheckedChange = { onAction(TweaksAction.OnDiagnosticCaptureToggled(it)) },
-                    )
-                },
-            )
-            SettingsRow(
                 title = stringResource(Res.string.tweaks_diagnostics_share_title),
-                subtitle =
-                    if (state.hasDiagnosticLogs) {
-                        stringResource(Res.string.tweaks_diagnostics_share_body)
-                    } else {
-                        stringResource(Res.string.tweaks_diagnostics_share_unavailable)
-                    },
+                subtitle = stringResource(Res.string.tweaks_diagnostics_share_body),
                 last = true,
                 trailing = {
                     KomiButton(
@@ -59,7 +38,6 @@ fun DiagnosticsSectionContent(
                         label = stringResource(Res.string.tweaks_diagnostics_share_action),
                         variant = KomiButtonVariant.Tonal,
                         size = KomiButtonSize.Sm,
-                        enabled = state.hasDiagnosticLogs,
                     )
                 },
             )

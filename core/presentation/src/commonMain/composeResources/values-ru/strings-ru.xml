@@ -1522,11 +1522,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">Разработчик и диагностика</string>
-    <string name="tweaks_diagnostics_capture_title">Записывать журналы диагностики</string>
-    <string name="tweaks_diagnostics_capture_body">Записывает журналы приложения в локальный файл только на время этого сеанса. При перезапуске приложения переключатель выключается.</string>
     <string name="tweaks_diagnostics_share_title">Поделиться журналами диагностики</string>
     <string name="tweaks_diagnostics_share_body">Объединяет журнал сеанса, последний отчёт о сбое и сведения об устройстве в один текстовый файл.</string>
-    <string name="tweaks_diagnostics_share_unavailable">Журнала сеанса пока нет. Сначала включите запись и воспроизведите проблему.</string>
     <string name="tweaks_diagnostics_share_action">Поделиться</string>
     <string name="tweaks_diagnostics_warning">Журналы остаются на этом устройстве и могут содержать данные приложения. Ничего не отправляется автоматически.</string>
     <string name="tweaks_diagnostics_share_error">Не удалось подготовить журналы диагностики</string>

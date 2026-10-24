@@ -1478,11 +1478,8 @@
 
     <!-- Tweaks: developer diagnostics -->
     <string name="tweaks_diagnostics_section_title">開発者と診断</string>
-    <string name="tweaks_diagnostics_capture_title">診断ログを取得</string>
-    <string name="tweaks_diagnostics_capture_body">このセッションの間だけ、アプリのログをローカルファイルに書き出します。アプリを再起動するとスイッチはオフに戻ります。</string>
     <string name="tweaks_diagnostics_share_title">診断ログを共有</string>
     <string name="tweaks_diagnostics_share_body">セッションログ、直近のクラッシュレポート、端末情報を 1 つのテキストファイルにまとめます。</string>
-    <string name="tweaks_diagnostics_share_unavailable">セッションログがまだありません。先に取得をオンにして問題を再現してください。</string>
     <string name="tweaks_diagnostics_share_action">共有</string>
     <string name="tweaks_diagnostics_warning">ログはこの端末に残り、アプリのデータが含まれる場合があります。自動でアップロードされることはありません。</string>
     <string name="tweaks_diagnostics_share_error">診断ログを準備できませんでした</string>
