@@ -22,6 +22,7 @@ import org.jetbrains.compose.resources.getString
 import zed.rainxch.auth.domain.repository.AuthPath
 import zed.rainxch.auth.domain.repository.AuthenticationRepository
 import zed.rainxch.auth.domain.repository.DevicePollResult
+import zed.rainxch.auth.presentation.mapper.authErrorForWorkerReason
 import zed.rainxch.auth.presentation.mapper.toAuthError
 import zed.rainxch.auth.presentation.mapper.toPatError
 import zed.rainxch.auth.presentation.mapper.toUi
@@ -369,7 +370,7 @@ class AuthenticationViewModel(
         _state.update {
             it.copy(
                 isWebAuthInFlight = false,
-                loginState = AuthLoginState.Error(AuthError.Unknown),
+                loginState = AuthLoginState.Error(authErrorForWorkerReason(reason)),
             )
         }
     }
@@ -499,7 +500,6 @@ class AuthenticationViewModel(
 
                     saveToSavedState(start.deviceCode, startUi, authPath)
                     startCountdown(start.expiresInSec)
-                    startPolling(start.deviceCode)
 
                     try {
                         clipboardHelper.copy(
@@ -544,7 +544,8 @@ class AuthenticationViewModel(
                 (loginState as? AuthLoginState.DevicePrompt)?.start?.intervalSec
                     ?: DEFAULT_POLL_INTERVAL_SEC
 
-            pollingIntervalMs = (intervalSec * 1000).toLong() + 1000L
+            pollingIntervalMs =
+                (maxOf(intervalSec, DEFAULT_POLL_INTERVAL_SEC) * 1000).toLong()
         }
         pollingJob =
             viewModelScope.launch {
@@ -721,6 +722,7 @@ class AuthenticationViewModel(
                     start.verificationUriComplete
                         ?: buildPrefilledUrl(start.verificationUri, start.userCode)
                 browserHelper.openUrl(url)
+                tryPollIfReady()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -754,6 +756,7 @@ class AuthenticationViewModel(
                         copied = true,
                     )
                 }
+                tryPollIfReady()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -791,11 +794,11 @@ class AuthenticationViewModel(
         // deep-link callback as a genuine delivery failure (the Windows
         // browser-handler case from GitHub-Store#730) and surface a retry.
         private const val WEB_AUTH_TIMEOUT_MS = 660_000L
-        private const val DEFAULT_POLL_INTERVAL_SEC = 5
+        private const val DEFAULT_POLL_INTERVAL_SEC = 25
 
         private const val MIN_MANUAL_POLL_SPACING_MS = 2_000L
 
-        private const val MAX_POLL_INTERVAL_MS = 15_000L
+        private const val MAX_POLL_INTERVAL_MS = 60_000L
 
         private const val PAT_SETTINGS_URL = "https://github.com/settings/tokens/new"
 
