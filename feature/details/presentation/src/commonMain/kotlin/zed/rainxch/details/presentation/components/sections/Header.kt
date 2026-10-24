@@ -100,6 +100,7 @@ fun LazyListScope.header(
         when {
             state.repository == null -> null
             state.sectionsDeferred -> null
+            state.areSectionsPending -> null
             state.releasesLoadFailed -> ReleasesStatus.FAILED
             state.isRetryingReleases -> ReleasesStatus.RETRYING
             !state.isLoading && state.allReleases.isEmpty() -> ReleasesStatus.EMPTY

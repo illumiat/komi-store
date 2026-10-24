@@ -67,6 +67,7 @@ internal fun RawDetailsState.toView(): DetailsState {
 
     return DetailsState(
         isLoading = isLoading,
+        areSectionsPending = areSectionsPending,
         isCurrentUserOwner = isCurrentUserOwner,
         isRefreshing = isRefreshing,
         refreshCooldownUntilEpochMs = refreshCooldownUntilEpochMs,

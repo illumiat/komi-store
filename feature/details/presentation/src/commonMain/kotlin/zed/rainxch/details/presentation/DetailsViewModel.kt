@@ -186,6 +186,11 @@ class DetailsViewModel(
     // leaves the selection where they put it.
     private var hasUserPickedRelease = false
 
+    // Bumped by every write that replaces the release sections. A load that reads them slowly
+    // compares this before applying its own result, so a refresh or an on-demand read is never
+    // painted over by an older read that happened to finish later.
+    private var sectionsRevision = 0L
+
     private val _state = MutableStateFlow(RawDetailsState(devicePlatform = platform.toDiscoveryPlatform()))
     val state: StateFlow<DetailsState> =
         _state
@@ -994,9 +999,11 @@ class DetailsViewModel(
                     .getOrDefault(true)
             if (alreadyShown) return@launch
 
-            val firstStable = _state.first { !it.isLoading }
+            // The painted header comes first; the installed-app state the coachmark needs is
+            // applied together with the sections, so wait for that one instead of the header.
+            val settled = _state.first { !it.isLoading && !it.areSectionsPending }
             val installedAtOpen =
-                firstStable.installedApp?.isReallyInstalled() == true
+                settled.installedApp?.isReallyInstalled() == true
             if (!installedAtOpen) return@launch
             _state.update { it.copy(isApkInspectCoachmarkPending = true) }
         }
@@ -1017,8 +1024,8 @@ class DetailsViewModel(
                     .getOrDefault(true)
             if (alreadyShown) return@launch
 
-            val firstStable = _state.first { !it.isLoading }
-            if (firstStable.installedApp == null) return@launch
+            val settled = _state.first { !it.isLoading && !it.areSectionsPending }
+            if (settled.installedApp == null) return@launch
             _state.update { it.copy(isChannelChipCoachmarkPending = true) }
         }
     }
@@ -1064,6 +1071,7 @@ class DetailsViewModel(
                         selected?.tagName,
                     )
                 val insights = computeReleaseInsights(releases, newInstalledApp)
+                sectionsRevision += 1
                 _state.update {
                     it.copy(
                         installedApp = newInstalledApp,
@@ -2772,12 +2780,13 @@ class DetailsViewModel(
             try {
                 rateLimited.set(false)
                 val gate = sectionsGateForSession()
+                // Fixed for this load: the gate flips the moment the user asks for the deferred
+                // sections, and this load must not answer for that read.
+                val sectionsWereDeferred = gate.isDeferred
+                val sectionsRevisionAtStart = sectionsRevision
 
-                _state.value = _state.value.copy(isLoading = true, errorMessage = null)
-
-                val syncResult = syncInstalledAppsUseCase()
-                if (syncResult.isFailure) {
-                    logger.warn("Sync had issues but continuing: ${syncResult.exceptionOrNull()?.message}")
+                _state.update {
+                    it.copy(isLoading = true, errorMessage = null, areSectionsPending = true)
                 }
 
                 val repo =
@@ -2805,6 +2814,20 @@ class DetailsViewModel(
                             detailsRepository.getRepositoryById(repositoryId)
                         }
                     }
+                // First paint: the repository is all the header needs, so it goes out before
+                // anything slow can finish. Releases, README, stats and the profile stay empty
+                // until the state below applies them.
+                _state.update {
+                    it.withHeaderFirstPaint(
+                        repository = repo,
+                        sectionsDeferred = sectionsWereDeferred,
+                    )
+                }
+
+                // Syncing installed apps used to gate this whole load. It now runs behind the
+                // painted header and only refreshes the state it can change.
+                launchInstalledAppsSync(repo.id)
+
                 launch { seenReposRepository.markAsSeen(repo) }
 
                 val isFavoriteDeferred =
@@ -2835,22 +2858,21 @@ class DetailsViewModel(
                             false
                         }
                     }
-                val isFavorite = isFavoriteDeferred.await()
-                val isStarred = isStarredDeferred.await()
+                // Favourites and stars fill themselves in; a slow one is simply applied when it
+                // lands and never holds back the header or the sections.
+                launch {
+                    _state.update { it.withFavourite(repo.id, isFavoriteDeferred.await()) }
+                }
+                launch {
+                    _state.update { it.withStarred(repo.id, isStarredDeferred.await()) }
+                }
 
                 val owner = repo.owner.login
                 val name = repo.name
 
-                _state.value =
-                    _state.value.copy(
-                        repository = repo,
-                        isFavourite = isFavorite == true,
-                        isStarred = isStarred == true,
-                    )
-
                 val allReleasesDeferred =
                     async {
-                        if (gate.isDeferred) return@async ReleasesRead()
+                        if (sectionsWereDeferred) return@async ReleasesRead()
                         readReleases(repo)
                     }
 
@@ -2874,7 +2896,7 @@ class DetailsViewModel(
 
                 val readmeDeferred =
                     async {
-                        if (gate.isDeferred) return@async null
+                        if (sectionsWereDeferred) return@async null
                         readReadme(repo)
                     }
 
@@ -2894,101 +2916,101 @@ class DetailsViewModel(
                         }
                     }
 
-                val installedAppsDeferred =
-                    async {
-                        try {
-                            val dbApps = installedAppsRepository.getAppsByRepoId(repo.id)
-
-                            dbApps.map { dbApp ->
-                                if (dbApp.isPendingInstall &&
-                                    packageMonitor.isPackageInstalled(dbApp.packageName)
-                                ) {
-                                    installedAppsRepository.updatePendingStatus(
-                                        dbApp.packageName,
-                                        false,
-                                    )
-                                    installedAppsRepository.getAppByPackage(dbApp.packageName)
-                                        ?: dbApp
-                                } else {
-                                    dbApp
-                                }
-                            }
-                        } catch (_: RateLimitException) {
-                            rateLimited.set(true)
-                            emptyList()
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (t: Throwable) {
-                            logger.error("Failed to load installed apps: ${t.message}")
-                            emptyList()
-                        }
-                    }
+                val installedAppsDeferred = async { readInstalledApps(repo.id) }
 
                 val isObtainiumEnabled = platform == Platform.ANDROID
                 val isAppManagerEnabled = platform == Platform.ANDROID
+
+                // Installed apps are a local read that fills the header's install area and the
+                // release selection, so it is applied before the releases are awaited.
+                val allInstalledApps = installedAppsDeferred.await()
+                if (allInstalledApps != null) {
+                    applyInstalledAppsState(repo.id, allInstalledApps)
+                }
 
                 val releasesRead = allReleasesDeferred.await()
                 val stats = statsDeferred.await()
                 val readme = readmeDeferred.await()
                 val userProfile = userProfileDeferred.await()
-                val allInstalledApps = installedAppsDeferred.await()
-                val installedApp =
-                    packageNameParam
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { pkg -> allInstalledApps.firstOrNull { it.packageName == pkg } }
-                        ?: pickPrimaryInstalledApp(allInstalledApps, null, emptyList())
 
                 if (rateLimited.get()) {
-                    _state.value =
-                        _state.value.copy(
-                            isLoading = false,
-                            errorMessage = null,
-                            releasesLoadFailed = true,
-                            sectionsDeferred = gate.isDeferred,
-                        )
+                    _state.update { current ->
+                        if (!current.belongsToRepo(repo.id)) {
+                            current
+                        } else {
+                            current.copy(
+                                isLoading = false,
+                                errorMessage = null,
+                                releasesLoadFailed = true,
+                                areSectionsPending = false,
+                            )
+                        }
+                    }
                     return@launch
                 }
 
-                val sections = resolveReleaseSections(releasesRead.releases, allInstalledApps, installedApp)
+                val sections =
+                    resolveReleaseSections(
+                        releases = releasesRead.releases,
+                        allInstalledApps = allInstalledApps.orEmpty(),
+                        installedApp = _state.value.installedApp,
+                    )
                 val isObtainiumAvailable = installer.isObtainiumInstalled()
                 val isAppManagerAvailable = installer.isAppManagerInstalled()
 
                 logger.debug("Loaded repo: ${repo.name}, installedApp: ${sections.installedApp?.packageName}")
 
-                _state.value =
-                    _state.value.copy(
-                        isLoading = false,
-                        errorMessage = null,
-                        repository = repo,
-                        allReleases = releasesRead.releases,
-                        releasePlatforms = platformsByRelease(releasesRead.releases),
-                        deviceBuildReleaseIds = sections.deviceBuildReleaseIds,
-                        releaseLines = releaseLines(releasesRead.releases),
-                        releasesLoadFailed = releasesRead.failed,
-                        isRetryingReleases = false,
-                        selectedRelease = sections.selectedRelease,
-                        selectedReleaseCategory = sections.selectedReleaseCategory,
-                        stats = stats,
-                        readmeMarkdown = readme?.first,
-                        readmeLanguage = readme?.second,
-                        sectionsDeferred = gate.isDeferred,
-                        installableAssets = sections.installableAssets,
-                        primaryAsset = sections.primaryAsset,
-                        userProfile = userProfile,
-                        systemArchitecture = installer.detectSystemArchitecture(),
-                        isObtainiumAvailable = isObtainiumAvailable,
-                        isObtainiumEnabled = isObtainiumEnabled,
-                        isAppManagerAvailable = isAppManagerAvailable,
-                        isAppManagerEnabled = isAppManagerEnabled,
-                        installedApp = sections.installedApp,
-                        deviceLanguageCode = translationRepository.getDeviceLanguageCode(),
-                        isComingFromUpdate = isComingFromUpdate,
-                        stalledStableSinceDays = sections.insights.stalledStableSinceDays,
-                        mergedChangelog = sections.insights.mergedChangelog,
-                        mergedChangelogBaseTag = sections.insights.mergedChangelogBaseTag,
-                        latestStableHasInstallableAsset =
-                            sections.insights.latestStableHasInstallableAsset,
-                    )
+                // The header is already on screen, so this write only adds what rode along with
+                // the read: the environment and the two independent sections. The repository and
+                // the installed-app fields stay owned by the writes above.
+                _state.update { current ->
+                    if (!current.belongsToRepo(repo.id)) {
+                        current
+                    } else {
+                        current.copy(
+                            areSectionsPending = false,
+                            isRetryingReleases = false,
+                            stats = stats,
+                            userProfile = userProfile,
+                            systemArchitecture = installer.detectSystemArchitecture(),
+                            isObtainiumAvailable = isObtainiumAvailable,
+                            isObtainiumEnabled = isObtainiumEnabled,
+                            isAppManagerAvailable = isAppManagerAvailable,
+                            isAppManagerEnabled = isAppManagerEnabled,
+                            deviceLanguageCode = translationRepository.getDeviceLanguageCode(),
+                            isComingFromUpdate = isComingFromUpdate,
+                        )
+                    }
+                }
+
+                // A deferred read never asked for these sections, and a refresh or on-demand load
+                // may have replaced them while this one waited: those newer writes win.
+                if (!sectionsWereDeferred && sectionsRevision == sectionsRevisionAtStart) {
+                    _state.update { current ->
+                        if (!current.belongsToRepo(repo.id)) {
+                            current
+                        } else {
+                            current.copy(
+                                allReleases = releasesRead.releases,
+                                releasePlatforms = platformsByRelease(releasesRead.releases),
+                                deviceBuildReleaseIds = sections.deviceBuildReleaseIds,
+                                releaseLines = releaseLines(releasesRead.releases),
+                                releasesLoadFailed = releasesRead.failed,
+                                selectedRelease = sections.selectedRelease,
+                                selectedReleaseCategory = sections.selectedReleaseCategory,
+                                readmeMarkdown = readme?.first,
+                                readmeLanguage = readme?.second,
+                                installableAssets = sections.installableAssets,
+                                primaryAsset = sections.primaryAsset,
+                                stalledStableSinceDays = sections.insights.stalledStableSinceDays,
+                                mergedChangelog = sections.insights.mergedChangelog,
+                                mergedChangelogBaseTag = sections.insights.mergedChangelogBaseTag,
+                                latestStableHasInstallableAsset =
+                                    sections.insights.latestStableHasInstallableAsset,
+                            )
+                        }
+                    }
+                }
 
                 if (releasesRead.fromCache) {
                     revalidateReleases()
@@ -3020,6 +3042,7 @@ class DetailsViewModel(
                     _state.value.copy(
                         isLoading = false,
                         errorMessage = message,
+                        areSectionsPending = false,
                     )
             } catch (e: CancellationException) {
                 throw e
@@ -3029,10 +3052,88 @@ class DetailsViewModel(
                     _state.value.copy(
                         isLoading = false,
                         errorMessage = t.message ?: getString(Res.string.failed_to_load_details),
+                        areSectionsPending = false,
                     )
             }
         }
     }
+
+    // The installed-app rows the sync rewrites are the only state a finished sync may change;
+    // the repository, releases and README that are already on screen are left untouched.
+    private fun launchInstalledAppsSync(repoId: Long) {
+        viewModelScope.launch {
+            val syncResult = syncInstalledAppsUseCase()
+            if (syncResult.isFailure) {
+                logger.warn("Sync had issues but continuing: ${syncResult.exceptionOrNull()?.message}")
+            }
+            val apps = readInstalledApps(repoId) ?: return@launch
+            applyInstalledAppsState(repoId, apps)
+        }
+    }
+
+    private fun applyInstalledAppsState(
+        repoId: Long,
+        apps: List<InstalledApp>,
+    ) {
+        if (!_state.value.belongsToRepo(repoId)) return
+        val primary = resolveInstalledAppSelection(apps)
+        val insights = computeReleaseInsights(_state.value.allReleases, primary)
+        _state.update { current ->
+            current
+                .withInstalledAppState(
+                    repoId = repoId,
+                    installedApps = apps,
+                    installedApp = primary,
+                ).copy(
+                    stalledStableSinceDays = insights.stalledStableSinceDays,
+                    mergedChangelog = insights.mergedChangelog,
+                    mergedChangelogBaseTag = insights.mergedChangelogBaseTag,
+                    latestStableHasInstallableAsset = insights.latestStableHasInstallableAsset,
+                )
+        }
+    }
+
+    // The app already on screen wins, so a finished sync never moves the user's selection; the
+    // package from the route is the fallback for a first load.
+    private fun resolveInstalledAppSelection(apps: List<InstalledApp>): InstalledApp? {
+        val current = _state.value.installedApp
+        val kept = current?.let { app -> apps.firstOrNull { it.packageName == app.packageName } }
+        val routed =
+            packageNameParam
+                ?.takeIf { it.isNotBlank() }
+                ?.let { pkg -> apps.firstOrNull { it.packageName == pkg } }
+        return kept
+            ?: routed
+            ?: pickPrimaryInstalledApp(
+                apps = apps,
+                primaryAssetName = _state.value.primaryAsset?.name,
+                releaseAssets = _state.value.installableAssets,
+                releaseTag = _state.value.selectedRelease?.tagName,
+            )
+    }
+
+    private suspend fun readInstalledApps(repoId: Long): List<InstalledApp>? =
+        try {
+            val dbApps = installedAppsRepository.getAppsByRepoId(repoId)
+            dbApps.map { dbApp ->
+                if (dbApp.isPendingInstall &&
+                    packageMonitor.isPackageInstalled(dbApp.packageName)
+                ) {
+                    installedAppsRepository.updatePendingStatus(dbApp.packageName, false)
+                    installedAppsRepository.getAppByPackage(dbApp.packageName) ?: dbApp
+                } else {
+                    dbApp
+                }
+            }
+        } catch (_: RateLimitException) {
+            rateLimited.set(true)
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            logger.error("Failed to load installed apps: ${t.message}")
+            null
+        }
 
     private suspend fun sectionsGateForSession(): DeferredSectionsGate {
         sectionsGate?.let { return it }
@@ -3177,6 +3278,7 @@ class DetailsViewModel(
                         allInstalledApps = _state.value.installedApps,
                         installedApp = _state.value.installedApp,
                     )
+                sectionsRevision += 1
                 _state.update {
                     it.copy(
                         installedApp = sections.installedApp,
@@ -3241,6 +3343,7 @@ class DetailsViewModel(
                 if (freshReleases.isEmpty()) return@launch
 
                 val previousSelectedId = _state.value.selectedRelease?.id
+                sectionsRevision += 1
                 _state.update { it.withFreshReleases(freshReleases) }
                 if (_state.value.selectedRelease?.id != previousSelectedId) {
                     whatsNewTranslationJob?.cancel()
@@ -3386,6 +3489,7 @@ class DetailsViewModel(
                 }
 
                 val previousSelectedId = _state.value.selectedRelease?.id
+                if (freshReleases != null) sectionsRevision += 1
                 _state.update { current ->
                     (freshReleases?.let { current.withFreshReleases(it) } ?: current).copy(
                         isRefreshing = false,

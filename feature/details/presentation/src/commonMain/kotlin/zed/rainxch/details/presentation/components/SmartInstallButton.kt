@@ -84,6 +84,7 @@ import zed.rainxch.githubstore.core.presentation.res.install_latest
 import zed.rainxch.githubstore.core.presentation.res.install_ready
 import zed.rainxch.githubstore.core.presentation.res.install_version
 import zed.rainxch.githubstore.core.presentation.res.installing
+import zed.rainxch.githubstore.core.presentation.res.loading_releases
 import zed.rainxch.githubstore.core.presentation.res.no_build_for_this_device
 import zed.rainxch.githubstore.core.presentation.res.not_available
 import zed.rainxch.githubstore.core.presentation.res.open_app
@@ -185,6 +186,9 @@ fun SmartInstallButton(
 
     val buttonText = when {
         deferredLoadPending -> stringResource(Res.string.details_sections_deferred_load)
+        // The header is already painted, but no release has been read yet: say so instead of
+        // claiming the repository has no build for this device.
+        state.areSectionsPending && primaryAsset == null -> stringResource(Res.string.loading_releases)
         !enabled && primaryAsset == null && !state.selectedHasDeviceBuild ->
             stringResource(Res.string.no_build_for_this_device)
         !enabled && primaryAsset == null -> stringResource(Res.string.not_available)

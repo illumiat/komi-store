@@ -29,6 +29,7 @@ import zed.rainxch.details.presentation.model.TranslationTarget
 @Immutable
 data class DetailsState(
     val isLoading: Boolean = true,
+    val areSectionsPending: Boolean = true,
     val isCurrentUserOwner: Boolean = false,
     val isRefreshing: Boolean = false,
     val refreshCooldownUntilEpochMs: Long? = null,

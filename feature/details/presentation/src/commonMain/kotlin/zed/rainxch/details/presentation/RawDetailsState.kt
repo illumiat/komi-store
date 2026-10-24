@@ -24,6 +24,9 @@ import zed.rainxch.details.presentation.model.TranslationTarget
 
 internal data class RawDetailsState(
     val isLoading: Boolean = true,
+    // True from the painted header until the release/README/stats read is applied: the header
+    // must not claim the repository has no releases while that read is still in flight.
+    val areSectionsPending: Boolean = true,
     val isCurrentUserOwner: Boolean = false,
     val isRefreshing: Boolean = false,
     val refreshCooldownUntilEpochMs: Long? = null,
