@@ -1,7 +1,5 @@
 package zed.rainxch.details.presentation
 
-import zed.rainxch.details.presentation.components.DetailsSkeleton
-
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
@@ -85,6 +83,7 @@ import zed.rainxch.core.presentation.locals.LocalScrollbarEnabled
 import zed.rainxch.core.presentation.personality.MangaPersonality
 import zed.rainxch.core.presentation.personality.utils.KomiSeededTheme
 import zed.rainxch.core.presentation.personality.utils.PersonalityPreview
+import zed.rainxch.core.presentation.spacing.Spacing
 import zed.rainxch.core.presentation.utils.ObserveAsEvents
 import zed.rainxch.core.presentation.utils.arrowKeyScroll
 import zed.rainxch.core.presentation.utils.contentWidthCap
@@ -97,6 +96,7 @@ import zed.rainxch.details.presentation.components.sections.deferredSections
 import zed.rainxch.details.presentation.components.sections.header
 import zed.rainxch.details.presentation.components.sections.logs
 import zed.rainxch.details.presentation.components.sections.releaseChannel
+import zed.rainxch.details.presentation.components.sections.skeletonSections
 import zed.rainxch.details.presentation.components.sections.stats
 import zed.rainxch.details.presentation.components.sections.whatsNew
 import zed.rainxch.details.presentation.components.states.ErrorState
@@ -551,14 +551,6 @@ fun DetailsScreen(
         },
         toastState = toastState
     ) { innerPadding ->
-        if (state.isLoading) {
-            DetailsSkeleton(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-            )
-
-            return@KomiScaffold
-        }
-
         if (state.errorMessage != null) {
             ErrorState(state.errorMessage, onAction)
 
@@ -626,13 +618,22 @@ fun DetailsScreen(
                     LazyColumn(
                         state = listState,
                         modifier = listModifier,
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        contentPadding = PaddingValues(Spacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xl),
                     ) {
                         header(
                             state = state,
                             onAction = onAction,
                         )
+
+                        // Before the repository lands the header slot is a skeleton, so the first
+                        // frame stands in for the sections below it too. After that the page is
+                        // the real one and no whole-page skeleton may come back.
+                        if (state.repository == null) {
+                            skeletonSections()
+
+                            return@LazyColumn
+                        }
 
                         state.stats?.let { stats ->
                             stats(
