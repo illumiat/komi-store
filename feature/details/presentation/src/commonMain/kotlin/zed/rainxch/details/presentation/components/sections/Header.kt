@@ -32,8 +32,9 @@ import zed.rainxch.core.presentation.locals.LocalPersonality
 import zed.rainxch.details.presentation.DetailsAction
 import zed.rainxch.details.presentation.DetailsState
 import zed.rainxch.details.presentation.components.AppHeader
+import zed.rainxch.details.presentation.components.DetailsAssetSkeleton
+import zed.rainxch.details.presentation.components.DetailsHeaderSkeleton
 import zed.rainxch.details.presentation.components.InspectApkButton
-import zed.rainxch.details.presentation.components.LatestReleaseSkeleton
 import zed.rainxch.details.presentation.components.LinkedRepoBanner
 import zed.rainxch.details.presentation.components.ReleaseAssetsPicker
 import zed.rainxch.details.presentation.components.ReleasesStatus
@@ -50,44 +51,55 @@ fun LazyListScope.header(
     state: DetailsState,
     onAction: (DetailsAction) -> Unit,
 ) {
-    item {
-        if (state.repository != null) {
-            SelectionContainer {
-                AppHeader(
-                    author = state.userProfile,
-                    release = state.selectedRelease,
-                    repository = state.repository,
-                    installedApp = state.installedApp,
-                    installedApps = state.installedApps,
-                    onSelectInstalledApp = { packageName ->
-                        onAction(DetailsAction.OnSelectInstalledApp(packageName))
-                    },
-                    downloadStage = state.downloadStage,
-                    downloadProgress = state.downloadProgressPercent,
-                    isCurrentUserOwner = state.isCurrentUserOwner,
-                    onPlatformClick = { platform ->
-                        onAction(DetailsAction.OnPlatformChipClick(platform))
-                    },
-                    platformReleases = state.platformReleases,
-                    devicePlatform = state.devicePlatform,
-                    appLabel = state.selectedAppLabel,
-                    onAppLabelClick = { onAction(DetailsAction.ToggleVersionPicker) },
-                    onOwnerClick = {
-                        onAction(
-                            DetailsAction.OpenDeveloperProfile(
-                                state.repository.owner.login,
-                            ),
-                        )
-                    },
-                )
-            }
+    val repository = state.repository
+    if (repository == null) {
+        // The page's first frame: the header card and the asset rows that follow it. The repository
+        // drops into the same place when it lands, so nothing above the rows moves.
+        item(key = "details-header-skeleton") {
+            DetailsHeaderSkeleton()
+        }
+        item(key = "details-asset-skeleton") {
+            DetailsAssetSkeleton()
+        }
+
+        return
+    }
+
+    item(key = "details-header") {
+        SelectionContainer {
+            AppHeader(
+                author = state.userProfile,
+                release = state.selectedRelease,
+                repository = repository,
+                installedApp = state.installedApp,
+                installedApps = state.installedApps,
+                onSelectInstalledApp = { packageName ->
+                    onAction(DetailsAction.OnSelectInstalledApp(packageName))
+                },
+                downloadStage = state.downloadStage,
+                downloadProgress = state.downloadProgressPercent,
+                isCurrentUserOwner = state.isCurrentUserOwner,
+                onPlatformClick = { platform ->
+                    onAction(DetailsAction.OnPlatformChipClick(platform))
+                },
+                platformReleases = state.platformReleases,
+                devicePlatform = state.devicePlatform,
+                appLabel = state.selectedAppLabel,
+                onAppLabelClick = { onAction(DetailsAction.ToggleVersionPicker) },
+                onOwnerClick = {
+                    onAction(
+                        DetailsAction.OpenDeveloperProfile(
+                            repository.owner.login,
+                        ),
+                    )
+                },
+            )
         }
     }
 
     val installedApp = state.installedApp
-    val repository = state.repository
-    if (installedApp?.installSource == InstallSource.MANUAL && repository != null) {
-        item {
+    if (installedApp?.installSource == InstallSource.MANUAL) {
+        item(key = "details-linked-repo-banner") {
             LinkedRepoBanner(
                 owner = repository.owner.login,
                 repo = repository.name,
@@ -98,10 +110,10 @@ fun LazyListScope.header(
     }
 
     if (state.isLatestReleaseLoading) {
-        item {
-            LatestReleaseSkeleton(
-                modifier = Modifier.fillMaxWidth(),
-            )
+        // The same asset rows as the first frame, in the same place, so the release replaces the
+        // skeleton where it stands instead of shifting the page.
+        item(key = "details-asset-skeleton") {
+            DetailsAssetSkeleton()
         }
 
         return
@@ -109,7 +121,6 @@ fun LazyListScope.header(
 
     val releasesStatus: ReleasesStatus? =
         when {
-            state.repository == null -> null
             state.sectionsDeferred -> null
             state.areSectionsPending -> null
             state.releasesLoadFailed -> ReleasesStatus.FAILED
@@ -182,7 +193,7 @@ fun LazyListScope.header(
                         deviceBuildReleaseIds = state.deviceBuildReleaseIds,
                         releaseLines = state.releaseLines,
                         selectedAppLabel = state.selectedAppLabel,
-                        repoName = state.repository?.name.orEmpty(),
+                        repoName = repository.name,
                     )
                 }
             }
