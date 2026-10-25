@@ -4,8 +4,10 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.details.domain.model.ReleaseCategory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LatestReleaseFirstTest {
     @Test
@@ -100,6 +102,51 @@ class LatestReleaseFirstTest {
         assertNotNull(choice)
         assertEquals(preRelease, choice.selected)
         assertEquals(ReleaseCategory.PRE_RELEASE, choice.category)
+    }
+
+    @Test
+    fun the_latest_read_starts_with_the_repository_when_the_route_carries_owner_and_repo() {
+        // Deep links and Library entries carry both, so the latest request can go out before the
+        // repository (and its default branch) is read.
+        assertTrue(
+            latestReleaseStartsBeforeRepo(
+                ownerParam = "owner",
+                repoParam = "repo",
+                sectionsDeferred = false,
+            ),
+        )
+        assertFalse(
+            latestReleaseStartsBeforeRepo(
+                ownerParam = "",
+                repoParam = "",
+                sectionsDeferred = false,
+            ),
+        )
+        assertFalse(
+            latestReleaseStartsBeforeRepo(
+                ownerParam = "owner",
+                repoParam = "",
+                sectionsDeferred = false,
+            ),
+        )
+        assertFalse(
+            latestReleaseStartsBeforeRepo(
+                ownerParam = "",
+                repoParam = "repo",
+                sectionsDeferred = false,
+            ),
+        )
+    }
+
+    @Test
+    fun a_deferred_page_never_starts_the_latest_read_even_with_owner_and_repo() {
+        assertFalse(
+            latestReleaseStartsBeforeRepo(
+                ownerParam = "owner",
+                repoParam = "repo",
+                sectionsDeferred = true,
+            ),
+        )
     }
 
     private fun release(

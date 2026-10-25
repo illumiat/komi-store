@@ -8,6 +8,7 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -132,6 +133,11 @@ import zed.rainxch.core.domain.system.DownloadStage as OrchestratorStage
 
 // The backend serves a copy up to an hour old, so re-reading a younger list can't return anything newer.
 private const val RELEASES_REVALIDATE_MIN_AGE_MS = 60L * 60L * 1000L
+
+// A route that carries owner/repo starts the latest release read with the repository read, before
+// the repository's default branch is known. The branch only rewrites relative links in the release
+// body, and GitHub resolves this ref to the default branch for raw and blob URLs alike.
+private const val LATEST_RELEASE_UNKNOWN_BRANCH = "HEAD"
 
 class DetailsViewModel(
     private val repositoryId: Long,
@@ -2782,6 +2788,22 @@ class DetailsViewModel(
                     it.copy(isLoading = true, errorMessage = null, areSectionsPending = true)
                 }
 
+                // Started before the repository read, not after it: a route that carries owner/repo
+                // already knows everything this read needs, so the two requests run side by side.
+                // The release body's relative links fall back to a ref GitHub resolves to the
+                // default branch, so nothing has to wait for the repository's default branch.
+                // A deferred page reads no release at all and starts nothing.
+                val latestReleaseBeforeRepo =
+                    if (latestReleaseStartsBeforeRepo(ownerParam, repoParam, sectionsWereDeferred)) {
+                        startLatestReleaseLoad(
+                            owner = ownerParam,
+                            name = repoParam,
+                            defaultBranch = LATEST_RELEASE_UNKNOWN_BRANCH,
+                        )
+                    } else {
+                        null
+                    }
+
                 val repo =
                     when {
                         sourceHostParam != null -> {
@@ -2863,14 +2885,21 @@ class DetailsViewModel(
                 val owner = repo.owner.login
                 val name = repo.name
 
-                // Started in parallel with the rest of the sections work. The newest published
-                // release only needs to be read once; the full list is launched after it is
-                // painted, and never on a deferred page.
+                // A route with only the numeric id could not start this read before the repository;
+                // it starts here, on the frame the header paints on, so the skeleton holds the
+                // release-dependent part while the request runs. The full list is launched after
+                // this release is painted, and never on a deferred page.
                 val latestReleaseDeferred =
-                    async {
-                        if (sectionsWereDeferred) return@async null
-                        readLatestPublishedRelease(repo)
-                    }
+                    latestReleaseBeforeRepo
+                        ?: if (sectionsWereDeferred) {
+                            null
+                        } else {
+                            startLatestReleaseLoad(
+                                owner = owner,
+                                name = name,
+                                defaultBranch = repo.defaultBranch,
+                            )
+                        }
 
                 val statsDeferred =
                     async {
@@ -2929,13 +2958,16 @@ class DetailsViewModel(
                 // installed-app read above is the only thing it waits for, so the painted release
                 // already has the header's install state behind it. A page whose sections are
                 // deferred never starts these reads at all.
-                val latestRelease = latestReleaseDeferred.await()
+                val latestRelease = latestReleaseDeferred?.await()
                 // The deferred branch never reads it, so a non-null release already implies the
                 // sections are not deferred.
                 val latestPainted =
                     latestRelease != null &&
                         sectionsRevision == sectionsRevisionAtStart &&
                         applyLatestReleaseFirst(repo, latestRelease)
+                if (latestReleaseDeferred != null && !latestPainted) {
+                    finishLatestReleaseLoad()
+                }
 
                 // Never a user action: the full list starts as soon as the latest-first state is
                 // out, so the version picker normally already has it by the time it opens. A
@@ -3084,6 +3116,8 @@ class DetailsViewModel(
                         isLoading = false,
                         errorMessage = message,
                         areSectionsPending = false,
+                        // The page failed before the release was painted; no skeleton may outlive it.
+                        isLatestReleaseLoading = false,
                     )
             } catch (e: CancellationException) {
                 throw e
@@ -3094,6 +3128,7 @@ class DetailsViewModel(
                         isLoading = false,
                         errorMessage = t.message ?: getString(Res.string.failed_to_load_details),
                         areSectionsPending = false,
+                        isLatestReleaseLoading = false,
                     )
             }
         }
@@ -3223,12 +3258,40 @@ class DetailsViewModel(
             ReleasesRead(failed = true)
         }
 
-    private suspend fun readLatestPublishedRelease(repo: GithubRepoSummary): GithubRelease? =
+    // The latest release read runs in the same scope as the load that started it, so leaving the
+    // page or a retry cancels it. The skeleton flag is owned by this read: the paint clears it in
+    // the same write that replaces the skeleton, and the caller clears it when the read fails or
+    // its result is dropped.
+    private fun CoroutineScope.startLatestReleaseLoad(
+        owner: String,
+        name: String,
+        defaultBranch: String,
+    ): Deferred<GithubRelease?> {
+        _state.update { it.copy(isLatestReleaseLoading = true) }
+        return async {
+            readLatestPublishedRelease(
+                owner = owner,
+                name = name,
+                defaultBranch = defaultBranch,
+            )
+        }
+    }
+
+    private fun finishLatestReleaseLoad() {
+        if (!_state.value.isLatestReleaseLoading) return
+        _state.update { it.copy(isLatestReleaseLoading = false) }
+    }
+
+    private suspend fun readLatestPublishedRelease(
+        owner: String,
+        name: String,
+        defaultBranch: String,
+    ): GithubRelease? =
         try {
             detailsRepository.getLatestPublishedRelease(
-                owner = repo.owner.login,
-                repo = repo.name,
-                defaultBranch = repo.defaultBranch,
+                owner = owner,
+                repo = name,
+                defaultBranch = defaultBranch,
                 sourceHost = sourceHostParam,
             )
         } catch (e: CancellationException) {
@@ -3261,6 +3324,9 @@ class DetailsViewModel(
                         areSectionsPending = false,
                         releasesLoadFailed = false,
                         isRetryingReleases = false,
+                        // The release is on screen now, so the skeleton gives way in the same
+                        // state the page receives, not one frame earlier.
+                        isLatestReleaseLoading = false,
                     )
             }
         }
