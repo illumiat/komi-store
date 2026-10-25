@@ -3772,14 +3772,7 @@ class DetailsViewModel(
     private suspend fun syncLibraryUpdateState(freshReleases: List<GithubRelease>) {
         val installed = _state.value.installedApp ?: return
         try {
-            installedAppsRepository
-                .getAppsByRepoId(installed.repoId)
-                .forEach { app ->
-                    installedAppsRepository.checkForUpdatesWithReleases(
-                        packageName = app.packageName,
-                        releases = freshReleases,
-                    )
-                }
+            persistLibraryUpdateState(installed, freshReleases)
             // observeInstalledApp already hands the UI the rewritten row. What it does not move is
             // the selected release, so open the new update target as loadInitial would.
             val refreshed = installedAppsRepository.getAppByPackage(installed.packageName)
@@ -3822,6 +3815,38 @@ class DetailsViewModel(
         } catch (t: Throwable) {
             logger.warn("Refresh: library update sync failed: ${t.message}")
         }
+    }
+
+    // The opened app follows the release the page shows; the repository's other apps judge the
+    // window themselves. A generic filtered pick is exactly what a forced refresh must not fall
+    // back to for the open page.
+    private suspend fun persistLibraryUpdateState(
+        installed: InstalledApp,
+        freshReleases: List<GithubRelease>,
+    ) {
+        val shownRelease = _state.value.selectedRelease
+        val shownAsset = _state.value.primaryAsset
+        if (shownRelease != null && shownAsset != null) {
+            installedAppsRepository.recordRefreshedRelease(
+                packageName = installed.packageName,
+                release = shownRelease,
+                asset = shownAsset,
+            )
+        } else {
+            installedAppsRepository.checkForUpdatesWithReleases(
+                packageName = installed.packageName,
+                releases = freshReleases,
+            )
+        }
+        installedAppsRepository
+            .getAppsByRepoId(installed.repoId)
+            .filter { app -> app.packageName != installed.packageName }
+            .forEach { app ->
+                installedAppsRepository.checkForUpdatesWithReleases(
+                    packageName = app.packageName,
+                    releases = freshReleases,
+                )
+            }
     }
 
     private fun maybeAutoTranslate(

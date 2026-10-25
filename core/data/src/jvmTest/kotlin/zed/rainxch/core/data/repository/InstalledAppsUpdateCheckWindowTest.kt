@@ -224,6 +224,145 @@ class InstalledAppsUpdateCheckWindowTest {
             }
         }
 
+    @Test
+    fun a_refreshed_release_persists_the_release_and_asset_the_page_shows() =
+        runBlocking {
+            withRepo { repo, db ->
+                db.installedAppDao.insertApp(
+                    app(packageName = PKG, installed = "1.0.0", installedCode = 100L),
+                )
+                val release = release(id = 200L, tag = "2.0.0", publishedAt = "2026-10-01T00:00:00Z")
+                val chosen =
+                    release.assets
+                        .single()
+                        .copy(
+                            id = 77L,
+                            name = "app-universal.apk",
+                            downloadUrl = "https://example.test/2.0.0/app-universal.apk",
+                        )
+                val window = release.copy(assets = release.assets + chosen)
+
+                val recorded = repo.recordRefreshedRelease(PKG, window, chosen)
+
+                assertTrue(recorded)
+                val row = db.installedAppDao.getAppByPackage(PKG)!!
+                assertTrue(row.isUpdateAvailable)
+                assertEquals("2.0.0", row.latestVersion)
+                assertEquals("2.0.0", row.latestVersionName)
+                assertEquals(200L, row.latestReleaseId)
+                assertEquals(77L, row.latestAssetId)
+                assertEquals("app-universal.apk", row.latestAssetName)
+                assertEquals("https://example.test/2.0.0/app-universal.apk", row.latestAssetUrl)
+                assertEquals("2026-10-01T00:00:00Z", row.latestReleasePublishedAt)
+                assertEquals("notes for 2.0.0", row.releaseNotes)
+                assertEquals(1L, row.updateStateRevision)
+                assertTrue(row.lastCheckedAt > 0L)
+            }
+        }
+
+    @Test
+    fun a_refreshed_release_retries_once_after_a_revision_race() =
+        runBlocking {
+            var conflicting: FirstWriteConflictsDao? = null
+            withRepo(
+                installedAppsDao = { db ->
+                    FirstWriteConflictsDao(db.installedAppDao).also { conflicting = it }
+                },
+            ) { repo, db ->
+                db.installedAppDao.insertApp(
+                    app(packageName = PKG, installed = "1.0.0", installedCode = 100L),
+                )
+                val release = release(id = 200L, tag = "2.0.0", publishedAt = "2026-10-01T00:00:00Z")
+
+                val recorded = repo.recordRefreshedRelease(PKG, release, release.assets.single())
+
+                assertTrue(recorded)
+                assertEquals(2, checkNotNull(conflicting).writes)
+                val row = db.installedAppDao.getAppByPackage(PKG)!!
+                assertEquals(2L, row.updateStateRevision)
+                assertEquals("2.0.0", row.latestVersion)
+                assertEquals(200L, row.latestReleaseId)
+            }
+        }
+
+    @Test
+    fun a_refreshed_release_is_not_written_while_the_check_is_disabled() =
+        runBlocking {
+            withRepo { repo, db ->
+                db.installedAppDao.insertApp(
+                    app(packageName = PKG, installed = "1.0.0", installedCode = 100L)
+                        .copy(updateCheckEnabled = false),
+                )
+                val release = release(id = 200L, tag = "2.0.0", publishedAt = "2026-10-01T00:00:00Z")
+
+                val recorded = repo.recordRefreshedRelease(PKG, release, release.assets.single())
+
+                assertFalse(recorded)
+                val row = db.installedAppDao.getAppByPackage(PKG)!!
+                assertNull(row.latestVersion)
+                assertFalse(row.isUpdateAvailable)
+                assertEquals(0L, row.updateStateRevision)
+                assertEquals(0L, row.lastCheckedAt)
+            }
+        }
+
+    @Test
+    fun an_older_generic_window_keeps_the_fresher_stored_release() =
+        runBlocking {
+            withRepo { repo, db ->
+                db.installedAppDao.insertApp(
+                    app(packageName = PKG, installed = "1.0.0", installedCode = 100L)
+                        .copy(
+                            latestVersion = "2.0.0",
+                            latestReleaseId = 200L,
+                            latestReleasePublishedAt = "2026-10-02T00:00:00Z",
+                            isUpdateAvailable = true,
+                        ),
+                )
+
+                val updated =
+                    repo.checkForUpdatesWithReleases(
+                        PKG,
+                        listOf(release(id = 100L, tag = "1.5.0", publishedAt = "2026-10-01T00:00:00Z")),
+                    )
+
+                assertTrue(updated)
+                val row = db.installedAppDao.getAppByPackage(PKG)!!
+                assertEquals("2.0.0", row.latestVersion)
+                assertEquals(200L, row.latestReleaseId)
+                assertEquals("2026-10-02T00:00:00Z", row.latestReleasePublishedAt)
+                assertEquals(0L, row.updateStateRevision)
+                assertEquals(0L, row.lastCheckedAt)
+            }
+        }
+
+    @Test
+    fun an_equal_timestamp_generic_window_still_writes() =
+        runBlocking {
+            withRepo { repo, db ->
+                db.installedAppDao.insertApp(
+                    app(packageName = PKG, installed = "1.0.0", installedCode = 100L)
+                        .copy(
+                            latestVersion = "1.0.0",
+                            latestReleaseId = 100L,
+                            latestReleasePublishedAt = "2026-10-01T00:00:00Z",
+                        ),
+                )
+
+                val updated =
+                    repo.checkForUpdatesWithReleases(
+                        PKG,
+                        listOf(release(id = 200L, tag = "2.0.0", publishedAt = "2026-10-01T00:00:00Z")),
+                    )
+
+                assertTrue(updated)
+                val row = db.installedAppDao.getAppByPackage(PKG)!!
+                assertEquals("2.0.0", row.latestVersion)
+                assertEquals(200L, row.latestReleaseId)
+                assertEquals(1L, row.updateStateRevision)
+            }
+        }
+
     private suspend fun withRepo(
         installedAppsDao: (AppDatabase) -> InstalledAppDao = { it.installedAppDao },
         block: suspend (InstalledAppsRepositoryImpl, AppDatabase) -> Unit,
@@ -507,6 +646,62 @@ private class ConflictingRevisionDao(
                 isUpdateAvailable = true,
             ),
         )
+        return delegate.updateVersionInfo(
+            packageName = packageName,
+            available = available,
+            version = version,
+            assetName = assetName,
+            assetUrl = assetUrl,
+            assetSize = assetSize,
+            releaseId = releaseId,
+            assetId = assetId,
+            assetDigest = assetDigest,
+            releaseNotes = releaseNotes,
+            timestamp = timestamp,
+            latestVersionName = latestVersionName,
+            latestVersionCode = latestVersionCode,
+            latestReleasePublishedAt = latestReleasePublishedAt,
+            expectedRevision = expectedRevision,
+            nextRevision = nextRevision,
+        )
+    }
+}
+
+// Simulates a concurrent writer that lands between a refreshed release read and its write. The
+// first compare-and-set must be rejected; the retry re-reads the row and is accepted.
+private class FirstWriteConflictsDao(
+    private val delegate: InstalledAppDao,
+) : InstalledAppDao by delegate {
+    var writes = 0
+        private set
+
+    private var conflicted = false
+
+    @Suppress("LongParameterList")
+    override suspend fun updateVersionInfo(
+        packageName: String,
+        available: Boolean,
+        version: String?,
+        assetName: String?,
+        assetUrl: String?,
+        assetSize: Long?,
+        releaseId: Long?,
+        assetId: Long?,
+        assetDigest: String?,
+        releaseNotes: String?,
+        timestamp: Long,
+        latestVersionName: String?,
+        latestVersionCode: Long?,
+        latestReleasePublishedAt: String?,
+        expectedRevision: Long,
+        nextRevision: Long,
+    ): Int {
+        writes += 1
+        if (!conflicted) {
+            conflicted = true
+            val current = checkNotNull(delegate.getAppByPackage(packageName))
+            delegate.updateApp(current.copy(updateStateRevision = current.updateStateRevision + 1))
+        }
         return delegate.updateVersionInfo(
             packageName = packageName,
             available = available,

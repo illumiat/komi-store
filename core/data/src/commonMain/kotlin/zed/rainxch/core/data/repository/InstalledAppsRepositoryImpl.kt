@@ -20,6 +20,7 @@ import zed.rainxch.core.data.mappers.toEntity
 import zed.rainxch.core.data.mappers.toReleaseWindow
 import zed.rainxch.core.data.mappers.toUpdateCheckWindow
 import zed.rainxch.core.data.network.GitHubClientProvider
+import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.installation.InstallSource
 import zed.rainxch.core.domain.model.installation.InstalledApp
@@ -33,9 +34,7 @@ import zed.rainxch.core.domain.repository.InstalledAppsRepository
 import zed.rainxch.core.domain.system.Installer
 import zed.rainxch.core.domain.system.PackageMonitor
 import zed.rainxch.core.domain.utils.AssetFilter
-import zed.rainxch.core.domain.utils.AssetVariant
 import zed.rainxch.core.domain.utils.ResolvedRelease
-import zed.rainxch.core.domain.utils.TrackedReleaseResolver
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
 import kotlin.coroutines.cancellation.CancellationException
@@ -140,36 +139,6 @@ class InstalledAppsRepositoryImpl(
         return fetchGithubReleaseWindow(httpClient, owner, repo, includePreReleases, RELEASE_WINDOW)
     }
 
-    private suspend fun resolveTrackedReleaseFor(
-        app: InstalledAppEntity,
-        releases: List<GithubRelease>,
-    ): ResolvedRelease? {
-        val compiledFilter =
-            AssetFilter
-                .parse(app.assetFilterRegex)
-                ?.onFailure { error ->
-                    Logger.w {
-                        "Invalid asset filter for ${app.packageName} " +
-                            "(${app.assetFilterRegex}): ${error.message} — ignoring"
-                    }
-                }?.getOrNull()
-
-        return TrackedReleaseResolver.resolve(
-            releases = releases,
-            filter = compiledFilter,
-            fallbackToOlderReleases = app.fallbackToOlderReleases,
-            preferredVariant = app.preferredAssetVariant,
-            preferredTokens = AssetVariant.deserializeTokens(app.preferredAssetTokens),
-            preferredGlob = app.assetGlobPattern,
-            pickedIndex = app.pickedAssetIndex,
-            pickedSiblingCount = app.pickedAssetSiblingCount,
-            trackedPackageName = app.packageName,
-            installedAssetName = app.installedAssetName,
-            repoApps = installedAppsDao.getAppsByRepoId(app.repoId).map { it.toDomain() },
-            installer = installer,
-        )
-    }
-
     override suspend fun checkForUpdates(packageName: String): Boolean =
         checkEnabledApp(packageName, recordUnmatched = true) { app ->
             fetchReleaseWindow(
@@ -187,6 +156,12 @@ class InstalledAppsRepositoryImpl(
         checkEnabledApp(packageName, recordUnmatched = false) { app ->
             releases.toUpdateCheckWindow(includePreReleases = app.includePreReleases, limit = RELEASE_WINDOW)
         }
+
+    override suspend fun recordRefreshedRelease(
+        packageName: String,
+        release: GithubRelease,
+        asset: GithubAsset,
+    ): Boolean = persistRefreshedRelease(installedAppsDao, packageName, release, asset)
 
     private suspend fun checkEnabledApp(
         packageName: String,
@@ -225,7 +200,7 @@ class InstalledAppsRepositoryImpl(
                 return app.isUpdateAvailable
             }
 
-            val resolved = resolveTrackedReleaseFor(app, releases)
+            val resolved = resolveTrackedReleaseFor(installedAppsDao, installer, app, releases)
 
             if (resolved == null) {
                 Logger.d {
@@ -238,6 +213,12 @@ class InstalledAppsRepositoryImpl(
             }
 
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
+
+            // A generic window can be an older cached copy than the one a forced refresh already
+            // persisted. Keep the fresher stored release instead of walking the card back.
+            if (windowWouldRegressStoredRelease(app, matchedRelease)) {
+                return app.isUpdateAvailable
+            }
 
             val bound =
                 resolveInstalledBinding(
@@ -413,7 +394,7 @@ class InstalledAppsRepositoryImpl(
 
         if (releases.isEmpty()) return null
 
-        return resolveTrackedReleaseFor(app, releases)
+        return resolveTrackedReleaseFor(installedAppsDao, installer, app, releases)
     }
 
     override suspend fun checkAllForUpdates() {

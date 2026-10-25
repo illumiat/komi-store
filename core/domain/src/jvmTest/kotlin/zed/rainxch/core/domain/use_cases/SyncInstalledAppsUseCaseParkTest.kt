@@ -550,6 +550,12 @@ class SyncInstalledAppsUseCaseParkTest {
             releases: List<zed.rainxch.core.domain.model.account.github.GithubRelease>,
         ): Boolean = false
 
+        override suspend fun recordRefreshedRelease(
+            packageName: String,
+            release: zed.rainxch.core.domain.model.account.github.GithubRelease,
+            asset: zed.rainxch.core.domain.model.account.github.GithubAsset,
+        ): Boolean = false
+
         override suspend fun setPendingInstallFilePath(
             packageName: String,
             path: String?,

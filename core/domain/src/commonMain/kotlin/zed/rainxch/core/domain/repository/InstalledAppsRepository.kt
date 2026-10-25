@@ -1,6 +1,7 @@
 package zed.rainxch.core.domain.repository
 
 import kotlinx.coroutines.flow.Flow
+import zed.rainxch.core.domain.model.account.github.GithubAsset
 import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.model.installation.InstalledApp
 import zed.rainxch.core.domain.model.installation.ParkedInstallDisposal
@@ -37,6 +38,14 @@ interface InstalledAppsRepository {
     suspend fun checkForUpdatesWithReleases(
         packageName: String,
         releases: List<GithubRelease>,
+    ): Boolean
+
+    // A forced refresh on the Details page persists the release and asset that page shows, even
+    // when a generic filtered check of the same window would pick another pair.
+    suspend fun recordRefreshedRelease(
+        packageName: String,
+        release: GithubRelease,
+        asset: GithubAsset,
     ): Boolean
 
     suspend fun resolveTrackedRelease(packageName: String): ResolvedRelease?
