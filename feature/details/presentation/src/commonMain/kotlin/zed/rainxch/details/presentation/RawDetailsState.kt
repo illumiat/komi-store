@@ -24,8 +24,9 @@ import zed.rainxch.details.presentation.model.TranslationTarget
 
 internal data class RawDetailsState(
     val isLoading: Boolean = true,
-    // True from the painted header until the release/README/stats read is applied: the header
-    // must not claim the repository has no releases while that read is still in flight.
+    // True from the painted header until the release read is applied: the header must not claim
+    // the repository has no releases while that read is still in flight. The README, stats and
+    // profile land in their own writes and do not hold this flag.
     val areSectionsPending: Boolean = true,
     // True while the latest release is still being read: the asset area reserves its final
     // height with a skeleton instead of a loading label, so the page does not shift when it lands.

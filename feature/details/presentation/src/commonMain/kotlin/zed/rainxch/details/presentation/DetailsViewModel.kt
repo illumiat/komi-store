@@ -2983,10 +2983,21 @@ class DetailsViewModel(
                         }
                     }
 
+                // Each section applies itself: a slow README, stats or profile read writes its
+                // own fields as it lands and never holds back the content write below.
+                launch {
+                    val stats = statsDeferred.await()
+                    _state.update { it.withStats(repo.id, stats) }
+                }
+                launch {
+                    val userProfile = userProfileDeferred.await()
+                    _state.update { it.withUserProfile(repo.id, userProfile) }
+                }
+                if (!sectionsWereDeferred) {
+                    launch { applyReadme(repo.id, readmeDeferred.await()) }
+                }
+
                 val releasesRead = fallbackReleasesDeferred?.await()
-                val stats = statsDeferred.await()
-                val readme = readmeDeferred.await()
-                val userProfile = userProfileDeferred.await()
 
                 // A rate limit anywhere in the initial read used to suppress every section. With
                 // the latest release already painted, that answer is only for the fallback path.
@@ -3006,61 +3017,52 @@ class DetailsViewModel(
                     return@launch
                 }
 
-                val isObtainiumAvailable = installer.isObtainiumInstalled()
-                val isAppManagerAvailable = installer.isAppManagerInstalled()
+                val environment =
+                    DetailsEnvironment(
+                        systemArchitecture = installer.detectSystemArchitecture(),
+                        isObtainiumAvailable = installer.isObtainiumInstalled(),
+                        isObtainiumEnabled = isObtainiumEnabled,
+                        isAppManagerAvailable = installer.isAppManagerInstalled(),
+                        isAppManagerEnabled = isAppManagerEnabled,
+                        deviceLanguageCode = translationRepository.getDeviceLanguageCode(),
+                        isComingFromUpdate = isComingFromUpdate,
+                    )
 
                 logger.debug("Loaded repo: ${repo.name}, installedApp: ${_state.value.installedApp?.packageName}")
 
-                // The header is already on screen, so this write only adds what rode along with
-                // the read: the environment and the two independent sections. The repository and
-                // the installed-app fields stay owned by the writes above.
-                _state.update { current ->
-                    if (!current.belongsToRepo(repo.id)) {
-                        current
-                    } else {
-                        current.copy(
-                            areSectionsPending = false,
-                            isRetryingReleases = false,
-                            stats = stats,
-                            userProfile = userProfile,
-                            systemArchitecture = installer.detectSystemArchitecture(),
-                            isObtainiumAvailable = isObtainiumAvailable,
-                            isObtainiumEnabled = isObtainiumEnabled,
-                            isAppManagerAvailable = isAppManagerAvailable,
-                            isAppManagerEnabled = isAppManagerEnabled,
-                            deviceLanguageCode = translationRepository.getDeviceLanguageCode(),
-                            isComingFromUpdate = isComingFromUpdate,
-                        )
-                    }
-                }
-
-                if (latestPainted) {
-                    // The releases are already on screen; the README still lands on its own.
-                    _state.update { current ->
-                        if (!current.belongsToRepo(repo.id)) {
-                            current
-                        } else {
-                            current.copy(
-                                readmeMarkdown = readme?.first,
-                                readmeLanguage = readme?.second,
-                            )
-                        }
-                    }
-                } else if (!sectionsWereDeferred && sectionsRevision == sectionsRevisionAtStart) {
-                    // A deferred read never asked for these sections, and a refresh or on-demand
-                    // load may have replaced them while this one waited: those newer writes win.
-                    val releases = releasesRead?.releases.orEmpty()
-                    val sections =
+                // A deferred read never asked for these sections, and a refresh or on-demand load
+                // may have replaced them while this one waited: those newer writes win.
+                val appliesSections =
+                    !latestPainted &&
+                        !sectionsWereDeferred &&
+                        sectionsRevision == sectionsRevisionAtStart
+                val releases = releasesRead?.releases.orEmpty()
+                val sections =
+                    if (appliesSections) {
                         resolveReleaseSections(
                             releases = releases,
                             allInstalledApps = allInstalledApps.orEmpty(),
                             installedApp = _state.value.installedApp,
                         )
-                    _state.update { current ->
-                        if (!current.belongsToRepo(repo.id)) {
+                    } else {
+                        null
+                    }
+
+                // The header is already on screen, so this write only adds what rode along with
+                // the release read: the environment and, when this load still owns them, the
+                // release sections. The README, stats and profile are owned by the writes above.
+                _state.update { current ->
+                    if (!current.belongsToRepo(repo.id)) {
+                        current
+                    } else {
+                        val settled =
                             current
+                                .withEnvironment(repo.id, environment)
+                                .withSectionsSettled(repo.id)
+                        if (sections == null) {
+                            settled
                         } else {
-                            current.copy(
+                            settled.copy(
                                 allReleases = releases,
                                 releasePlatforms = platformsByRelease(releases),
                                 deviceBuildReleaseIds = sections.deviceBuildReleaseIds,
@@ -3068,8 +3070,6 @@ class DetailsViewModel(
                                 releasesLoadFailed = releasesRead?.failed == true,
                                 selectedRelease = sections.selectedRelease,
                                 selectedReleaseCategory = sections.selectedReleaseCategory,
-                                readmeMarkdown = readme?.first,
-                                readmeLanguage = readme?.second,
                                 installableAssets = sections.installableAssets,
                                 primaryAsset = sections.primaryAsset,
                                 stalledStableSinceDays = sections.insights.stalledStableSinceDays,
@@ -3082,16 +3082,24 @@ class DetailsViewModel(
                     }
                 }
 
+                if (latestPainted || sections != null) {
+                    // The README write owns the About trigger; the notes share its detected
+                    // language, so this trigger joins that read without holding the write above.
+                    val releaseDescription = _state.value.selectedRelease?.description
+                    launch {
+                        if (!sectionsWereDeferred) readmeDeferred.await()
+                        maybeAutoTranslate(
+                            readmeBody = null,
+                            releaseDescription = releaseDescription,
+                        )
+                    }
+                }
+
                 if (releasesRead?.fromCache == true) {
                     revalidateReleases()
                 }
 
                 observeInstalledApp(repo.id)
-
-                maybeAutoTranslate(
-                    readmeBody = readme?.first,
-                    releaseDescription = _state.value.selectedRelease?.description,
-                )
             } catch (e: RateLimitException) {
                 logger.error("Rate limited: ${e.message}")
                 val seconds = e.rateLimitInfo.timeUntilReset().inWholeSeconds
@@ -3409,6 +3417,17 @@ class DetailsViewModel(
         } catch (_: Throwable) {
             null
         }
+
+    // A README for a page that has already moved on is dropped by the repository guard, so its
+    // translation is never started against the wrong page.
+    private fun applyReadme(
+        repoId: Long,
+        readme: Triple<String, String?, String>?,
+    ) {
+        if (readme == null || !_state.value.belongsToRepo(repoId)) return
+        _state.update { it.withReadme(repoId, readme.first, readme.second) }
+        maybeAutoTranslate(readmeBody = readme.first, releaseDescription = null)
+    }
 
     private fun resolveReleaseSections(
         releases: List<GithubRelease>,
