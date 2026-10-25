@@ -120,12 +120,16 @@ object UpdateVerdict {
         val deviceRunsMatchedRelease =
             !timestampTracked && VersionMath.isExactSameVersion(installed.versionName, matched.tag)
 
-        val distinctUnknownTagPublishedLater =
+        val distinctTagNeedsPublishTime =
             distinctTagPublishedLater &&
-                VersionMath.detectScheme(matched.tag) == VersionMath.Scheme.Unknown
+                (
+                    VersionMath.detectScheme(matched.tag) == VersionMath.Scheme.Unknown ||
+                        VersionMath.isTimestampTrackedTag(matched.tag) ||
+                        !reconcilable
+                )
         val tagVerdict =
             when {
-                distinctUnknownTagPublishedLater -> {
+                distinctTagNeedsPublishTime -> {
                     true
                 }
 
