@@ -1,10 +1,13 @@
 package zed.rainxch.details.data.repository
 
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import zed.rainxch.core.data.cache.CacheManager
@@ -299,22 +302,26 @@ class DetailsRepositoryImpl(
         }
 
         return try {
-            val releases =
-                httpClient
-                    .executeRequest<List<ReleaseNetwork>> {
-                        get("/repos/$owner/$repo/releases") {
-                            header(HttpHeaders.Accept, "application/vnd.github+json")
-                            parameter("per_page", 10)
-                        }
-                    }.getOrNull() ?: return null
-
+            val probe = probeLatestRelease(owner, repo) ?: return null
             val latest =
-                releases
-                    .asSequence()
-                    .filter { (it.draft != true) && (it.prerelease != true) }
-                    .maxByOrNull { it.publishedAt ?: it.createdAt ?: "" }
-                    ?: return null
+                when (probe) {
+                    is LatestReleaseProbe.Published -> {
+                        probe.release
+                    }
 
+                    LatestReleaseProbe.NotPublished -> {
+                        logger.debug("No published release at /releases/latest for $owner/$repo, reading the release list")
+                        readLatestReleaseFromList(owner, repo)
+                    }
+
+                    LatestReleaseProbe.Unsupported -> {
+                        logger.debug("Latest release endpoint unusable for $owner/$repo, reading the release list")
+                        readLatestReleaseFromList(owner, repo)
+                    }
+                } ?: return null
+
+            // Only the release selected above gets its body preprocessed. On the fallback path
+            // the other releases of the page are never decoded into domain objects.
             val result =
                 latest
                     .copy(
@@ -333,6 +340,64 @@ class DetailsRepositoryImpl(
             throw e
         }
     }
+
+    // The short endpoint is a single-release read. An answer this client cannot use is read again
+    // through the release list rather than reported as "no release"; a request with no answer at
+    // all is left to the caller's full-list path, so a broken host is tried once here, not twice.
+    private suspend fun probeLatestRelease(
+        owner: String,
+        repo: String,
+    ): LatestReleaseProbe? {
+        val response =
+            try {
+                httpClient.get("/repos/$owner/$repo/releases/latest") {
+                    header(HttpHeaders.Accept, "application/vnd.github+json")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: RateLimitException) {
+                throw e
+            } catch (e: Exception) {
+                logger.warn("Latest release endpoint failed for $owner/$repo: ${e.message}")
+                return null
+            }
+        val release =
+            if (response.status.isSuccess()) {
+                decodeLatestReleaseBody(owner, repo, response)
+            } else {
+                null
+            }
+        return classifyLatestReleaseProbe(response.status, release)
+    }
+
+    private suspend fun decodeLatestReleaseBody(
+        owner: String,
+        repo: String,
+        response: HttpResponse,
+    ): ReleaseNetwork? =
+        try {
+            response.body<ReleaseNetwork>()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: RateLimitException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn("Latest release endpoint answered an unusable body for $owner/$repo: ${e.message}")
+            null
+        }
+
+    private suspend fun readLatestReleaseFromList(
+        owner: String,
+        repo: String,
+    ): ReleaseNetwork? =
+        httpClient
+            .executeRequest<List<ReleaseNetwork>> {
+                get("/repos/$owner/$repo/releases") {
+                    header(HttpHeaders.Accept, "application/vnd.github+json")
+                    parameter("per_page", 10)
+                }
+            }.getOrNull()
+            ?.let(::selectLatestPublishedRelease)
 
     override suspend fun getCachedReleases(
         owner: String,
