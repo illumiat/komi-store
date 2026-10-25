@@ -8,6 +8,20 @@ import kotlin.test.assertTrue
 class UpdateVerdictTest {
     // The id changed because the asset was re-uploaded, but the bytes did not: a locally
     // confirmed digest that equals the release's digest must keep the verdict at "no update".
+
+    @Test
+    fun a_distinct_unknown_tag_published_later_is_an_update() {
+        val result =
+            decide(
+                installedTag = "testbuild-o",
+                installedPublishedAt = "2026-10-24T00:00:00Z",
+                matchedTag = "testbuild-r",
+                matchedPublishedAt = "2026-10-25T00:00:00Z",
+            )
+
+        assertTrue(result.isUpdateAvailable)
+    }
+
     @Test
     fun a_confirmed_matching_digest_makes_a_republished_tag_a_non_update() {
         val digest = "sha256:aaaa"
@@ -161,6 +175,7 @@ class UpdateVerdictTest {
         installedTag: String = "1.0.0",
         installedVersionCode: Long = 100L,
         installedVersionName: String? = null,
+        installedPublishedAt: String? = null,
         storedLatestTag: String? = null,
         storedLatestVersionCode: Long? = null,
         storedPublishedAt: String? = null,
@@ -182,7 +197,13 @@ class UpdateVerdictTest {
         canReadInstalledFile: Boolean = true,
     ): UpdateVerdict.Result =
         UpdateVerdict.decide(
-            installed = UpdateVerdict.Installed(installedTag, installedVersionCode, installedVersionName),
+            installed =
+                UpdateVerdict.Installed(
+                    tag = installedTag,
+                    versionCode = installedVersionCode,
+                    versionName = installedVersionName,
+                    publishedAt = installedPublishedAt,
+                ),
             stored =
                 UpdateVerdict.Stored(
                     latestTag = storedLatestTag,

@@ -5,6 +5,7 @@ object UpdateVerdict {
         val tag: String?,
         val versionCode: Long,
         val versionName: String? = null,
+        val publishedAt: String? = null,
     )
 
     data class Stored(
@@ -85,6 +86,9 @@ object UpdateVerdict {
 
         val timestampTracked = VersionMath.isTimestampTrackedTag(matched.tag)
         val sameTag = VersionMath.isExactSameVersion(matched.tag, installed.tag)
+        val distinctTagPublishedLater =
+            !sameTag &&
+                VersionMath.isPublishedAtAfter(matched.publishedAt, installed.publishedAt)
         val sameTagUnprovable = !canReadInstalledFile && bound == null && sameTag
         val usedTimestampLogic =
             timestampTracked ||
@@ -116,10 +120,17 @@ object UpdateVerdict {
         val deviceRunsMatchedRelease =
             !timestampTracked && VersionMath.isExactSameVersion(installed.versionName, matched.tag)
 
+        val distinctUnknownTagPublishedLater =
+            distinctTagPublishedLater &&
+                VersionMath.detectScheme(matched.tag) == VersionMath.Scheme.Unknown
         val tagVerdict =
             when {
+                distinctUnknownTagPublishedLater -> {
+                    true
+                }
+
                 usedTimestampLogic -> {
-                    timestampWouldReport
+                    timestampWouldReport || distinctTagPublishedLater
                 }
 
                 codesAlreadyMatch -> {

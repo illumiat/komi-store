@@ -326,6 +326,7 @@ class InstalledAppsRepositoryImpl(
                             tag = app.installedVersion,
                             versionCode = app.installedVersionCode,
                             versionName = app.installedVersionName,
+                            publishedAt = app.installedReleasePublishedAt,
                         ),
                     stored =
                         UpdateVerdict.Stored(
