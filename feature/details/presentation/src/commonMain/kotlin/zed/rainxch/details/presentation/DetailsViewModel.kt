@@ -13,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.format
@@ -133,11 +135,8 @@ import zed.rainxch.core.domain.system.DownloadStage as OrchestratorStage
 
 // The backend serves a copy up to an hour old, so re-reading a younger list can't return anything newer.
 private const val RELEASES_REVALIDATE_MIN_AGE_MS = 60L * 60L * 1000L
-
-// A route that carries owner/repo starts the latest release read with the repository read, before
-// the repository's default branch is known. The branch only rewrites relative links in the release
-// body, and GitHub resolves this ref to the default branch for raw and blob URLs alike.
-private const val LATEST_RELEASE_UNKNOWN_BRANCH = "HEAD"
+private const val LATEST_RELEASE_TIMEOUT_MS = 15_000L
+private const val REPO_LOAD_TIMEOUT_MS = 20_000L
 
 class DetailsViewModel(
     private val repositoryId: Long,
@@ -2776,6 +2775,20 @@ class DetailsViewModel(
     @OptIn(ExperimentalTime::class)
     private fun loadInitial() {
         viewModelScope.launch {
+            val headerWatchdog =
+                launch {
+                    delay(REPO_LOAD_TIMEOUT_MS)
+                    if (_state.value.isLoading) {
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = getString(Res.string.failed_to_load_details),
+                                areSectionsPending = false,
+                                isLatestReleaseLoading = false,
+                            )
+                        }
+                    }
+                }
             try {
                 rateLimited.set(false)
                 val gate = sectionsGateForSession()
@@ -2787,22 +2800,6 @@ class DetailsViewModel(
                 _state.update {
                     it.copy(isLoading = true, errorMessage = null, areSectionsPending = true)
                 }
-
-                // Started before the repository read, not after it: a route that carries owner/repo
-                // already knows everything this read needs, so the two requests run side by side.
-                // The release body's relative links fall back to a ref GitHub resolves to the
-                // default branch, so nothing has to wait for the repository's default branch.
-                // A deferred page reads no release at all and starts nothing.
-                val latestReleaseBeforeRepo =
-                    if (latestReleaseStartsBeforeRepo(ownerParam, repoParam, sectionsWereDeferred)) {
-                        startLatestReleaseLoad(
-                            owner = ownerParam,
-                            name = repoParam,
-                            defaultBranch = LATEST_RELEASE_UNKNOWN_BRANCH,
-                        )
-                    } else {
-                        null
-                    }
 
                 val repo =
                     when {
@@ -2838,6 +2835,17 @@ class DetailsViewModel(
                         sectionsDeferred = sectionsWereDeferred,
                     )
                 }
+
+                val latestReleaseDeferred =
+                    if (sectionsWereDeferred) {
+                        null
+                    } else {
+                        startLatestReleaseLoad(
+                            owner = repo.owner.login,
+                            name = repo.name,
+                            defaultBranch = repo.defaultBranch,
+                        )
+                    }
 
                 // Syncing installed apps used to gate this whole load. It now runs behind the
                 // painted header and only refreshes the state it can change.
@@ -2889,18 +2897,6 @@ class DetailsViewModel(
                 // it starts here, on the frame the header paints on, so the skeleton holds the
                 // release-dependent part while the request runs. The full list is launched after
                 // this release is painted, and never on a deferred page.
-                val latestReleaseDeferred =
-                    latestReleaseBeforeRepo
-                        ?: if (sectionsWereDeferred) {
-                            null
-                        } else {
-                            startLatestReleaseLoad(
-                                owner = owner,
-                                name = name,
-                                defaultBranch = repo.defaultBranch,
-                            )
-                        }
-
                 val statsDeferred =
                     async {
                         try {
@@ -2958,7 +2954,8 @@ class DetailsViewModel(
                 // installed-app read above is the only thing it waits for, so the painted release
                 // already has the header's install state behind it. A page whose sections are
                 // deferred never starts these reads at all.
-                val latestRelease = latestReleaseDeferred?.await()
+                val latestRelease =
+                    withTimeoutOrNull(LATEST_RELEASE_TIMEOUT_MS) { latestReleaseDeferred?.await() }
                 // The deferred branch never reads it, so a non-null release already implies the
                 // sections are not deferred.
                 val latestPainted =
@@ -3130,6 +3127,8 @@ class DetailsViewModel(
                         areSectionsPending = false,
                         isLatestReleaseLoading = false,
                     )
+            } finally {
+                headerWatchdog.cancel()
             }
         }
     }
