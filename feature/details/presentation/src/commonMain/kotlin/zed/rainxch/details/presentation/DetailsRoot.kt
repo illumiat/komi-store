@@ -1,5 +1,7 @@
 package zed.rainxch.details.presentation
 
+import zed.rainxch.details.presentation.components.DetailsSkeleton
+
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
@@ -550,12 +552,9 @@ fun DetailsScreen(
         toastState = toastState
     ) { innerPadding ->
         if (state.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                KomiLoadingIndicator()
-            }
+            DetailsSkeleton(
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+            )
 
             return@KomiScaffold
         }
