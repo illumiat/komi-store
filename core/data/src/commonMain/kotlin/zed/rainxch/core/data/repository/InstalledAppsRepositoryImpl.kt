@@ -64,6 +64,9 @@ class InstalledAppsRepositoryImpl(
 
     private companion object {
         const val RELEASE_WINDOW = 50
+
+        // A lost revision race gets one retry, which re-reads the row another writer advanced.
+        const val FORCED_SELECTION_ATTEMPTS = 2
     }
 
     override suspend fun <R> executeInTransaction(block: suspend () -> R): R =
@@ -161,16 +164,54 @@ class InstalledAppsRepositoryImpl(
         packageName: String,
         release: GithubRelease,
         asset: GithubAsset,
-    ): Boolean = persistRefreshedRelease(installedAppsDao, packageName, release, asset)
+    ): Boolean = recordForcedSelection(packageName, ForcedSelection(release, asset))
+
+    // The pair a forced refresh names, used as given instead of resolved from a window.
+    private data class ForcedSelection(
+        val release: GithubRelease,
+        val asset: GithubAsset,
+    )
+
+    // The Details page names the pair it shows, so neither the window lookup nor its filter runs.
+    // A lost revision race gets one retry against the re-read row; whatever the row holds at the
+    // end is the answer the caller gets.
+    private suspend fun recordForcedSelection(
+        packageName: String,
+        forced: ForcedSelection,
+    ): Boolean {
+        var reflected = false
+        var attempt = 0
+        while (!reflected && attempt < FORCED_SELECTION_ATTEMPTS) {
+            attempt += 1
+            val app = loadCheckableApp(packageName) ?: break
+            checkAgainstWindow(
+                app = app,
+                releases = listOf(forced.release),
+                recordUnmatched = false,
+                forcedSelection = forced,
+            )
+            val stored = installedAppsDao.getAppByPackage(packageName)
+            reflected =
+                stored != null &&
+                stored.latestReleaseId == forced.release.id &&
+                stored.latestAssetId == forced.asset.id
+        }
+        return reflected
+    }
+
+    // The row every check operates on: an absent or disabled row is not checked, and a parked
+    // install the platform has since completed is settled before judging.
+    private suspend fun loadCheckableApp(packageName: String): InstalledAppEntity? {
+        val stored = installedAppsDao.getAppByPackage(packageName) ?: return null
+        return if (stored.updateCheckEnabled) parkedInstallSettler.settleIfInstalled(stored) else null
+    }
 
     private suspend fun checkEnabledApp(
         packageName: String,
         recordUnmatched: Boolean,
         window: suspend (InstalledAppEntity) -> List<GithubRelease>,
     ): Boolean {
-        val stored = installedAppsDao.getAppByPackage(packageName) ?: return false
-        if (!stored.updateCheckEnabled) return false
-        val app = parkedInstallSettler.settleIfInstalled(stored)
+        val app = loadCheckableApp(packageName) ?: return false
         val releases =
             try {
                 window(app)
@@ -188,6 +229,7 @@ class InstalledAppsRepositoryImpl(
         app: InstalledAppEntity,
         releases: List<GithubRelease>,
         recordUnmatched: Boolean,
+        forcedSelection: ForcedSelection? = null,
     ): Boolean {
         val packageName = app.packageName
 
@@ -195,12 +237,21 @@ class InstalledAppsRepositoryImpl(
             // An empty window is a failed fetch (backend error, rate limit, network), not
             // proof the repo lost its releases. Keep what the last good check found and
             // leave lastCheckedAt alone so the next check retries.
-            if (releases.isEmpty()) {
+            if (releases.isEmpty() && forcedSelection == null) {
                 Logger.d { "No releases for ${app.appName} this time; keeping its stored update state" }
                 return app.isUpdateAvailable
             }
 
-            val resolved = resolveTrackedReleaseFor(installedAppsDao, installer, app, releases)
+            val resolved =
+                if (forcedSelection != null) {
+                    ResolvedRelease(
+                        release = forcedSelection.release,
+                        primaryAsset = forcedSelection.asset,
+                        variantWasLost = false,
+                    )
+                } else {
+                    resolveTrackedReleaseFor(installedAppsDao, installer, app, releases)
+                }
 
             if (resolved == null) {
                 Logger.d {
@@ -215,21 +266,26 @@ class InstalledAppsRepositoryImpl(
             val (matchedRelease, primaryAsset, variantWasLost) = resolved
 
             // A generic window can be an older cached copy than the one a forced refresh already
-            // persisted. Keep the fresher stored release instead of walking the card back.
-            if (windowWouldRegressStoredRelease(app, matchedRelease)) {
+            // persisted. Keep the fresher stored release instead of walking the card back. A
+            // forced pair has no window to be older than: the page that named it just read it.
+            if (forcedSelection == null && windowWouldRegressStoredRelease(app, matchedRelease)) {
                 return app.isUpdateAvailable
             }
 
             val bound =
-                resolveInstalledBinding(
-                    app = app,
-                    releases = releases,
-                    matchedRelease = matchedRelease,
-                    matchedAsset = primaryAsset,
-                    dao = installedAppsDao,
-                    packageMonitor = packageMonitor,
-                    verifier = digestVerifier,
-                )
+                if (forcedSelection != null) {
+                    storedInstalledBinding(app)
+                } else {
+                    resolveInstalledBinding(
+                        app = app,
+                        releases = releases,
+                        matchedRelease = matchedRelease,
+                        matchedAsset = primaryAsset,
+                        dao = installedAppsDao,
+                        packageMonitor = packageMonitor,
+                        verifier = digestVerifier,
+                    )
+                }
 
             // A rolling tag reuses one tag string across builds. Without a binding, only the
             // installed file can tell whether the release is the build the device runs.
@@ -238,8 +294,11 @@ class InstalledAppsRepositoryImpl(
                     VersionMath.detectScheme(matchedRelease.tagName) == VersionMath.Scheme.Unknown
             val tagRunsRelease =
                 VersionMath.isExactSameVersion(matchedRelease.tagName, app.installedVersion)
-            val selfAttestationApplies =
+            val fileProofApplies =
                 bound == null && primaryAsset.digest != null && tagRunsRelease && tagNeedsSelfAttestation
+            // A refresh may not read the installed file, so it cannot attest the build it runs.
+            val canReadInstalledFile = forcedSelection == null
+            val selfAttestationApplies = canReadInstalledFile && fileProofApplies
             val selfAttestedDigest =
                 if (selfAttestationApplies) {
                     packageMonitor
@@ -292,11 +351,10 @@ class InstalledAppsRepositoryImpl(
                     skippedTag = app.skippedReleaseTag,
                     bound = bound,
                     selfAttestedDigest = selfAttestedDigest,
+                    // A refresh may not read the installed file, so an unbound same-tag release
+                    // has no proof its bytes differ from the build the device runs.
+                    canReadInstalledFile = canReadInstalledFile,
                 )
-
-            if (verdict.skipBecameStale) {
-                installedAppsDao.setSkippedReleaseTag(packageName, null)
-            }
 
             val isUpdateAvailable = verdict.isUpdateAvailable
 
@@ -310,66 +368,20 @@ class InstalledAppsRepositoryImpl(
                     "isUpdate=$isUpdateAvailable"
             }
 
-            val resolvedLatestVersionCode =
-                if (matchedRelease.tagName == app.latestVersion) app.latestVersionCode else null
-
-            val expectedRevision = app.updateStateRevision
             val written =
-                installedAppsDao.updateVersionInfo(
-                    packageName = packageName,
-                    available = isUpdateAvailable,
-                    version = matchedRelease.tagName,
-                    assetName = primaryAsset.name,
-                    assetUrl = primaryAsset.downloadUrl,
-                    assetSize = primaryAsset.size,
-                    releaseId = matchedRelease.id,
-                    assetId = primaryAsset.id,
-                    assetDigest = primaryAsset.digest,
-                    releaseNotes = matchedRelease.description ?: "",
-                    timestamp = System.currentTimeMillis(),
-                    latestVersionName = matchedRelease.tagName,
-                    latestVersionCode = resolvedLatestVersionCode,
-                    latestReleasePublishedAt = matchedRelease.publishedAt,
-                    expectedRevision = expectedRevision,
-                    nextRevision = expectedRevision + 1,
-                )
-            if (written == 0) {
-                // Another check (or a full-row write) advanced the revision while this one was
-                // judging a stale snapshot. The stored state is the only truth now: report it
-                // instead of the result this check failed to persist, and do not run the
-                // adoption writes that belong to the result that was just discarded.
-                Logger.w {
-                    "Discarded a stale update check for ${app.appName}: " +
-                        "stored revision moved past $expectedRevision"
-                }
-                return installedAppsDao.getAppByPackage(packageName)?.isUpdateAvailable
-                    ?: app.isUpdateAvailable
-            }
-
-            val shouldRewriteTag =
-                UpdateVerdict.shouldAdoptMatchedTag(
-                    codesAlreadyMatch = verdict.codesAlreadyMatch,
-                    installedTag = app.installedVersion,
-                    matchedTag = matchedRelease.tagName,
-                    deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
-                    identityContradicts = identityContradicts(app, primaryAsset),
-                )
-            if (shouldRewriteTag) {
-                adoptTagWhenProven(
+                writeCheckedRelease(
                     dao = installedAppsDao,
                     app = app,
                     matchedRelease = matchedRelease,
                     matchedAsset = primaryAsset,
-                    isUpdateAvailable = isUpdateAvailable,
-                    boundAt = System.currentTimeMillis(),
+                    verdict = verdict,
+                    variantWasLost = variantWasLost.takeIf { forcedSelection == null },
                 )
-            }
-
-            if (variantWasLost != app.preferredVariantStale) {
-                installedAppsDao.updateVariantStaleness(packageName, variantWasLost)
-            }
-
-            return isUpdateAvailable
+            // Another check won the revision. The row is the only truth now: report it instead of
+            // the result this check failed to persist.
+            return written
+                ?: installedAppsDao.getAppByPackage(packageName)?.isUpdateAvailable
+                ?: app.isUpdateAvailable
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

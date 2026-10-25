@@ -179,6 +179,7 @@ class UpdateVerdictTest {
         matchedAssetId: Long? = null,
         bound: UpdateVerdict.Bound? = null,
         selfAttestedDigest: String? = null,
+        canReadInstalledFile: Boolean = true,
     ): UpdateVerdict.Result =
         UpdateVerdict.decide(
             installed = UpdateVerdict.Installed(installedTag, installedVersionCode, installedVersionName),
@@ -206,6 +207,7 @@ class UpdateVerdictTest {
             skippedTag = skippedTag,
             bound = bound,
             selfAttestedDigest = selfAttestedDigest,
+            canReadInstalledFile = canReadInstalledFile,
         )
 
     // com.yunx.app: v1.2.8 was offered, the install was blocked for want of installer
@@ -813,6 +815,56 @@ class UpdateVerdictTest {
                 storedAssetId = 801L,
                 matchedReleaseId = 900L,
                 matchedAssetId = 901L,
+            )
+        assertTrue(result.isUpdateAvailable)
+    }
+
+    // The Details refresh names a release but cannot read the installed file, so a same-tag
+    // release without an installed identity has no proof the device runs different bytes.
+    @Test
+    fun an_unverifiable_same_tag_release_is_not_an_update() {
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-25T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedReleaseId = 800L,
+                storedAssetId = 801L,
+                matchedReleaseId = 900L,
+                matchedAssetId = 901L,
+                canReadInstalledFile = false,
+            )
+        assertFalse(result.isUpdateAvailable)
+    }
+
+    @Test
+    fun an_installed_identity_keeps_an_unreadable_files_same_tag_update() {
+        val result =
+            decide(
+                installedTag = "nightly",
+                installedVersionCode = 500L,
+                storedLatestTag = "nightly",
+                storedLatestVersionCode = 500L,
+                storedPublishedAt = "2026-09-24T11:46:11Z",
+                matchedTag = "nightly",
+                matchedPublishedAt = "2026-09-25T11:46:11Z",
+                matchedIsPrerelease = true,
+                storedReleaseId = 800L,
+                storedAssetId = 801L,
+                matchedReleaseId = 900L,
+                matchedAssetId = 901L,
+                bound =
+                    UpdateVerdict.Bound(
+                        assetId = 801L,
+                        assetDigest = null,
+                        releasePublishedAt = "2026-09-24T11:46:11Z",
+                    ),
+                canReadInstalledFile = false,
             )
         assertTrue(result.isUpdateAvailable)
     }

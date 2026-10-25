@@ -40,8 +40,9 @@ interface InstalledAppsRepository {
         releases: List<GithubRelease>,
     ): Boolean
 
-    // A forced refresh on the Details page persists the release and asset that page shows, even
-    // when a generic filtered check of the same window would pick another pair.
+    // A forced refresh on the Details page records the release and asset that page shows through
+    // the same verdict and revision compare-and-set as a window check. The pair is used as given,
+    // even when a generic filtered check of the same window would pick another one.
     suspend fun recordRefreshedRelease(
         packageName: String,
         release: GithubRelease,

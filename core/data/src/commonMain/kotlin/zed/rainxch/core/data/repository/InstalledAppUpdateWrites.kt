@@ -8,122 +8,91 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.core.domain.utils.UpdateVerdict
 import zed.rainxch.core.domain.utils.VersionMath
 
-// The Details page names one release and one asset. Persisting that pair is what lets the Library
-// card describe the release the page shows instead of a generic filtered pick from the window.
-// The write keeps the compare-and-set on updateStateRevision: a rejected attempt re-reads the row
-// and judges again, so a concurrent writer cannot be overwritten with a stale verdict.
-@Suppress("ReturnCount")
-internal suspend fun persistRefreshedRelease(
+// The one write for a single-app update check, shared by the library's window check and the
+// Details refresh. A rejected compare-and-set means another writer advanced the revision while
+// this verdict was being formed, so the caller decides whether to re-read the row and judge again.
+@Suppress("LongParameterList")
+internal suspend fun writeCheckedRelease(
     dao: InstalledAppDao,
-    packageName: String,
-    release: GithubRelease,
-    asset: GithubAsset,
-): Boolean {
-    val initial = dao.getAppByPackage(packageName) ?: return false
-    if (!initial.updateCheckEnabled) return false
-    if (writeRefreshedRelease(dao, initial, release, asset) > 0) return true
+    app: InstalledAppEntity,
+    matchedRelease: GithubRelease,
+    matchedAsset: GithubAsset,
+    verdict: UpdateVerdict.Result,
+    // Null keeps the stored staleness flag: a forced selection names its own pair, so it has
+    // nothing to say about a preferred variant that is missing from the release.
+    variantWasLost: Boolean?,
+): Boolean? {
+    if (verdict.skipBecameStale) {
+        dao.setSkippedReleaseTag(app.packageName, null)
+    }
 
-    val retryRow = dao.getAppByPackage(packageName)?.takeIf { it.updateCheckEnabled } ?: return false
-    if (writeRefreshedRelease(dao, retryRow, release, asset) > 0) return true
+    val isUpdateAvailable = verdict.isUpdateAvailable
+    val resolvedLatestVersionCode =
+        if (matchedRelease.tagName == app.latestVersion) app.latestVersionCode else null
 
-    // Both attempts lost the race. The row that exists now is the only truth: another writer may
-    // already have recorded this release.
-    val stored = dao.getAppByPackage(packageName) ?: return false
-    return stored.latestReleaseId == release.id && stored.latestAssetId == asset.id
+    val expectedRevision = app.updateStateRevision
+    val written =
+        dao.updateVersionInfo(
+            packageName = app.packageName,
+            available = isUpdateAvailable,
+            version = matchedRelease.tagName,
+            assetName = matchedAsset.name,
+            assetUrl = matchedAsset.downloadUrl,
+            assetSize = matchedAsset.size,
+            releaseId = matchedRelease.id,
+            assetId = matchedAsset.id,
+            assetDigest = matchedAsset.digest,
+            releaseNotes = matchedRelease.description ?: "",
+            timestamp = System.currentTimeMillis(),
+            latestVersionName = matchedRelease.tagName,
+            latestVersionCode = resolvedLatestVersionCode,
+            latestReleasePublishedAt = matchedRelease.publishedAt,
+            expectedRevision = expectedRevision,
+            nextRevision = expectedRevision + 1,
+        )
+    if (written == 0) {
+        Logger.w {
+            "Discarded a stale write for ${app.appName}: stored revision moved past $expectedRevision"
+        }
+        return null
+    }
+
+    // Adoption may rewrite the installed tag only when the stored identity does not contradict
+    // the release it is being relabelled with.
+    val shouldRewriteTag =
+        UpdateVerdict.shouldAdoptMatchedTag(
+            codesAlreadyMatch = verdict.codesAlreadyMatch,
+            installedTag = app.installedVersion,
+            matchedTag = matchedRelease.tagName,
+            deviceRunsMatchedRelease = verdict.deviceRunsMatchedRelease,
+            identityContradicts = identityContradicts(app, matchedAsset),
+        )
+    if (shouldRewriteTag) {
+        adoptTagWhenProven(
+            dao = dao,
+            app = app,
+            matchedRelease = matchedRelease,
+            matchedAsset = matchedAsset,
+            isUpdateAvailable = isUpdateAvailable,
+            boundAt = System.currentTimeMillis(),
+        )
+    }
+
+    if (variantWasLost != null && variantWasLost != app.preferredVariantStale) {
+        dao.updateVariantStaleness(app.packageName, variantWasLost)
+    }
+
+    return isUpdateAvailable
 }
 
-// One compare-and-set against the revision the row holds. A rejection is logged here because only
-// the caller knows whether it will re-read the row and try again.
-private suspend fun writeRefreshedRelease(
-    dao: InstalledAppDao,
-    row: InstalledAppEntity,
-    release: GithubRelease,
-    asset: GithubAsset,
-): Int =
-    dao
-        .updateVersionInfo(
-            packageName = row.packageName,
-            available = refreshedReleaseIsUpdate(row, release, asset),
-            version = release.tagName,
-            assetName = asset.name,
-            assetUrl = asset.downloadUrl,
-            assetSize = asset.size,
-            releaseId = release.id,
-            assetId = asset.id,
-            assetDigest = asset.digest,
-            releaseNotes = release.description ?: "",
-            timestamp = System.currentTimeMillis(),
-            latestVersionName = release.tagName,
-            latestVersionCode = if (release.tagName == row.latestVersion) row.latestVersionCode else null,
-            latestReleasePublishedAt = release.publishedAt,
-            expectedRevision = row.updateStateRevision,
-            nextRevision = row.updateStateRevision + 1,
-        ).also { written ->
-            if (written == 0) {
-                Logger.w {
-                    "Refreshed release for ${row.packageName} lost revision ${row.updateStateRevision}"
-                }
-            }
-        }
-
-// Same verdict and helpers as a full update check, minus the installed-file hashing: a refresh
-// may not touch the disk, and the stored identity already says which build the device runs.
-private fun refreshedReleaseIsUpdate(
-    row: InstalledAppEntity,
-    release: GithubRelease,
-    asset: GithubAsset,
-): Boolean {
-    // A detail refresh can arrive after an external install cleared the binding. Without an
-    // installed asset identity, the same tag cannot prove the bytes changed; reporting it would
-    // create a permanent same-version update.
-    if (row.installedAssetId == null &&
-        row.installedAssetDigest == null &&
-        VersionMath.isExactSameVersion(release.tagName, row.installedVersion)
-    ) {
-        return false
-    }
-    val bound =
-        if (row.installedAssetId == null && row.installedAssetDigest == null) {
-            null
-        } else {
-            UpdateVerdict.Bound(
-                assetId = row.installedAssetId,
-                assetDigest = row.installedAssetDigest,
-                releasePublishedAt = row.installedReleasePublishedAt,
-            )
-        }
-    return UpdateVerdict
-        .decide(
-            installed =
-                UpdateVerdict.Installed(
-                    tag = row.installedVersion,
-                    versionCode = row.installedVersionCode,
-                    versionName = row.installedVersionName,
-                ),
-            stored =
-                UpdateVerdict.Stored(
-                    latestTag = row.latestVersion,
-                    latestVersionCode = row.latestVersionCode,
-                    publishedAt = row.latestReleasePublishedAt,
-                    wasUpdateAvailable = row.isUpdateAvailable,
-                    latestReleaseId = row.latestReleaseId,
-                    latestAssetId = row.latestAssetId,
-                    latestAssetDigest = row.latestAssetDigest,
-                    latestAssetSize = row.latestAssetSize,
-                ),
-            matched =
-                UpdateVerdict.Matched(
-                    tag = release.tagName,
-                    publishedAt = release.publishedAt,
-                    isPrerelease = release.isPrerelease,
-                    releaseId = release.id,
-                    assetId = asset.id,
-                    assetDigest = asset.digest,
-                    assetSize = asset.size,
-                ),
-            skippedTag = row.skippedReleaseTag,
-            bound = bound,
-        ).isUpdateAvailable
+// A refresh may not read the installed file, so the stored identity is all it can compare with.
+internal fun storedInstalledBinding(app: InstalledAppEntity): UpdateVerdict.Bound? {
+    if (app.installedAssetId == null && app.installedAssetDigest == null) return null
+    return UpdateVerdict.Bound(
+        assetId = app.installedAssetId,
+        assetDigest = app.installedAssetDigest,
+        releasePublishedAt = app.installedReleasePublishedAt,
+    )
 }
 
 // A generic check can read an older cached window. The row already naming a later release means

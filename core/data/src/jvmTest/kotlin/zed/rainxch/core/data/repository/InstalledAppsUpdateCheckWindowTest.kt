@@ -52,10 +52,12 @@ class InstalledAppsUpdateCheckWindowTest {
     @Test
     fun a_refreshed_same_tag_without_installed_identity_does_not_report_update() =
         runBlocking {
-            withRepo { _, db ->
+            withRepo { repo, db ->
+                // A rolling tag reuses one string across builds, so the newer timestamp alone
+                // would report an update the refresh cannot prove.
                 db.installedAppDao.insertApp(
-                    app(packageName = PKG, installed = "20261025", installedCode = 23L).copy(
-                        latestVersion = "20261025",
+                    app(packageName = PKG, installed = "nightly", installedCode = 23L).copy(
+                        latestVersion = "nightly",
                         latestReleaseId = 100L,
                         latestAssetId = 1000L,
                         latestAssetDigest = "sha256:old",
@@ -64,18 +66,51 @@ class InstalledAppsUpdateCheckWindowTest {
                     ),
                 )
                 val refreshed =
-                    release(id = 200L, tag = "20261025", publishedAt = "2026-10-26T00:00:00Z").let { r ->
+                    release(id = 200L, tag = "nightly", publishedAt = "2026-10-26T00:00:00Z").let { r ->
                         r.copy(assets = r.assets.map { it.copy(digest = "sha256:new") })
                     }
 
-                persistRefreshedRelease(
-                    dao = db.installedAppDao,
-                    packageName = PKG,
-                    release = refreshed,
-                    asset = refreshed.assets.first(),
-                )
+                val recorded =
+                    repo.recordRefreshedRelease(
+                        packageName = PKG,
+                        release = refreshed,
+                        asset = refreshed.assets.first(),
+                    )
 
-                assertFalse(db.installedAppDao.getAppByPackage(PKG)!!.isUpdateAvailable)
+                assertTrue(recorded)
+                val row = db.installedAppDao.getAppByPackage(PKG)!!
+                assertFalse(row.isUpdateAvailable)
+                // The pair the page shows is still recorded; only the update flag is withheld.
+                assertEquals(200L, row.latestReleaseId)
+                assertEquals(2000L, row.latestAssetId)
+                assertEquals("sha256:new", row.latestAssetDigest)
+            }
+        }
+
+    @Test
+    fun a_forced_selection_is_written_when_the_window_filter_rejects_it() =
+        runBlocking {
+            withRepo { repo, db ->
+                db.installedAppDao.insertApp(
+                    app(packageName = PKG, installed = "1.0.0", installedCode = 100L)
+                        .copy(
+                            assetFilterRegex = ".*-sideload\\.apk$",
+                            fallbackToOlderReleases = false,
+                        ),
+                )
+                val release = release(id = 200L, tag = "2.0.0", publishedAt = "2026-10-01T00:00:00Z")
+                val forced = release.assets.single()
+
+                // The generic check cannot resolve a pair from a window its filter rejects.
+                assertFalse(repo.checkForUpdatesWithReleases(PKG, listOf(release)))
+                assertNull(db.installedAppDao.getAppByPackage(PKG)!!.latestVersion)
+
+                assertTrue(repo.recordRefreshedRelease(PKG, release, forced))
+                val row = db.installedAppDao.getAppByPackage(PKG)!!
+                assertEquals("2.0.0", row.latestVersion)
+                assertEquals(200L, row.latestReleaseId)
+                assertEquals(forced.id, row.latestAssetId)
+                assertTrue(row.isUpdateAvailable)
             }
         }
 

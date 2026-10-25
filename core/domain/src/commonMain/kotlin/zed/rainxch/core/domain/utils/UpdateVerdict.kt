@@ -34,6 +34,8 @@ object UpdateVerdict {
         val releasePublishedAt: String?,
     )
 
+    // A Details refresh names a release but cannot read the installed file, so it has no way to
+    // prove an unbound, same-tag release is a different build from the one on the device.
     fun decide(
         installed: Installed,
         stored: Stored,
@@ -41,6 +43,7 @@ object UpdateVerdict {
         skippedTag: String?,
         bound: Bound? = null,
         selfAttestedDigest: String? = null,
+        canReadInstalledFile: Boolean = true,
     ): Result {
         val reconcilable = VersionMath.versionsReconcilable(installed.tag, matched.tag)
         val codesAlreadyMatch =
@@ -82,6 +85,7 @@ object UpdateVerdict {
 
         val timestampTracked = VersionMath.isTimestampTrackedTag(matched.tag)
         val sameTag = VersionMath.isExactSameVersion(matched.tag, installed.tag)
+        val sameTagUnprovable = !canReadInstalledFile && bound == null && sameTag
         val usedTimestampLogic =
             timestampTracked ||
                 (sameTag && !reconcilable) ||
@@ -184,6 +188,10 @@ object UpdateVerdict {
         val isUpdateAvailable =
             when {
                 skipHolds -> {
+                    false
+                }
+
+                sameTagUnprovable -> {
                     false
                 }
 
