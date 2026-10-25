@@ -4,6 +4,7 @@ package zed.rainxch.apps.presentation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -116,6 +117,12 @@ fun AppsRoot(
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Returning from Details is an in-activity navigation pop, not an ON_RESUME. Re-read the
+    // library rows whenever this screen is composed again so a refresh made on Details is visible.
+    LaunchedEffect(Unit) {
+        viewModel.onAction(AppsAction.OnLifecycleResume)
     }
 
     ObserveAsEvents(viewModel.events) { event ->
