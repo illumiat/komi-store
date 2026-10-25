@@ -30,6 +30,7 @@ import zed.rainxch.details.presentation.model.TranslationTarget
 data class DetailsState(
     val isLoading: Boolean = true,
     val areSectionsPending: Boolean = true,
+    val isLatestReleaseLoading: Boolean = false,
     val isCurrentUserOwner: Boolean = false,
     val isRefreshing: Boolean = false,
     val refreshCooldownUntilEpochMs: Long? = null,

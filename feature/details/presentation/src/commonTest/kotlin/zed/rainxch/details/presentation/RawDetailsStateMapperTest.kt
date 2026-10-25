@@ -4,9 +4,25 @@ import zed.rainxch.core.domain.model.account.github.GithubRelease
 import zed.rainxch.details.presentation.model.TranslationState
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RawDetailsStateMapperTest {
+    @Test
+    fun the_latest_release_loading_flag_defaults_to_false() {
+        val state = RawDetailsState().toView()
+
+        assertFalse(state.isLatestReleaseLoading)
+    }
+
+    @Test
+    fun the_latest_release_loading_flag_reaches_the_view_state() {
+        val state = RawDetailsState(isLatestReleaseLoading = true).toView()
+
+        assertTrue(state.isLatestReleaseLoading)
+    }
+
     @Test
     fun the_readme_section_renders_the_translation_while_it_is_shown() {
         val state =

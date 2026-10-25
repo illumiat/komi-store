@@ -33,6 +33,7 @@ import zed.rainxch.details.presentation.DetailsAction
 import zed.rainxch.details.presentation.DetailsState
 import zed.rainxch.details.presentation.components.AppHeader
 import zed.rainxch.details.presentation.components.InspectApkButton
+import zed.rainxch.details.presentation.components.LatestReleaseSkeleton
 import zed.rainxch.details.presentation.components.LinkedRepoBanner
 import zed.rainxch.details.presentation.components.ReleaseAssetsPicker
 import zed.rainxch.details.presentation.components.ReleasesStatus
@@ -94,6 +95,16 @@ fun LazyListScope.header(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+
+    if (state.isLatestReleaseLoading) {
+        item {
+            LatestReleaseSkeleton(
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        return
     }
 
     val releasesStatus: ReleasesStatus? =
