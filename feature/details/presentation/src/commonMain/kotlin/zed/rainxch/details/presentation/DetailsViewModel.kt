@@ -1118,13 +1118,6 @@ class DetailsViewModel(
         }
     }
 
-    private fun List<GithubRelease>.firstInCategory(category: ReleaseCategory): GithubRelease? =
-        when (category) {
-            ReleaseCategory.STABLE -> firstOrNull { !it.isEffectivelyPreRelease() }
-            ReleaseCategory.PRE_RELEASE -> firstOrNull { it.isEffectivelyPreRelease() }
-            ReleaseCategory.ALL -> firstOrNull()
-        }
-
     private fun recomputeAssetsForRelease(
         release: GithubRelease?,
         installedAppOverride: InstalledApp? = _state.value.installedApp,
@@ -2870,10 +2863,13 @@ class DetailsViewModel(
                 val owner = repo.owner.login
                 val name = repo.name
 
-                val allReleasesDeferred =
+                // Started in parallel with the rest of the sections work. The newest published
+                // release only needs to be read once; the full list is launched after it is
+                // painted, and never on a deferred page.
+                val latestReleaseDeferred =
                     async {
-                        if (sectionsWereDeferred) return@async ReleasesRead()
-                        readReleases(repo)
+                        if (sectionsWereDeferred) return@async null
+                        readLatestPublishedRelease(repo)
                     }
 
                 val statsDeferred =
@@ -2922,18 +2918,50 @@ class DetailsViewModel(
                 val isAppManagerEnabled = platform == Platform.ANDROID
 
                 // Installed apps are a local read that fills the header's install area and the
-                // release selection, so it is applied before the releases are awaited.
+                // release selection, so it is applied before anything the network returns.
                 val allInstalledApps = installedAppsDeferred.await()
                 if (allInstalledApps != null) {
                     applyInstalledAppsState(repo.id, allInstalledApps)
                 }
 
-                val releasesRead = allReleasesDeferred.await()
+                // Latest-first: the newest published release is painted on its own as soon as that
+                // read returns; the README, stats and profile are not awaited for it. The local
+                // installed-app read above is the only thing it waits for, so the painted release
+                // already has the header's install state behind it. A page whose sections are
+                // deferred never starts these reads at all.
+                val latestRelease = latestReleaseDeferred.await()
+                // The deferred branch never reads it, so a non-null release already implies the
+                // sections are not deferred.
+                val latestPainted =
+                    latestRelease != null &&
+                        sectionsRevision == sectionsRevisionAtStart &&
+                        applyLatestReleaseFirst(repo, latestRelease)
+
+                // Never a user action: the full list starts as soon as the latest-first state is
+                // out, so the version picker normally already has it by the time it opens. A
+                // failed or empty read keeps the latest-only state on screen.
+                if (latestPainted) {
+                    startFullReleasesLoad(repo, sectionsRevision)
+                }
+
+                val fallbackReleasesDeferred =
+                    if (latestPainted) {
+                        null
+                    } else {
+                        async {
+                            if (sectionsWereDeferred) return@async ReleasesRead()
+                            readReleases(repo)
+                        }
+                    }
+
+                val releasesRead = fallbackReleasesDeferred?.await()
                 val stats = statsDeferred.await()
                 val readme = readmeDeferred.await()
                 val userProfile = userProfileDeferred.await()
 
-                if (rateLimited.get()) {
+                // A rate limit anywhere in the initial read used to suppress every section. With
+                // the latest release already painted, that answer is only for the fallback path.
+                if (!latestPainted && rateLimited.get()) {
                     _state.update { current ->
                         if (!current.belongsToRepo(repo.id)) {
                             current
@@ -2949,16 +2977,10 @@ class DetailsViewModel(
                     return@launch
                 }
 
-                val sections =
-                    resolveReleaseSections(
-                        releases = releasesRead.releases,
-                        allInstalledApps = allInstalledApps.orEmpty(),
-                        installedApp = _state.value.installedApp,
-                    )
                 val isObtainiumAvailable = installer.isObtainiumInstalled()
                 val isAppManagerAvailable = installer.isAppManagerInstalled()
 
-                logger.debug("Loaded repo: ${repo.name}, installedApp: ${sections.installedApp?.packageName}")
+                logger.debug("Loaded repo: ${repo.name}, installedApp: ${_state.value.installedApp?.packageName}")
 
                 // The header is already on screen, so this write only adds what rode along with
                 // the read: the environment and the two independent sections. The repository and
@@ -2983,19 +3005,38 @@ class DetailsViewModel(
                     }
                 }
 
-                // A deferred read never asked for these sections, and a refresh or on-demand load
-                // may have replaced them while this one waited: those newer writes win.
-                if (!sectionsWereDeferred && sectionsRevision == sectionsRevisionAtStart) {
+                if (latestPainted) {
+                    // The releases are already on screen; the README still lands on its own.
                     _state.update { current ->
                         if (!current.belongsToRepo(repo.id)) {
                             current
                         } else {
                             current.copy(
-                                allReleases = releasesRead.releases,
-                                releasePlatforms = platformsByRelease(releasesRead.releases),
+                                readmeMarkdown = readme?.first,
+                                readmeLanguage = readme?.second,
+                            )
+                        }
+                    }
+                } else if (!sectionsWereDeferred && sectionsRevision == sectionsRevisionAtStart) {
+                    // A deferred read never asked for these sections, and a refresh or on-demand
+                    // load may have replaced them while this one waited: those newer writes win.
+                    val releases = releasesRead?.releases.orEmpty()
+                    val sections =
+                        resolveReleaseSections(
+                            releases = releases,
+                            allInstalledApps = allInstalledApps.orEmpty(),
+                            installedApp = _state.value.installedApp,
+                        )
+                    _state.update { current ->
+                        if (!current.belongsToRepo(repo.id)) {
+                            current
+                        } else {
+                            current.copy(
+                                allReleases = releases,
+                                releasePlatforms = platformsByRelease(releases),
                                 deviceBuildReleaseIds = sections.deviceBuildReleaseIds,
-                                releaseLines = releaseLines(releasesRead.releases),
-                                releasesLoadFailed = releasesRead.failed,
+                                releaseLines = releaseLines(releases),
+                                releasesLoadFailed = releasesRead?.failed == true,
                                 selectedRelease = sections.selectedRelease,
                                 selectedReleaseCategory = sections.selectedReleaseCategory,
                                 readmeMarkdown = readme?.first,
@@ -3012,7 +3053,7 @@ class DetailsViewModel(
                     }
                 }
 
-                if (releasesRead.fromCache) {
+                if (releasesRead?.fromCache == true) {
                     revalidateReleases()
                 }
 
@@ -3020,7 +3061,7 @@ class DetailsViewModel(
 
                 maybeAutoTranslate(
                     readmeBody = readme?.first,
-                    releaseDescription = sections.selectedRelease?.description,
+                    releaseDescription = _state.value.selectedRelease?.description,
                 )
             } catch (e: RateLimitException) {
                 logger.error("Rate limited: ${e.message}")
@@ -3182,6 +3223,111 @@ class DetailsViewModel(
             ReleasesRead(failed = true)
         }
 
+    private suspend fun readLatestPublishedRelease(repo: GithubRepoSummary): GithubRelease? =
+        try {
+            detailsRepository.getLatestPublishedRelease(
+                owner = repo.owner.login,
+                repo = repo.name,
+                defaultBranch = repo.defaultBranch,
+                sourceHost = sourceHostParam,
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: RateLimitException) {
+            // The full read decides whether the page has failed; a rate-limited latest read only
+            // means the latest-first paint is skipped and the old all-at-once path takes over.
+            logger.warn("Latest release read was rate limited; falling back to the full list")
+            null
+        } catch (t: Throwable) {
+            logger.warn("Latest release read failed: ${t.message}; falling back to the full list")
+            null
+        }
+
+    // The newest published release is a page on its own: it is applied with its release sections
+    // as soon as that one read returns, without waiting for the README, stats or profile.
+    private fun applyLatestReleaseFirst(
+        repo: GithubRepoSummary,
+        latest: GithubRelease,
+    ): Boolean {
+        if (!_state.value.belongsToRepo(repo.id)) return false
+        sectionsRevision += 1
+        _state.update { current ->
+            if (!current.belongsToRepo(repo.id)) {
+                current
+            } else {
+                current
+                    .withFreshReleases(listOf(latest))
+                    .copy(
+                        areSectionsPending = false,
+                        releasesLoadFailed = false,
+                        isRetryingReleases = false,
+                    )
+            }
+        }
+        return true
+    }
+
+    // A cached list that cannot even show the release already on screen is older than the paint;
+    // applying it would move the selection backwards until the next revalidation.
+    private fun ReleasesRead.predatesSelection(selected: GithubRelease?): Boolean {
+        if (!fromCache || selected == null) return false
+        return releases.none { it.id == selected.id || it.tagName == selected.tagName }
+    }
+
+    // Started right after the latest-first paint, never by the version picker. A failed or empty
+    // read keeps the latest release on screen instead of clearing it.
+    private fun startFullReleasesLoad(
+        repo: GithubRepoSummary,
+        releaseSectionsRevision: Long,
+    ) {
+        viewModelScope.launch {
+            val releasesRead = readReleases(repo)
+            if (sectionsRevision != releaseSectionsRevision) {
+                logger.debug("Full release list dropped: the release sections were replaced meanwhile")
+                return@launch
+            }
+            val choice =
+                chooseReleaseListChoice(
+                    previousSelected = _state.value.selectedRelease,
+                    previousCategory = _state.value.selectedReleaseCategory,
+                    incoming = releasesRead.releases,
+                    failed = releasesRead.failed,
+                )
+            if (choice == null) {
+                logger.debug("Full release list unavailable; keeping the latest release only")
+                return@launch
+            }
+            val selectedNow = _state.value.selectedRelease
+            if (releasesRead.predatesSelection(selectedNow)) {
+                // The cached list predates the release already on screen. Replacing the page with
+                // it would move the selection back, so the latest-only state is kept until the
+                // forced re-read returns a list that ships that release.
+                logger.debug("Cached release list predates the painted release; keeping the latest only")
+                revalidateReleases(force = true)
+                return@launch
+            }
+            val selectedBefore = _state.value.selectedRelease?.id
+            sectionsRevision += 1
+            _state.update { current ->
+                if (!current.belongsToRepo(repo.id)) {
+                    current
+                } else {
+                    current.withFreshReleases(releasesRead.releases)
+                }
+            }
+            if (releasesRead.fromCache) {
+                revalidateReleases()
+            }
+            if (_state.value.selectedRelease?.id != selectedBefore) {
+                whatsNewTranslationJob?.cancel()
+                maybeAutoTranslate(
+                    readmeBody = null,
+                    releaseDescription = _state.value.selectedRelease?.description,
+                )
+            }
+        }
+    }
+
     private suspend fun readReadme(repo: GithubRepoSummary): Triple<String, String?, String>? =
         try {
             detailsRepository.getReadme(
@@ -3319,7 +3465,7 @@ class DetailsViewModel(
     }
 
     @OptIn(ExperimentalTime::class)
-    private fun revalidateReleases() {
+    private fun revalidateReleases(force: Boolean = false) {
         val repo = _state.value.repository ?: return
         viewModelScope.launch {
             try {
@@ -3330,7 +3476,7 @@ class DetailsViewModel(
                         sourceHost = sourceHostParam,
                     ) ?: return@launch
                 val ageMs = System.now().toEpochMilliseconds() - cached.cachedAtEpochMs
-                if (ageMs < RELEASES_REVALIDATE_MIN_AGE_MS) return@launch
+                if (!force && ageMs < RELEASES_REVALIDATE_MIN_AGE_MS) return@launch
 
                 val freshReleases =
                     detailsRepository.getAllReleases(
@@ -3361,33 +3507,23 @@ class DetailsViewModel(
     }
 
     private fun RawDetailsState.withFreshReleases(freshReleases: List<GithubRelease>): RawDetailsState {
-        val carried =
-            selectedRelease?.let { prev ->
-                freshReleases.firstOrNull { it.id == prev.id }
-                    ?: freshReleases.firstOrNull { it.tagName == prev.tagName }
-            }
-        val newSelected =
-            carried
-                ?: freshReleases.firstInCategory(selectedReleaseCategory)
-                ?: freshReleases.firstOrNull { !it.isEffectivelyPreRelease() }
-                ?: freshReleases.firstOrNull()
-        val category =
-            when {
-                carried != null -> selectedReleaseCategory
-                newSelected?.isEffectivelyPreRelease() == true -> ReleaseCategory.PRE_RELEASE
-                newSelected != null -> ReleaseCategory.STABLE
-                else -> selectedReleaseCategory
-            }
-        val (installable, primary) = recomputeAssetsForRelease(newSelected, installedApp)
-        val insights = computeReleaseInsights(freshReleases, installedApp)
-        val releaseChanged = newSelected?.id != selectedRelease?.id
+        val choice =
+            chooseReleaseListChoice(
+                previousSelected = selectedRelease,
+                previousCategory = selectedReleaseCategory,
+                incoming = freshReleases,
+                failed = false,
+            ) ?: return this
+        val (installable, primary) = recomputeAssetsForRelease(choice.selected, installedApp)
+        val insights = computeReleaseInsights(choice.releases, installedApp)
+        val releaseChanged = choice.selected.id != selectedRelease?.id
         return copy(
-            allReleases = freshReleases,
-            releasePlatforms = platformsByRelease(freshReleases),
-            deviceBuildReleaseIds = deviceBuildReleaseIds(freshReleases),
-            releaseLines = releaseLines(freshReleases),
-            selectedRelease = newSelected,
-            selectedReleaseCategory = category,
+            allReleases = choice.releases,
+            releasePlatforms = platformsByRelease(choice.releases),
+            deviceBuildReleaseIds = deviceBuildReleaseIds(choice.releases),
+            releaseLines = releaseLines(choice.releases),
+            selectedRelease = choice.selected,
+            selectedReleaseCategory = choice.category,
             installableAssets = installable,
             primaryAsset = primary,
             stalledStableSinceDays = insights.stalledStableSinceDays,
