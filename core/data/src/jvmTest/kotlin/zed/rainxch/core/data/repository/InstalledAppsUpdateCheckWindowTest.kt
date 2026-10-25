@@ -50,6 +50,31 @@ import kotlin.test.assertTrue
 // list would fail loudly instead of reaching the network.
 class InstalledAppsUpdateCheckWindowTest {
     @Test
+    fun a_refreshed_same_tag_without_installed_identity_does_not_report_update() =
+        runBlocking {
+            withRepo { _, db ->
+                db.installedAppDao.insertApp(
+                    app(packageName = PKG, installed = "testbuild-o", installedCode = 23L).copy(
+                        latestVersion = "testbuild-o",
+                        latestReleaseId = 100L,
+                        latestAssetId = 1000L,
+                        isUpdateAvailable = true,
+                    ),
+                )
+                val refreshed = release(id = 200L, tag = "testbuild-o", publishedAt = "2026-10-26T00:00:00Z")
+
+                persistRefreshedRelease(
+                    dao = db.installedAppDao,
+                    packageName = PKG,
+                    release = refreshed,
+                    asset = refreshed.assets.first(),
+                )
+
+                assertFalse(db.installedAppDao.getAppByPackage(PKG)!!.isUpdateAvailable)
+            }
+        }
+
+    @Test
     fun a_fed_window_settles_the_stored_update_state() =
         runBlocking {
             withRepo { repo, db ->

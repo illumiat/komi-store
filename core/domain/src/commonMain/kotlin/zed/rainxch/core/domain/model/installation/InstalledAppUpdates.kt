@@ -348,11 +348,20 @@ fun InstalledApp.withMigratedVersionInfo(
         latestVersionCode = if (versionCode > 0L) versionCode else latestVersionCode,
     )
 
+@Suppress("ReturnCount")
 fun InstalledApp.tagForObservedBuild(
     versionName: String?,
     versionCode: Long,
 ): String {
     val snapshotTag = latestVersion?.takeIf { it.isNotBlank() } ?: return installedVersion
+    // A matching versionCode does not prove the same bytes: rolling tags reuse the code while
+    // the APK changes. If the installed digest contradicts the latest digest, keep the old tag
+    // instead of relabelling the row with a release it never installed.
+    val installedDigest = installedAssetDigest
+    val latestDigest = latestAssetDigest
+    if (installedDigest != null && latestDigest != null && installedDigest != latestDigest) {
+        return installedVersion
+    }
     val codeProvesSnapshot =
         latestVersionCode != null && latestVersionCode > 0L && versionCode == latestVersionCode
     val nameProvesSnapshot =
