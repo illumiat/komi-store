@@ -135,7 +135,7 @@ private fun LibraryRowContent(
                     color = statusTone.color(),
                     // The staggered grid gives each card its own height; a version pair plus a
                     // date needs three lines on narrow cards instead of an ellipsis.
-                    maxLines = 3,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
                 )
