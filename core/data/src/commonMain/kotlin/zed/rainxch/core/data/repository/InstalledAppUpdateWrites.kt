@@ -73,6 +73,15 @@ private fun refreshedReleaseIsUpdate(
     release: GithubRelease,
     asset: GithubAsset,
 ): Boolean {
+    // A detail refresh can arrive after an external install cleared the binding. Without an
+    // installed asset identity, the same tag cannot prove the bytes changed; reporting it would
+    // create a permanent same-version update.
+    if (row.installedAssetId == null &&
+        row.installedAssetDigest == null &&
+        VersionMath.isExactSameVersion(release.tagName, row.installedVersion)
+    ) {
+        return false
+    }
     val bound =
         if (row.installedAssetId == null && row.installedAssetDigest == null) {
             null

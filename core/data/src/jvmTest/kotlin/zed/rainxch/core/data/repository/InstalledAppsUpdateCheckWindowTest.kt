@@ -54,14 +54,19 @@ class InstalledAppsUpdateCheckWindowTest {
         runBlocking {
             withRepo { _, db ->
                 db.installedAppDao.insertApp(
-                    app(packageName = PKG, installed = "testbuild-o", installedCode = 23L).copy(
-                        latestVersion = "testbuild-o",
+                    app(packageName = PKG, installed = "20261025", installedCode = 23L).copy(
+                        latestVersion = "20261025",
                         latestReleaseId = 100L,
                         latestAssetId = 1000L,
+                        latestAssetDigest = "sha256:old",
+                        latestReleasePublishedAt = "2026-10-24T00:00:00Z",
                         isUpdateAvailable = true,
                     ),
                 )
-                val refreshed = release(id = 200L, tag = "testbuild-o", publishedAt = "2026-10-26T00:00:00Z")
+                val refreshed =
+                    release(id = 200L, tag = "20261025", publishedAt = "2026-10-26T00:00:00Z").let { r ->
+                        r.copy(assets = r.assets.map { it.copy(digest = "sha256:new") })
+                    }
 
                 persistRefreshedRelease(
                     dao = db.installedAppDao,
